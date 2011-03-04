@@ -1,0 +1,57 @@
+22 May 2010
+	Join compresses/inserts space for ^J, not for Del/Bksp
+	Multi-line join
+	Braces match through nesting
+	Can select with matching braces now
+	^[ changed to ^B because char 27 isn't sent with shift
+	Menu changes
+	Added shell on ^F2
+	Run command from _F2
+	Stopped the cursor creep in comment/uncomment
+	Added support for selecting language based on extension
+	Primitive syntax highlighting for comments
+	Lines wider than the screen are clipped
+24 May 2010
+	Loading a file with no selection and the same number of
+	  lines would not snap the caret or invalidate.
+	Reloading a file attempts to stay on the same line.
+25 May 2010
+	Clipping corrected, though it over-estimates with tabs
+	Fixed the bug where the cursor would initially appear
+	  to be on the second line.
+	Regular expression search/replace
+	Fixed the bug where the window would be created too low
+	Fixed bracketing error bug where you could not jump back
+	  over nested brackets.
+	Shift+Enter now inserts line below and ^P moves the
+	  caret to the line it inserts above.
+16 July 2010
+	Fixed ^up so that the caret follows the line up.
+	Brace selection includes close brace now; and close
+	  BEFORE the caret is matched.
+18 October 2010
+	Adding support for utf-16 input and output.
+	Changed share mode to share for read & write.
+	Filter control keys that are not mapped.
+20 October 2010
+	Open... and Save As... start in file path.
+	Reload as utf-8 & utf-16.
+	Added an Edit to the config menu.
+	Spawn commands.
+21 October 2010
+	Spawned commands are now run through cmd.exe.
+	Spawned commands are paused after execution.
+	Output of spawned commands can be captured.
+31 October 2010
+	Fixed bug that added extra linebreak after last line.
+07 November 2010
+	Fixed bug that closed the window if a command fails.
+	Fixed regular expression escapes to include special chars.
+	Esc no longer generates a character.
+21 November 2010
+	Status bar isn't included in InvalidateRect().
+	Added doublebuffer option.
+	Removed the default configuration.
+	No new line is loaded if file doesn't end in LF.
+	Switched to 64-bit.
+	Added syntax highlighting (kwd).

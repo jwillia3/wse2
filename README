@@ -1,0 +1,119 @@
+		
+		
+		WILLIAMS SYSTEM EDITOR
+		Jerry Lee Williams Jr
+		25 May 2010
+		
+		
+
+KEY REFERENCE
+	^A	Select all
+	^B	Match brace
+	^C	Copy
+	^D	Duplicate line
+	^E	
+	^F	Find...
+	^_F	Find next
+	^G	Go to line...
+	^H	Backspace
+	^I	Tab (indent if there's a selection)
+	^_I	Tab (unindent if there's a selection)
+	^J	Join (append next line to this)
+	^K	
+	^L	Delete this line
+	^M	Linebreak (Enter)
+	^_M	Insert line below (^Enter)
+	^N	New file
+	^O	Open file
+	^P	Insert line above
+	^_P	Insert line above and below
+	^Q	Comment/Uncomment selection (or current line)
+	^R	Find & Replace...
+	^S	Save
+	^T	
+	^U	
+	^V	Paste
+	^W	
+	^X	Cut
+	^Y	Redo
+	^Z	Undo
+	
+	^Bksp	Delete previous word
+	^Del	Delete next word
+	_Del	Cut
+	^Ins	Copy
+	_Ins	Paste
+	Home	Go to the first character of the line
+	^Home	Go to the irst character of the file
+	End	Go to the Last character of the line
+	^End	Go to the Last character of the file
+	^Left	Previous word
+	^Right	Next word
+	^Up	Move line up
+	^Down	Move line down
+	PgUp	Move up one page
+	PgDown	Move down one page
+	
+	F2	Open another editor
+	^F2	Spawn a shell
+	F3	Find Next
+	_F3	Find Next in opposite direction
+	F5	Reload this file
+	F12	Next configuration
+	^F12	Reload configuration file
+	_F12	Previous configuration
+
+REGULAR EXPRESSIONS
+	Searching is always done via regular expressions. The
+	particular kind of expressions used are based on the
+	POSIX Basic Regular Expressions (4th Edition of the
+	Single Unix Specification). Some additions from the
+	Extended Regular Expression and PERL were added and
+	some features of the POSIX specification are missing as
+	noted below.
+	
+	ABSENT FEATURES
+		Equivalence classes
+		Coallating classes
+		Character classes
+	
+	ESCAPES
+		Escape sequences are not defined by in BREs.
+		This is an extension based on ISO C's. Further,
+		they are allowed in bracketed expressions (but
+		not in ranges).
+		
+		\t	tab
+		\n	linefeed
+		\r	carriage return
+		\\	backslash
+		\f	form feed
+		\v	vertical tab
+	
+	ANCHORS
+		^ and $ always act as anchors and never as
+		ordary characters except in bracketed
+		expressions. (BRE allows this).
+	
+	EXTENDED OPERATORS
+		These operators were taken from the Extended
+		Regular Expression specification.
+	  	
+		+	one or more repetitions
+		?	zero or one repetitions
+	
+	PERL-STYLE CLASSES
+		
+		\a	lowercase letter
+		\A	uppercase letter
+		\b	word boundary anchor [^a-zA-Z0-9_]
+		\B	word boundary anchor [a-zA-Z0-9_]
+		\d	digit
+		\D	non-digit
+		\s	space
+		\S	non-space
+		\w	word character [a-zA-Z0-9_]
+		\W	non-word character [a-zA-Z0-9_]
+		\<	beginning of word anchor
+		\>	end of word anchor
+	
