@@ -38,6 +38,7 @@ KEY REFERENCE
 	^Y	Redo
 	^Z	Undo
 	
+	^Space	Select current word
 	^Bksp	Delete previous word
 	^Del	Delete next word
 	_Del	Cut
@@ -59,6 +60,8 @@ KEY REFERENCE
 	F3	Find Next
 	_F3	Find Next in opposite direction
 	F5	Reload this file
+	F7	Spawn previous command
+	^F7	Spawn command
 	F12	Next configuration
 	^F12	Reload configuration file
 	_F12	Previous configuration

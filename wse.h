@@ -17,8 +17,8 @@ struct	Line {
 
 struct	Codec {
 	wchar_t	*name;
-	wchar_t *(*dec)(char*,int);
-	int	(*enc)(char*,wchar_t*,int,int);
+	wchar_t *(*dec)(unsigned char*,int);
+	int	(*enc)(unsigned char*,wchar_t*,int);
 };
 
 enum {
@@ -72,6 +72,7 @@ wchar_t		opentbl[65536];
 wchar_t		closetbl[65536];
 wchar_t		*latch;
 Codec		*codec;
+int		usecrlf;
 
 int		config(),
 		selectconfig(int n);

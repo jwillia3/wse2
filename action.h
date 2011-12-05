@@ -1,11 +1,14 @@
 enum {
+	ToggleLinebreak,
 	LoadFile,
 	ReloadFile,
 	ReloadFileUTF8,
 	ReloadFileUTF16,
+	ReloadFileCP1252,
 	SaveFile,
 	SaveFileUTF8,
 	SaveFileUTF16,
+	SaveFileCP1252,
 
 	MoveUp,
 	MoveDown,
@@ -38,6 +41,7 @@ enum {
 	SelectAll,
 	StartSelection,
 	EndSelection,
+	SelectWord,
 	DeleteSelection,
 	IndentSelection,
 	UnindentSelection,
@@ -57,25 +61,15 @@ enum {
 	PromptSaveAs,
 	
 	NewFile,
-	QuitApp,
-	ForkApp,
-	SpawnApp,
+	ExitEditor,
+	SpawnEditor,
+	SpawnShell,
 	
-	SpawnSelection,
-	SpawnLastCmd,
+	SpawnCmd,
 	PromptSpawn,
-	CaptureSpawn,
 	
 	ReloadConfig,
 	PrevConfig,
 	NextConfig,
 	EditConfig
 };
-
-
-
-
-
-
-
-

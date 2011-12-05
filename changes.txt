@@ -55,3 +55,14 @@
 	No new line is loaded if file doesn't end in LF.
 	Switched to 64-bit.
 	Added syntax highlighting (kwd).
+04 December 2011
+	Window no longer resizes on config reload.
+	Double-click and ^Space selects a word.
+	4 wires now; dotted instead of solid lines.
+	cp1252 encoding added.
+	Detect and use crlf linebreaks.
+	Changed kwd format to use '[b][i]' for bold/italic.
+	Added drag & drop.
+	Spawning programs does not bring up console.
+	Breaking after "a" in "a b" leaves the space before "b".
+	Find & Replace boxes is populated with selection.

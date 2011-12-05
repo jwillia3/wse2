@@ -15,21 +15,95 @@
 #include "wse.h"
 
 static wchar_t
-	*dec_utf8(char *src, int sz),
-	*dec_utf16(char *src, int sz);
+	*dec_cp1252(unsigned char *src, int sz),
+	*dec_utf8(unsigned char *src, int sz),
+	*dec_utf16(unsigned char *src, int sz);
 static
-	enc_utf8(char *buf, wchar_t *src, int len, int lf),
-	enc_utf16(char *buf, wchar_t *src, int len, int lf);
+	enc_cp1252(unsigned char *buf, wchar_t *src, int len),
+	enc_utf8(unsigned char *buf, wchar_t *src, int len),
+	enc_utf16(unsigned char *buf, wchar_t *src, int len);
 
 static Codec	codecs[] = {
+	{L"cp1252", dec_cp1252, enc_cp1252},
 	{L"utf-8", dec_utf8, enc_utf8 },
 	{L"utf-16", dec_utf16, enc_utf16 },
 	{0, 0, 0},
 };
 Codec		*codec=codecs;
+int		usecrlf;
+
+/* Mapping CP-1252 0x80-0xA0 to Unicode */
+static wchar_t cp1252[] = {
+	0x20ac, /* euro sign */
+	'?',
+	0x201a, /* single low-9 quotation mark */
+	0x0192, /* Latin small letter f with hook */
+	0x201e, /* double low-9 quotation mark */
+	0x2026, /* horizontal ellipsis */
+	0x2020, /* dagger */
+	0x2021, /* double dagger */
+	0x02C6, /* modifier letter circumflex accent */
+	0x2030, /* per mille sign */
+	0x0160, /* lattin capital letter s with carron */
+	0x2039, /* single left-pointing angle quotation mark */
+	0x0152, /* latin capital ligature oe */
+	'?',
+	0x017d, /* latin capital letter z with carron */
+	'?',
+	'?',
+	0x2018, /* left single quotation mark */
+	0x2019, /* right single quotation mark */
+	0x201c, /* left double quotation mark */
+	0x201d, /* right double quotation mark */
+	0x2022, /* bullet */
+	0x2013, /* en dash */
+	0x2014, /* em dash */
+	0x20dc, /* small tilde */
+	0x2122, /* trade mark sign */
+	0x0161, /* latin small letter s with carron */
+	0x203a, /* single right-pointing angle quotation mark */
+	0x0153, /* latin small ligature oe */
+	'?',
+	0x017e, /* latin capital letter z with carron */
+	0x0178 /* latin capital letter y with diaressis */
+};
 
 static wchar_t*
-dec_utf8(char *src, int sz) {
+dec_cp1252(unsigned char *src, int sz) {
+	wchar_t	*dst,*odst;
+	unsigned char *osrc=src;
+	odst=dst = LocalAlloc(0, (sz+1) * sizeof(wchar_t));
+	while (sz--)
+		*dst++ =
+			(0x80 <= *src && *src < 0xa0)
+			? cp1252[*src++-0x80]
+			: *src++;
+	*dst = 0;
+	LocalFree(osrc);
+	return odst;
+}
+
+static
+enc_cp1252(unsigned char *buf, wchar_t *src, int len) {
+	unsigned char	*dst=buf;
+	wchar_t	*old=src;
+	int	i;
+	src = LocalAlloc(0, (len+1) * sizeof(wchar_t));
+	NormalizeString(NormalizationC, old, len+1, src, len+1);
+	old = src;
+	for ( ; *src; src++)
+		if (*src < 0x100) /* Pass latin-1 through */
+			*dst++ = *src;
+		else { /* Search for characters cp1252 has */
+			for (i=0; i<32 && *src != cp1252[i]; i++);
+			*dst++ = i<32? i+0x80: *src;
+		}
+	LocalFree(old);
+	return dst-buf;
+}
+
+static wchar_t*
+dec_utf8(unsigned char *src, int sz) {
 	wchar_t	*dst;
 	dst = LocalAlloc(0, (sz+1) * sizeof(wchar_t));
 	MultiByteToWideChar(CP_UTF8, 0, src, sz+1, dst, sz+1);
@@ -38,26 +112,22 @@ dec_utf8(char *src, int sz) {
 }
 
 static
-enc_utf8(char *buf, wchar_t *src, int len, int lf) {
+enc_utf8(unsigned char *buf, wchar_t *src, int len) {
 	int	sz;
 	sz = WideCharToMultiByte(CP_UTF8, 0,
 		src, len, buf, len*3, 0, 0);
-	if (lf)
-		buf[sz]='\n';
-	return sz+!!lf;
+	return sz;
 }
 
 static wchar_t*
-dec_utf16(char *src, int sz) {
+dec_utf16(unsigned char *src, int sz) {
 	return (wchar_t*)src;
 }
 
 static
-enc_utf16(char *buf, wchar_t *src, int len, int lf) {
+enc_utf16(unsigned char *buf, wchar_t *src, int len) {
 	memcpy(buf, src, len*sizeof(wchar_t));
-	if (lf)
-		((wchar_t*)buf)[len]=L'\n';
-	return (len+!!lf)*sizeof(wchar_t);
+	return len*sizeof(wchar_t);
 }
 
 static
@@ -87,7 +157,7 @@ setcodec(wchar_t *name) {
 
 load(wchar_t *fn, wchar_t *encoding) {
 	wchar_t	*dst, *odst, *eol, eolc;
-	char	*src;
+	unsigned char	*src;
 	HANDLE	f;
 	int	n;
 	DWORD	sz;
@@ -110,6 +180,7 @@ load(wchar_t *fn, wchar_t *encoding) {
 	
 	CloseHandle(f);
 	
+	usecrlf = 0;
 	n=0;
 	while (*dst) {
 		n++;
@@ -120,7 +191,7 @@ load(wchar_t *fn, wchar_t *encoding) {
 		inslb(b, n, dst, eol-dst);
 		
 		if (*eol==L'\r')
-			eol++;
+			eol++, usecrlf = 1;
 		if (*eol==L'\n')
 			eol++;
 		dst=eol;
@@ -131,8 +202,9 @@ load(wchar_t *fn, wchar_t *encoding) {
 }
 
 save(wchar_t *fn) {
+	wchar_t *linebreak = usecrlf? L"\r\n": L"\n";
 	HANDLE	*f;
-	char	*buf;
+	unsigned char	*buf;
 	wchar_t	*src;
 	int	i,len,sz,max;
 	DWORD	ign;
@@ -148,11 +220,14 @@ save(wchar_t *fn) {
 	for (i=1; i<=NLINES; i++) {
 		src=getb(b, i, &len);
 		if (max<len) {
-			max=len;
+			max=len+2; /* +crlf */
 			free(buf);
 			buf=malloc(max*3+sizeof(wchar_t));
 		}
-		sz = codec->enc(buf,src,len,i!=NLINES);
+		sz = codec->enc(buf,src,len);
+		if (i != NLINES)
+			sz += codec->enc(buf+sz,
+				linebreak, wcslen(linebreak));
 		WriteFile(f, buf, sz, &ign, 0);
 	}
 	
@@ -160,6 +235,3 @@ save(wchar_t *fn) {
 	free(buf);
 	return 1;
 }
-
-
-

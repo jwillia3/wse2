@@ -21,6 +21,20 @@
 extern act(void); /* deliberately mis-declared */
 static join(int lo, int hi, int space);
 
+/* Insert considering tab-to-space */
+static
+instabb(int c) {
+	if (c=='\t' && !conf.usetabs) {
+		int i = 0;
+		do {
+			insb(b,' ');
+			i++;
+		} while ((ind2col(LN, IND)-1) % conf.tabc);
+		return i;
+	} else
+		return insb(b,c);
+}
+
 static
 searchupline(struct match *m, int ln, int before, wchar_t *query) {
 	wchar_t	*txt;
@@ -136,7 +150,7 @@ _actreplace(wchar_t *query, wchar_t *repl, int down, int sens) {
 	record(UndoGroup, 0, 2);
 		
 	for (txt=src; *txt; txt++)
-		insb(b, *txt);
+		instabb(*txt);
 	
 	free(src);
 	
@@ -159,7 +173,7 @@ _actins(int c) {
 		return _act(BreakLine);
 	
 	record(UndoSwap, LN, LN);
-	return insb(b, c);
+	return instabb(c);
 }
 
 static
@@ -178,27 +192,22 @@ getindent(int ln) {
 }
 
 static
-inssb(Buf *b, wchar_t *txt) {
-	while (*txt)
-		insb(b, *txt++);
-	return 1;
-}
-
-static
 insprefix(int lo, int hi, wchar_t *txt) {
 	Loc	old=CAR;
-	int	i, len;
+	int	i, advance = 0;
+	wchar_t* p;
 
-	len=wcslen(txt);
 	record(UndoSwap, lo, hi);
 	for (i=lo; i<=hi; i++) {
 		gob(b, i, 0);
-		inssb(b, txt);
+		advance = 0;
+		for (p=txt; *p; p++)
+			advance += instabb(*p);
 	}
 	
 	if (SLN)
-		SIND += len;
-	gob(b, old.ln, old.ind+len);
+		SIND += advance;
+	gob(b, old.ln, old.ind+advance);
 	return hi-lo+1;
 }
 
@@ -240,13 +249,13 @@ autoindent(int ln, int lvl) {
 	
 	gob(b, ln, 0);
 
-	nt=(lvl-x)/conf.tabc;
-	ns=(lvl-x)%conf.tabc;
+	nt=(lvl-1)/conf.tabc;
+	ns=(lvl-1)%conf.tabc;
 	
 	while (nt--)
-		insb(b, L'\t');
+		instabb(L'\t');
 	while (ns--)
-		insb(b, L' ');
+		instabb(L' ');
 	return 1;
 }
 
@@ -272,7 +281,7 @@ pastetext(wchar_t *txt) {
 		if (sel)
 			record(UndoGroup, 0, 2);
 		for (s=txt; s < txt+lf; s++)
-			insb(b, *s);
+			instabb(*s);
 		return 1;
 	}
 	
@@ -292,7 +301,7 @@ pastetext(wchar_t *txt) {
 	
 	/* Append first line from board */
 	for (s=txt; *s!=L'\r' && *s!=L'\n'; s++)
-		insb(b, *s);
+		instabb(*s);
 	
 	/* Insert other lines one-by-one */
 	n=1;
@@ -414,11 +423,11 @@ join(int lo, int hi, int space) {
 		if (space) {
 			while (iswspace(*txt))
 				txt++;
-			insb(b, L' ');
+			instabb(L' ');
 		}
 		
 		while (*txt)
-			insb(b, *txt++);
+			instabb(*txt++);
 		
 		gob(b, lo, oldind);
 		record(UndoDelete, lo+1, lo+1);
@@ -530,10 +539,16 @@ _act(int action) {
 	case LoadFile:
 		return clear_load(filename,0);
 	
+	case ToggleLinebreak:
+		usecrlf ^= 1;
+		return 1;
+	
 	case ReloadFileUTF8:
 		return reload(L"utf-8");
 	case ReloadFileUTF16:
 		return reload(L"utf-16");
+	case ReloadFileCP1252:
+		return reload(L"cp1252");
 	case ReloadFile:
 		return reload(0);
 			
@@ -541,6 +556,8 @@ _act(int action) {
 		return setcodec(L"utf-8") && save(filename);
 	case SaveFileUTF16:
 		return setcodec(L"utf-16") && save(filename);
+	case SaveFileCP1252:
+		return setcodec(L"cp1252") && save(filename);
 	case SaveFile:
 		return save(filename);
 	
@@ -807,6 +824,13 @@ _act(int action) {
 		_act(MoveEof);
 		return 1;
 		
+	case SelectWord:
+		SLN=0;
+		_act(MoveWordLeft);
+		_act(StartSelection);
+		_act(MoveWordRight);
+		return 1;
+		
 	case StartSelection:
 		if (SLN)
 			return 0;
@@ -824,9 +848,19 @@ _act(int action) {
 		return insprefix(lo.ln, hi.ln, L"\t");
 	
 	case UnindentSelection:
-		if (!ordersel(&lo, &hi))
-			return 0;
-		return delprefix(lo.ln, hi.ln, L"\t");
+		{
+			int i;
+			if (!ordersel(&lo, &hi))
+				return 0;
+			for (i=0; i<conf.tabc; i++)
+				if (!delprefix(lo.ln, hi.ln, L" "))
+					break;
+			if (i) {
+				record(UndoGroup,0,i);
+				return 1;
+			}
+			return delprefix(lo.ln, hi.ln, L"\t");
+		}
 	
 	case CommentSelection:
 		if (!ordersel(&lo, &hi)) {

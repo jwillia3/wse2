@@ -4,6 +4,7 @@
 #include <Windows.h>
 #include <math.h>
 #include <stdlib.h>
+#include <wchar.h>
 #include "conf.h"
 #include "re.h"
 
@@ -60,8 +61,12 @@ static struct	field fields[] = {
 		{L"brace", String, &lang.brace},
 		{L"kwd", Keyword, 0},
 		
-		{L"wire", Int, &conf.wire},
+		{L"wire", Int, conf.wire},
+		{L"wire2", Int, conf.wire+1},
+		{L"wire3", Int, conf.wire+2},
+		{L"wire4", Int, conf.wire+3},
 		{L"tab", Int, &conf.tabc},
+		{L"usetabs", Int, &conf.usetabs},
 		{L"cols", Int, &conf.cols},
 		{L"rows", Int, &conf.rows},
 		
@@ -75,7 +80,7 @@ static LOGFONT	lf = {
 		CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
 		FF_DONTCARE|DEFAULT_PITCH, 0
 		};
-extern HFONT	font, bfont;
+extern HFONT	font[4];
 
 wchar_t		shell[128]=L"cmd";
 
@@ -84,8 +89,12 @@ configfont() {
 	int		dpi,i;
 	TEXTMETRIC	tm;
 	
-	if (font)
-		DeleteObject(font);
+	if (font[0]) {
+		DeleteObject(font[0]);
+		DeleteObject(font[1]);
+		DeleteObject(font[2]);
+		DeleteObject(font[3]);
+	}
 	
 	/* Get device resolution */
 	hdc = GetDC(0);
@@ -100,13 +109,20 @@ configfont() {
 		? (conf.smooth<0? NONANTIALIASED_QUALITY: CLEARTYPE_QUALITY)
 		: ANTIALIASED_QUALITY;
 	wcscpy(lf.lfFaceName, conf.fontname);
-	font = CreateFontIndirect(&lf);
+	font[0] = CreateFontIndirect(&lf); /* Regular */
 	
+	lf.lfItalic ^= 1;
+	font[2] = CreateFontIndirect(&lf); /* Italic */
+	
+	lf.lfItalic ^= 1;
 	lf.lfWeight = 900;
-	bfont = CreateFontIndirect(&lf);
+	font[1] = CreateFontIndirect(&lf); /* Bold */
+	
+	lf.lfItalic ^= 1;
+	font[3] = CreateFontIndirect(&lf); /* Bold & Italic */
 	
 	/* Get metrics */
-	SelectObject(hdc, font);
+	SelectObject(hdc, font[0]);
 	GetTextMetrics(hdc, & tm);
 	GetCharWidth32(hdc, 0, 65535, conf.widths);
 	ReleaseDC(0, hdc);
@@ -139,7 +155,11 @@ defconfig() {
 	conf.doublebuffer=1;
 	
 	conf.tabc = 8;
-	conf.wire = 72;
+	conf.usetabs = 1;
+	conf.wire[0] = 64;
+	conf.wire[1] = 72;
+	conf.wire[2] = 80;
+	conf.wire[3] = 128;
 	conf.cols = 80;
 	conf.rows = 24;
 	
@@ -232,9 +252,16 @@ configline(int ln, wchar_t *s) {
 			return 1;
 		
 		case Keyword:
-			b=wcstoul(arg,&arg,0);
-			lang.kwdcol[lang.nkwd]=abs(b);
-			lang.kwdbold[lang.nkwd]=b>=0;
+			while (iswspace(*arg))
+				arg++;
+			lang.kwdstyle[lang.nkwd] = tolower(*arg)=='b'
+				? (arg++,1)
+				: 0;
+			lang.kwdstyle[lang.nkwd] += tolower(*arg)=='i'
+				? (arg++,2)
+				: 0;
+			
+			lang.kwdcol[lang.nkwd] = wcstoul(arg,&arg,0);
 			while (iswspace(*arg))
 				arg++;
 			re_comp(lang.kwd[lang.nkwd], arg);

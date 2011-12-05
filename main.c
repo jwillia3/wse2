@@ -21,11 +21,12 @@ HBITMAP		dbmp;
 HBITMAP		bgbmp;
 HBRUSH		bgbrush;
 HPEN		bgpen;
-HFONT		font,bfont;
+HFONT		font[4];
 UINT		WM_FIND;
 Loc		click;
 int		width;
 int		height;
+HMENU		encodingmenu;
 
 OPENFILENAME	ofn = {
 			sizeof ofn,
@@ -45,7 +46,7 @@ FINDREPLACE	gofr = {
 			1024, 1024, 0, 0, 0 };
 WNDCLASSEX	wc = {
 			sizeof wc,
-			CS_VREDRAW|CS_HREDRAW,
+			CS_VREDRAW|CS_HREDRAW|CS_DBLCLKS,
 			0, 0, 0, 0, 0, 0, 0,
 			0, L"Window", 0 };
 
@@ -64,7 +65,6 @@ SpawnProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 	case WM_COMMAND:
 		switch (wparam) {
 		case IDOK:
-		case 105:
 			len=GetWindowText(GetDlgItem(hwnd,100),
 				lastcmd_cmd,
 				sizeof lastcmd_cmd/sizeof *lastcmd_cmd);
@@ -78,7 +78,7 @@ SpawnProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 				lastcmd_arg);
 			dlg=0;
 			DestroyWindow(hwnd);
-			act(wparam==IDOK? SpawnLastCmd: CaptureSpawn);
+			act(SpawnCmd);
 			return TRUE;
 		case IDCANCEL:
 			dlg=0;
@@ -105,30 +105,28 @@ static
 openspawn(HWND hwnd, wchar_t *initcmd, wchar_t *initarg) {
 	static char	buf[4096];
 	void		*mem;
-	wchar_t		*title=L"Spawn";
+	wchar_t		*title=L"Run";
 	struct {
 		DLGITEMTEMPLATE	dlg;
 		DWORD		cls;
 		wchar_t		*txt;
 	} *i, items[] = {
-		{{WS_BORDER|WS_VISIBLE|WS_TABSTOP,0, 26,8,230,14, 100},
+		{{WS_BORDER|WS_VISIBLE|WS_TABSTOP,0,
+			48,4, 256-48-4,14, 100},
 			0x81, initcmd},
-		{{WS_BORDER|WS_VISIBLE|WS_TABSTOP,0, 26,8+20,230,14, 101},
-			0x81, initarg},
-		{{WS_VISIBLE,0, 4,10,22,14, 103},
-			0x82, L"cmd: "},
-		{{WS_VISIBLE,0, 4,30,22,14, 104},
-			0x82, L"arg: "},
-		{{WS_VISIBLE|BS_DEFPUSHBUTTON|WS_TABSTOP,0, 300-36,2,28,16, IDOK},
+		{{WS_VISIBLE,0,
+			4,8, 44,16, 103},
+			0x82, L"Command: "},
+		{{WS_VISIBLE|BS_DEFPUSHBUTTON|WS_TABSTOP,0,
+			256,4, 28,16, IDOK},
 			0x80, L"OK"},
-		{{WS_VISIBLE|WS_TABSTOP,0, 300-36,20,28,16, 105},
-			0x80, L"Capture"},
-		{{WS_VISIBLE|WS_TABSTOP,0, 300-36,40,28,16, IDCANCEL},
+		{{WS_VISIBLE|WS_TABSTOP,0,
+			256,20+4, 28,16, IDCANCEL},
 			0x80, L"Cancel"}
 	};
 	DLGTEMPLATE	dlg = { WS_SYSMENU|WS_VISIBLE, 0,
 				sizeof items/sizeof *items,
-				0,0, 300,80};
+				0,0, 256+28+8,20+4+16+4+24};
 	
 	memcpy(buf, &dlg, sizeof dlg);
 	mem=buf + sizeof dlg;
@@ -145,7 +143,6 @@ openspawn(HWND hwnd, wchar_t *initcmd, wchar_t *initarg) {
 static
 settitle(int mod) {
 	wchar_t	all[MAX_PATH];
-	
 	swprintf(all, MAX_PATH, L"%s%ls%ls%ls",
 		mod? "*": "",
 		filebase,
@@ -288,6 +285,14 @@ generalinvd(int onlines, int wassel, Loc *olo, Loc *ohi) {
 		invd(min(olo->ln, lo.ln), max(ohi->ln, hi.ln));
 }
 
+updatelinebreak() {
+	ModifyMenu(encodingmenu,
+		ToggleLinebreak,
+		MF_BYCOMMAND,
+		MF_STRING,
+		usecrlf? L"CRLF Linebreaks": L"LF Linebreaks");
+}
+
 act(int action) {
 	
 	STARTUPINFO		si;
@@ -320,11 +325,11 @@ act(int action) {
 	
 	switch (action) {
 	
-	case QuitApp:
+	case ExitEditor:
 		SendMessage(w, WM_CLOSE,0,0);
 		break;
 	
-	case ForkApp:
+	case SpawnEditor:
 		ZeroMemory(&si, sizeof si);
 		ZeroMemory(&pi, sizeof pi);
 		si.cb=sizeof si;
@@ -337,7 +342,7 @@ act(int action) {
 		free(txt);
 		break;
 	
-	case SpawnApp:
+	case SpawnShell:
 		ZeroMemory(&si, sizeof si);
 		ZeroMemory(&pi, sizeof pi);
 		si.cb=sizeof si;
@@ -347,39 +352,18 @@ act(int action) {
 		}
 		break;
 		
-	case SpawnLastCmd:
-	case CaptureSpawn:
+	case SpawnCmd:
 		ZeroMemory(&si, sizeof si);
 		ZeroMemory(&pi, sizeof pi);
 		si.cb=sizeof si;
-		
-		{
-		wchar_t	*cmd, wrap[MAX_PATH*3];
-		
-		cmd=action==SpawnLastCmd
-			? L"cmd /c \"%ls & pause >nul\""
-			: L"cmd /c \"%ls 1>wse~stdout"
-			  L" & start wse wse~stdout\" ",
-		
-		swprintf(wrap,
-			sizeof wrap/sizeof *wrap,
-			cmd,
-			lastcmd);
-		if (CreateProcess(0,wrap, 0,0,0,0,0,0,&si, &pi)) {
+		if (CreateProcess(0,lastcmd, 0,0,0,0,0,0,&si, &pi)) {
 			CloseHandle(pi.hProcess);
 			CloseHandle(pi.hThread);
-		}
 		}
 		break;
 	
 	case PromptSpawn:
 		ok=openspawn(w, lastcmd_cmd, lastcmd_arg);
-		break;
-	
-	case SpawnSelection:
-		txt=copysel();
-		ok=openspawn(w, lastcmd_cmd, txt);
-		free(txt);
 		break;
 	
 	case NewFile:
@@ -389,11 +373,15 @@ act(int action) {
 		settitle(0);
 		break;
 	
+	case ToggleLinebreak:
+		updatelinebreak();
+		break;
 	case LoadFile:
 		if (!ok)
 			MessageBox(w, L"Could not load",
 				L"Error", MB_OK);
 		settitle(0);
+		updatelinebreak();
 		
 		/* Can't rely on generalinvd() because the
 		 * selection and line counts might not change
@@ -403,17 +391,20 @@ act(int action) {
 	
 	case ReloadFileUTF8:
 	case ReloadFileUTF16:
+	case ReloadFileCP1252:
 	case ReloadFile:
 		if (!ok)
 			MessageBox(w, L"Could not load",
 				L"Error", MB_OK);
 		settitle(0);
+		updatelinebreak();
 		snap();
 		invdafter(top);
 		return ok;
 	
 	case SaveFileUTF8:
 	case SaveFileUTF16:
+	case SaveFileCP1252:
 	case SaveFile:
 		if (!ok)
 			MessageBox(w, L"Could not save",
@@ -531,17 +522,19 @@ act(int action) {
 		break;
 	
 	case PromptFind:
-		if (dlg)
-			break;
-		fr.Flags &= ~FR_DIALOGTERM;
-		dlg=FindText(&fr);
-		break;
-	
 	case PromptReplace:
 		if (dlg)
 			break;
 		fr.Flags &= ~FR_DIALOGTERM;
-		dlg=ReplaceText(&fr);
+		if (SLN) {
+			wchar_t *tmp = copysel();
+			wcsncpy(fr.lpstrFindWhat,tmp,MAX_PATH);
+			fr.lpstrFindWhat[MAX_PATH] = 0;
+			free(tmp);
+		}
+		dlg = action==PromptFind
+			? FindText(&fr)
+			: ReplaceText(&fr);
 		break;
 	
 	case ReloadConfig:
@@ -767,10 +760,14 @@ wmchar(int c) {
 		act(DeleteSelection);
 		return 0;
 	
+	case ' ':
+		if (ctl)
+			return act(SelectWord);
+		else
+			goto normal;
 	default:
 normal:
 		return actins(c);
-		
 	}
 }
 
@@ -837,7 +834,7 @@ wmkey(int c) {
 		return act(shift? CutSelection: DeleteChar);
 	
 	case VK_F2:
-		return act(ctl? SpawnApp: ForkApp);
+		return act(ctl? SpawnShell: SpawnEditor);
 		
 	case VK_F3:
 		if (shift) {
@@ -852,13 +849,10 @@ wmkey(int c) {
 		return act(ReloadFile);
 		
 	case VK_F7:
-		if (shift && !ctl)
+		if (ctl)
 			return act(PromptSpawn);
-		else if (!shift && ctl)
-			return act(SpawnSelection);
-		else if (!shift && !ctl)
-			return act(SpawnLastCmd);
-	
+		else
+			return act(SpawnCmd);
 	case VK_F12:
 		if (ctl)
 			return act(ReloadConfig);
@@ -944,7 +938,7 @@ paintlines(HDC dc, int first, int last) {
 			}
 		
 			if (sect>0) {
-				int bold=lang.kwdbold[k];
+				int style=lang.kwdstyle[k];
 				/*
 				 * Draw the preceding section
 				 * Then draw the keyword
@@ -953,10 +947,10 @@ paintlines(HDC dc, int first, int last) {
 					j-i, 1, &conf.tabw,0);
 				x=ind2px(line,j);
 				SetTextColor(dc, conf.color[lang.kwdcol[k]]);
-				bold && SelectObject(dc,bfont);
+				style && SelectObject(dc,font[style]);
 				TabbedTextOut(dc, x,y, txt+j,
 					sect, 1, &conf.tabw,0);
-				bold && SelectObject(dc,font);
+				style && SelectObject(dc,font[0]);
 				SetTextColor(dc, conf.fg);
 				i=j+=sect;
 				x=ind2px(line,j);
@@ -989,7 +983,7 @@ paint(PAINTSTRUCT *ps) {
 	} else
 		dc=ps->hdc;
 	SetBkMode(dc, TRANSPARENT);
-	SelectObject(dc, font);
+	SelectObject(dc, font[0]);
 	
 	first = px2line(ps->rcPaint.top);
 	last = px2line(ps->rcPaint.bottom);
@@ -1018,10 +1012,17 @@ paint(PAINTSTRUCT *ps) {
 	
 	/* Draw the wire */
 	if (conf.wire) {
-		SetDCPenColor(dc, conf.fg);
-		x=conf.wire*conf.em;
-		MoveToEx(dc, x, ps->rcPaint.top, 0);
-		LineTo(dc, x, ps->rcPaint.bottom);
+		HPEN pen;
+		int i, n=sizeof conf.wire/sizeof *conf.wire;
+		pen = CreatePen(PS_DOT, 1, conf.fg);
+		SelectObject(dc, pen);
+		for (i=0; i<n; i++) {
+			x=conf.wire[i]*conf.em;
+			MoveToEx(dc, x, ps->rcPaint.top, 0);
+			LineTo(dc, x, ps->rcPaint.bottom);
+		}
+		SelectObject(dc, GetStockObject(DC_PEN));
+		DeleteObject(pen);
 	}
 	
 	paintlines(dc,first,last);
@@ -1044,7 +1045,7 @@ paint(PAINTSTRUCT *ps) {
 		SelectObject(dc, GetStockObject(DC_BRUSH));
 		SelectObject(dc, GetStockObject(DC_PEN));
 		SetBkMode(dc, TRANSPARENT);
-		SelectObject(dc, font);
+		SelectObject(dc, font[0]);
 		paintstatus(dc);
 		ReleaseDC(w,dc);
 	}
@@ -1213,6 +1214,10 @@ WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 			SLN=0;
 		ReleaseCapture();
 		return 0;
+
+	case WM_LBUTTONDBLCLK:
+		act(SelectWord);
+		return 0;
 	
 	case WM_COMMAND:
 		act(LOWORD(wparam));
@@ -1221,6 +1226,22 @@ WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 	case WM_DESTROY:
 		PostQuitMessage(0);
 		break;
+	
+	case WM_DROPFILES: {
+		TCHAR name[MAX_PATH];
+		HDROP drop = (HDROP)wparam;
+		int ok;
+		
+		DragQueryFile(drop,
+			DragQueryFile(drop,-1,0,0)-1,
+			name, MAX_PATH);
+			
+		setfilename(name);
+		ok=act(LoadFile);
+		DragFinish(drop);
+		return ok;
+		}
+	
 	}
 	
 	/* Find dialog notification */
@@ -1308,14 +1329,6 @@ reinitconfig() {
 		bgpen=CreatePen(PS_SOLID, 1, conf.bg);
 	}
 	
-	SetRect(&rt, 0,0, conf.cols * conf.em,
-		(conf.rows+1) * conf.lheight);
-	AdjustWindowRect(&rt, WS_OVERLAPPEDWINDOW, 1);
-	if (w)
-		SetWindowPos(w, 0, 0, 0,
-			rt.right, rt.bottom,
-			SWP_NOMOVE|SWP_NOZORDER);
-	
 	/* Fix the caret size */
 	if (GetFocus()==w)
 		SendMessage(w, WM_SETFOCUS, 0, 0);
@@ -1355,7 +1368,9 @@ init() {
 	}
 	
 	SystemParametersInfo(SPI_GETWORKAREA, 0, &rt, 0);
-	w = CreateWindow(L"Window", L"",
+	w = CreateWindowEx(
+		WS_EX_ACCEPTFILES,
+		L"Window", L"",
 		WS_OVERLAPPEDWINDOW|WS_VISIBLE,
 		(rt.right-rt.left)/2 - conf.cols*conf.em/2,
 		(rt.bottom-rt.top)/2 - (conf.rows+1)*conf.lheight/2,
@@ -1380,9 +1395,9 @@ initmenu() {
 	AppendMenu(m, MF_STRING, PromptSaveAs, L"Save &As...");
 	AppendMenu(m, MF_STRING, ReloadFile, L"&Reload	F5");
 	AppendMenu(m, MF_SEPARATOR, 0, 0);
-	AppendMenu(m, MF_STRING, ForkApp, L"New Window	F2");
-	AppendMenu(m, MF_STRING, SpawnApp, L"Shell	^F2");
-	AppendMenu(m, MF_STRING, QuitApp, L"E&xit");
+	AppendMenu(m, MF_STRING, SpawnEditor, L"New Window	F2");
+	AppendMenu(m, MF_STRING, SpawnShell, L"Shell	^F2");
+	AppendMenu(m, MF_STRING, ExitEditor, L"E&xit");
 	AppendMenu(menu, MF_POPUP, (INT_PTR)m, L"&File");
 	
 	m=CreatePopupMenu();
@@ -1403,13 +1418,16 @@ initmenu() {
 	
 	m=CreatePopupMenu();
 	AppendMenu(m, MF_STRING, PromptSpawn, L"Run...	Shift+F7");
-	AppendMenu(m, MF_STRING, SpawnSelection, L"Run w/ &Selection...	^F7");
-	AppendMenu(m, MF_STRING, SpawnLastCmd, L"&Run Last Command	F7");
+	AppendMenu(m, MF_STRING, SpawnCmd, L"&Run Last Command	F7");
 	AppendMenu(menu, MF_POPUP, (INT_PTR)m, L"&Run");
 	
 	m=CreatePopupMenu();
+	encodingmenu=m;
+	AppendMenu(m, MF_STRING, ToggleLinebreak, L"LF Linebreaks");
+	AppendMenu(m, MF_STRING, SaveFileCP1252, L"Save as CP1252");
 	AppendMenu(m, MF_STRING, SaveFileUTF8, L"Save as UTF-8");
 	AppendMenu(m, MF_STRING, SaveFileUTF16, L"Save as UTF-16");
+	AppendMenu(m, MF_STRING, ReloadFileCP1252, L"Reload as CP1252");
 	AppendMenu(m, MF_STRING, ReloadFileUTF8, L"Reload as UTF-8");
 	AppendMenu(m, MF_STRING, ReloadFileUTF16, L"Reload as UTF-16");
 	AppendMenu(menu, MF_POPUP, (INT_PTR)m, L"&Encoding");

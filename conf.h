@@ -1,8 +1,9 @@
 struct conf {
 	int		tabc;
+	int		usetabs;
 	int		rows;
 	int		cols;
-	int		wire;
+	int		wire[4];
 			
 	int		bg;
 	int		fg;
@@ -36,7 +37,7 @@ struct lang {
 	wchar_t		brace[128];
 	wchar_t		kwd[64][256];
 	wchar_t		kwdcol[64];
-	wchar_t		kwdbold[64];
+	wchar_t		kwdstyle[64];
 	int		nkwd, commentcol;
 } lang;
 
