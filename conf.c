@@ -9,6 +9,7 @@
 #include "re.h"
 
 enum {
+	Boolean,
 	Int,
 	Color,
 	Float,
@@ -23,11 +24,12 @@ struct field {
 };
 
 static struct	field fields[] = {
-		{L"bg", Color, &conf.bg},
-		{L"fg", Color, &conf.fg},
-		{L"selbg", Color, &conf.selbg},
-		{L"bgimg", String, &conf.bgimage},
-		{L"doublebuffer", Int, &conf.doublebuffer},
+		{L"bg_color", Color, &conf.bg},
+		{L"fg_color", Color, &conf.fg},
+		{L"select_color", Color, &conf.selbg},
+		{L"odd_line_color", Color, &conf.oddlinebg},
+		{L"bg_image", String, &conf.bgimage},
+		{L"doublebuffer", Boolean, &conf.doublebuffer},
 		
 		{L"c0", Color, &conf.color[0]},
 		{L"c1", Color, &conf.color[1]},
@@ -37,26 +39,20 @@ static struct	field fields[] = {
 		{L"c5", Color, &conf.color[5]},
 		{L"c6", Color, &conf.color[6]},
 		{L"c7", Color, &conf.color[7]},
-		{L"c8", Color, &conf.color[8]},
-		{L"c9", Color, &conf.color[9]},
-		{L"c10", Color, &conf.color[10]},
-		{L"c11", Color, &conf.color[11]},
-		{L"c12", Color, &conf.color[12]},
-		{L"c13", Color, &conf.color[13]},
-		{L"c14", Color, &conf.color[14]},
-		{L"c15", Color, &conf.color[15]},
 		
-		{L"fontname", String, &conf.fontname},
-		{L"fontsz", Float, &conf.fontsz},
-		{L"fontasp", Float, &conf.fontasp},
-		{L"leading", Float, &conf.leading},
-		{L"weight", Float, &conf.weight},
-		{L"smooth", Float, &conf.smooth},
-		{L"italic", Int, &conf.italic},
+		{L"font_name", String, &conf.fontname},
+		{L"font_size", Float, &conf.fontsz},
+		{L"font_aspect", Float, &conf.fontasp},
+		{L"font_weight", Float, &conf.weight},
+		{L"font_smoothing", Float, &conf.smooth},
+		{L"font_italic", Boolean, &conf.italic},
+		{L"line_height", Float, &conf.leading},
+		
+		
 		
 		{L"ext", String, &lang.ext},
 		{L"comment", String, &lang.comment},
-		{L"commentcol", Int, &lang.commentcol},
+		{L"comment_color", Int, &lang.commentcol},
 		{L"break", String, &lang.brk},
 		{L"brace", String, &lang.brace},
 		{L"kwd", Keyword, 0},
@@ -65,8 +61,8 @@ static struct	field fields[] = {
 		{L"wire2", Int, conf.wire+1},
 		{L"wire3", Int, conf.wire+2},
 		{L"wire4", Int, conf.wire+3},
-		{L"tab", Int, &conf.tabc},
-		{L"usetabs", Int, &conf.usetabs},
+		{L"tab_width", Int, &conf.tabc},
+		{L"use_tabs", Boolean, &conf.usetabs},
 		{L"cols", Int, &conf.cols},
 		{L"rows", Int, &conf.rows},
 		
@@ -106,8 +102,8 @@ configfont() {
 	lf.lfItalic = conf.italic;
 	lf.lfWeight = conf.weight * 1000;
 	lf.lfQuality = conf.smooth
-		? (conf.smooth<0? NONANTIALIASED_QUALITY: CLEARTYPE_QUALITY)
-		: ANTIALIASED_QUALITY;
+		? (conf.smooth<=0.5? ANTIALIASED_QUALITY: CLEARTYPE_QUALITY)
+		: NONANTIALIASED_QUALITY;
 	wcscpy(lf.lfFaceName, conf.fontname);
 	font[0] = CreateFontIndirect(&lf); /* Regular */
 	
@@ -136,7 +132,7 @@ configfont() {
 
 deflang() {
 	*lang.ext=0;
-	wcscpy(lang.comment, L"#");
+	wcscpy(lang.comment, L"");
 	wcscpy(lang.brk, L"~!@#$%^&*()-+={}[]\\|;:'\",.<>/?");
 	wcscpy(lang.brace, L"()[]{}''\"\"<>``");
 	memset(lang.kwd,0,sizeof lang.kwd);
@@ -146,9 +142,10 @@ deflang() {
 
 defconfig() {
 	memset(conf.color, 0, sizeof conf.color);
-	conf.bg = RGB(240,240,240);
-	conf.fg = RGB(0,0,00);
-	conf.selbg = RGB(192,160,160);
+	conf.bg = RGB(255,255,255);
+	conf.oddlinebg = RGB(240,240,240);
+	conf.fg = RGB(64,64,64);
+	conf.selbg = RGB(160,160,192);
 	conf.color[0] = RGB(160,160,192);
 	wcscpy(conf.bgimage, L"");
 	
@@ -164,10 +161,10 @@ defconfig() {
 	conf.rows = 24;
 	
 	wcscpy(conf.fontname, L"Lucida Console");
-	conf.fontsz = 12.0;
+	conf.fontsz = 10.0;
 	conf.fontasp = 0.0;
 	conf.leading = 1.5;
-	conf.smooth = .9;
+	conf.smooth = 1.0;
 	conf.italic = 0;
 	conf.weight = .4;
 	
@@ -213,64 +210,77 @@ configline(int ln, wchar_t *s) {
 	int		r,g,b;
 	struct field	*cf;
 	
+	while (iswspace(*s))
+		s++;
+		
 	if (*s=='#' || !*s)
 		return 0;
 	
 	if (*s=='.')
 		return directive(s+1);
 	
-	for (flen=0; iswalnum(s[flen]); flen++);
+	for (flen=0; iswalnum(s[flen]) || s[flen]=='_'; flen++);
 	s[flen]=0;
 	arg=s+flen+1;
 	
-	for (cf=fields; cf->name; cf++) {
-		if (wcscmp(cf->name, s))
-			continue;
-		
-		switch (cf->type) {
-		
-		case Int:
-			swscanf(s+flen+1, L"%d", cf->ptr);
-			return 1;
-
-		case Color:
-			swscanf(s+flen+1, L"%d %d %d", &r,&g,&b);
-			*(int*)cf->ptr = (b<<16)+(g<<8)+r;
-			return 1;
-		
-		case Float:
-			swscanf(s+flen+1, L"%lf", cf->ptr);
-			return 1;
-		
-		case String:
-			if (s[flen+1]) {
-				flen++;
-				while (iswspace(s[flen]))
-					flen++;
-			}
-			wcscpy(cf->ptr, s+flen);
-			return 1;
-		
-		case Keyword:
-			while (iswspace(*arg))
-				arg++;
-			lang.kwdstyle[lang.nkwd] = tolower(*arg)=='b'
-				? (arg++,1)
-				: 0;
-			lang.kwdstyle[lang.nkwd] += tolower(*arg)=='i'
-				? (arg++,2)
-				: 0;
-			
-			lang.kwdcol[lang.nkwd] = wcstoul(arg,&arg,0);
-			while (iswspace(*arg))
-				arg++;
-			re_comp(lang.kwd[lang.nkwd], arg);
-			lang.nkwd++;
-			return 1;
-		}
-	}
+	for (cf=fields; cf->name && wcscmp(cf->name, s); cf++);
 	
-	dbg("Bad field (%ls) on line %d", s, ln);
+	if (!cf->name)
+		return 0;
+	
+	switch (cf->type) {
+	
+	case Boolean:
+		while (iswspace(*arg))
+			arg++;
+		if (!wcsncmp(arg,L"yes",3)) {
+			arg += 3;
+			while (iswspace(*arg))
+				arg++;
+			*(int*)cf->ptr = !*arg;
+		} else
+			*(int*)cf->ptr = 0;
+		return 1;
+	
+	case Int:
+		swscanf(s+flen+1, L"%d", cf->ptr);
+		return 1;
+
+	case Color:
+		swscanf(s+flen+1, L"%d %d %d", &r,&g,&b);
+		*(int*)cf->ptr = (b<<16)+(g<<8)+r;
+		return 1;
+	
+	case Float:
+		swscanf(s+flen+1, L"%lf", cf->ptr);
+		return 1;
+	
+	case String:
+		if (s[flen+1]) {
+			flen++;
+			while (iswspace(s[flen]))
+				flen++;
+		}
+		wcscpy(cf->ptr, s+flen);
+		return 1;
+	
+	case Keyword:
+		while (iswspace(*arg))
+			arg++;
+		lang.kwdstyle[lang.nkwd] = tolower(*arg)=='b'
+			? (arg++,1)
+			: 0;
+		lang.kwdstyle[lang.nkwd] += tolower(*arg)=='i'
+			? (arg++,2)
+			: 0;
+		
+		lang.kwdcol[lang.nkwd] = wcstoul(arg,&arg,0);
+		while (iswspace(*arg))
+			arg++;
+		re_comp(lang.kwd[lang.nkwd], arg);
+		lang.nkwd++;
+		return 1;
+	}
 	return 0;
 }
 

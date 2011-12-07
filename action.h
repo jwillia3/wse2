@@ -1,5 +1,7 @@
 enum {
 	ToggleLinebreak,
+	ToggleTabs,
+	Toggle8Tab,
 	LoadFile,
 	ReloadFile,
 	ReloadFileUTF8,

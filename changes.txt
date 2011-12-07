@@ -66,3 +66,13 @@
 	Spawning programs does not bring up console.
 	Breaking after "a" in "a b" leaves the space before "b".
 	Find & Replace boxes is populated with selection.
+06 December 2011
+	Errors in configuration file are now silently ignored.
+	Booleans now use yes|no.
+	Lowered the number of colours to 8.
+	Allow comments to start in any column in config.
+	Changed the names of almost all fields.
+	Nothing is done if comment is empty.
+	Add odd line colouring.
+	Status now shows number of chars selected.
+	Encoding menu shows 4/8 EM tab and hard/soft tabs.

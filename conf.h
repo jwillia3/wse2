@@ -7,8 +7,9 @@ struct conf {
 			
 	int		bg;
 	int		fg;
+	int		oddlinebg;
 	int		selbg;
-	int		color[16];
+	int		color[8];
 	wchar_t		bgimage[128];
 	
 	int		doublebuffer;

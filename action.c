@@ -543,6 +543,15 @@ _act(int action) {
 		usecrlf ^= 1;
 		return 1;
 	
+	case ToggleTabs:
+		conf.usetabs = !conf.usetabs;
+		return 1;
+	
+	case Toggle8Tab:
+		conf.tabc = (conf.tabc == 8)? 4: 8;
+		conf.tabw = conf.em * conf.tabc;
+		return 1;
+	
 	case ReloadFileUTF8:
 		return reload(L"utf-8");
 	case ReloadFileUTF16:
@@ -863,6 +872,9 @@ _act(int action) {
 		}
 	
 	case CommentSelection:
+		if (!*lang.comment)
+			return 0;
+			
 		if (!ordersel(&lo, &hi)) {
 			_act(StartSelection);
 			_act(CommentSelection);

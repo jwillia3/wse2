@@ -285,12 +285,22 @@ generalinvd(int onlines, int wassel, Loc *olo, Loc *ohi) {
 		invd(min(olo->ln, lo.ln), max(ohi->ln, hi.ln));
 }
 
-updatelinebreak() {
+updatemenu() {
 	ModifyMenu(encodingmenu,
 		ToggleLinebreak,
-		MF_BYCOMMAND,
-		MF_STRING,
+		MF_BYCOMMAND | MF_STRING,
+		ToggleLinebreak,
 		usecrlf? L"CRLF Linebreaks": L"LF Linebreaks");
+	ModifyMenu(encodingmenu,
+		ToggleTabs,
+		MF_BYCOMMAND | MF_STRING,
+		ToggleTabs,
+		conf.usetabs? L"Using Hard Tabs": L"Using Soft Tabs");
+	ModifyMenu(encodingmenu,
+		Toggle8Tab,
+		MF_BYCOMMAND | MF_STRING,
+		Toggle8Tab,
+		conf.tabc==8? L"8 EM Tabs": L"4 EM Tabs");
 }
 
 act(int action) {
@@ -374,14 +384,24 @@ act(int action) {
 		break;
 	
 	case ToggleLinebreak:
-		updatelinebreak();
+		updatemenu();
 		break;
+	
+	case ToggleTabs:
+		updatemenu();
+		return 1;
+	
+	case Toggle8Tab:
+		updatemenu();
+		invdafter(top);
+		return 1;
+	
 	case LoadFile:
 		if (!ok)
 			MessageBox(w, L"Could not load",
 				L"Error", MB_OK);
 		settitle(0);
-		updatelinebreak();
+		updatemenu();
 		
 		/* Can't rely on generalinvd() because the
 		 * selection and line counts might not change
@@ -397,7 +417,7 @@ act(int action) {
 			MessageBox(w, L"Could not load",
 				L"Error", MB_OK);
 		settitle(0);
-		updatelinebreak();
+		updatemenu();
 		snap();
 		invdafter(top);
 		return ok;
@@ -892,7 +912,7 @@ paintsel(HDC dc) {
 
 paintstatus(HDC dc) {
 	wchar_t	buf[1024];
-	wchar_t *selmsg=L"%d:%d of %d Sel %d:%d (%d)";
+	wchar_t *selmsg=L"%d:%d of %d Sel %d:%d (%d %ls)";
 	wchar_t *noselmsg=L"%d:%d of %d";
 	int	len;
 	
@@ -904,7 +924,10 @@ paintstatus(HDC dc) {
 	len=swprintf(buf, 1024, SLN? selmsg: noselmsg,
 		LN, ind2col(LN, IND),
 		NLINES,
-		SLN, ind2col(SLN, SIND), abs(SLN-LN));
+		SLN,
+		ind2col(SLN, SIND),
+		SLN==LN? abs(SIND-IND):abs(SLN-LN),
+		SLN==LN? L"chars": L"lines");
 	TextOut(dc, 0,
 		height-conf.lheight+(conf.lheight-conf.aheight)/2,
 		buf, len);
@@ -997,6 +1020,19 @@ paint(PAINTSTRUCT *ps) {
 	SelectObject(dc, GetStockObject(DC_BRUSH));
 	SelectObject(dc, GetStockObject(DC_PEN));
 	
+	/* Draw odd line's background */
+	if (!*conf.bgimage && conf.oddlinebg != conf.bg) {
+		SetDCPenColor(dc, conf.oddlinebg);
+		SetDCBrushColor(dc, conf.oddlinebg);
+		y=line2px(first);
+		for (i=first; i<=last; i++) {
+			if (i % 2)
+				Rectangle(dc, 0, y, width, y+conf.lheight);
+			y += conf.lheight;
+		}
+	}
+	
+	/* Draw comment line's background */
 	SetDCPenColor(dc, conf.color[lang.commentcol]);
 	SetDCBrushColor(dc, conf.color[lang.commentcol]);
 	clen=wcslen(lang.comment);
@@ -1313,6 +1349,7 @@ reinitconfig() {
 	
 	configfont();
 	reinitlang();
+	updatemenu();
 	
 	if (bgbmp)
 		DeleteObject(bgbmp);
@@ -1424,6 +1461,9 @@ initmenu() {
 	m=CreatePopupMenu();
 	encodingmenu=m;
 	AppendMenu(m, MF_STRING, ToggleLinebreak, L"LF Linebreaks");
+	AppendMenu(m, MF_STRING, ToggleTabs, L"Using Hard Tabs");
+	AppendMenu(m, MF_STRING, Toggle8Tab, L"8 EM Tabs");
+	AppendMenu(m, MF_SEPARATOR, 0, 0);
 	AppendMenu(m, MF_STRING, SaveFileCP1252, L"Save as CP1252");
 	AppendMenu(m, MF_STRING, SaveFileUTF8, L"Save as UTF-8");
 	AppendMenu(m, MF_STRING, SaveFileUTF16, L"Save as UTF-16");
