@@ -1,0 +1,12 @@
+Refresh only goes to row count not entire screen
+Show selection width (characters if on single line)
+Case-insensitive search
+Fix highlighting to highlight puncutation
+Multi-line highlighting
+Printing
+why does returnas turn yellow?
+Wrapping
+Apply regex once; fix search
+Uppercase
+Strip spaces at the end of lines
+Convert tabs to spaces & back

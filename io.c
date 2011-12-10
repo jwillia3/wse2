@@ -13,6 +13,7 @@
 #include <Windows.h>
 #include <stdlib.h>
 #include "wse.h"
+#include "conf.h"
 
 static wchar_t
 	*dec_cp1252(unsigned char *src, int sz),
@@ -24,9 +25,9 @@ static
 	enc_utf16(unsigned char *buf, wchar_t *src, int len);
 
 static Codec	codecs[] = {
-	{L"cp1252", dec_cp1252, enc_cp1252},
 	{L"utf-8", dec_utf8, enc_utf8 },
 	{L"utf-16", dec_utf16, enc_utf16 },
+	{L"cp1252", dec_cp1252, enc_cp1252},
 	{0, 0, 0},
 };
 Codec		*codec=codecs;
@@ -105,6 +106,8 @@ enc_cp1252(unsigned char *buf, wchar_t *src, int len) {
 static wchar_t*
 dec_utf8(unsigned char *src, int sz) {
 	wchar_t	*dst;
+        if (!memcmp(src, "\xef\xbb\xbf", 3))
+                conf.usebom = 1;
 	dst = LocalAlloc(0, (sz+1) * sizeof(wchar_t));
 	MultiByteToWideChar(CP_UTF8, 0, src, sz+1, dst, sz+1);
 	LocalFree(src);
@@ -114,9 +117,11 @@ dec_utf8(unsigned char *src, int sz) {
 static
 enc_utf8(unsigned char *buf, wchar_t *src, int len) {
 	int	sz;
+        if (conf.usebom)
+                memcpy(buf, "\xef\xbb\xbf", 3);
 	sz = WideCharToMultiByte(CP_UTF8, 0,
-		src, len, buf, len*3, 0, 0);
-	return sz;
+		src, len, buf+(conf.usebom? 3: 0), len*3, 0, 0);
+	return sz + (conf.usebom? 3: 0);
 }
 
 static wchar_t*
@@ -126,8 +131,10 @@ dec_utf16(unsigned char *src, int sz) {
 
 static
 enc_utf16(unsigned char *buf, wchar_t *src, int len) {
-	memcpy(buf, src, len*sizeof(wchar_t));
-	return len*sizeof(wchar_t);
+	if (conf.usebom)
+                memcpy(buf, "\xff\xfe", 2);
+        memcpy(buf+(conf.usebom? 2: 0), src, len*2);
+	return len*2+(conf.usebom? 2: 0);
 }
 
 static
@@ -136,14 +143,19 @@ detectenc(BYTE *buf, DWORD sz) {
 		memmove(buf,buf+3,sz);
 		buf[sz-3]=0;
 		setcodec(L"utf-8");
+                conf.usebom = 1;
 	} else if (*buf==0xff && buf[1]==0xfe) {
 		memmove(buf,buf+2,sz);
 		((wchar_t*)buf)[sz/2 - 1] = 0;
 		setcodec(L"utf-16");
-	} else if (memchr(buf,0,sz))
+                conf.usebom = 1;
+	} else if (memchr(buf,0,sz)) {
 		setcodec(L"utf-16");
-	else
+                conf.usebom = 0;
+	} else {
 		setcodec(L"utf-8");
+                conf.usebom = 0;
+        }
 }
 
 Codec*

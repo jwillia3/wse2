@@ -540,7 +540,7 @@ _act(int action) {
 		return clear_load(filename,0);
 	
 	case ToggleLinebreak:
-		usecrlf ^= 1;
+		conf.usecrlf ^= 1;
 		return 1;
 	
 	case ToggleTabs:
@@ -552,6 +552,10 @@ _act(int action) {
 		conf.tabw = conf.em * conf.tabc;
 		return 1;
 	
+	case ToggleBOM:
+		conf.usebom ^= 1;
+		return 1;
+	
 	case ReloadFileUTF8:
 		return reload(L"utf-8");
 	case ReloadFileUTF16:
@@ -561,12 +565,12 @@ _act(int action) {
 	case ReloadFile:
 		return reload(0);
 			
-	case SaveFileUTF8:
-		return setcodec(L"utf-8") && save(filename);
-	case SaveFileUTF16:
-		return setcodec(L"utf-16") && save(filename);
-	case SaveFileCP1252:
-		return setcodec(L"cp1252") && save(filename);
+	case SetUTF8:
+		return !!setcodec(L"utf-8");
+	case SetUTF16:
+		return !!setcodec(L"utf-16");
+	case SetCP1252:
+		return !!setcodec(L"cp1252");
 	case SaveFile:
 		return save(filename);
 	

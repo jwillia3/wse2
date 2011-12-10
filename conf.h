@@ -1,6 +1,8 @@
 struct conf {
 	int		tabc;
 	int		usetabs;
+	int		usebom;
+	int		usecrlf;
 	int		rows;
 	int		cols;
 	int		wire[4];

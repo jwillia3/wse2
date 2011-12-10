@@ -76,3 +76,7 @@
 	Add odd line colouring.
 	Status now shows number of chars selected.
 	Encoding menu shows 4/8 EM tab and hard/soft tabs.
+09 December 2011
+	Added support for BOM in UTF-8 & UTF-16.
+	Added BOM and CRLF config options.
+	Fixed off-by-one error in line counter on status bar.

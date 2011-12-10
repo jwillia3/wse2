@@ -48,8 +48,6 @@ static struct	field fields[] = {
 		{L"font_italic", Boolean, &conf.italic},
 		{L"line_height", Float, &conf.leading},
 		
-		
-		
 		{L"ext", String, &lang.ext},
 		{L"comment", String, &lang.comment},
 		{L"comment_color", Int, &lang.commentcol},
@@ -63,6 +61,8 @@ static struct	field fields[] = {
 		{L"wire4", Int, conf.wire+3},
 		{L"tab_width", Int, &conf.tabc},
 		{L"use_tabs", Boolean, &conf.usetabs},
+		{L"use_bom", Boolean, &conf.usebom},
+		{L"use_crlf", Boolean, &conf.usecrlf},
 		{L"cols", Int, &conf.cols},
 		{L"rows", Int, &conf.rows},
 		
@@ -153,6 +153,8 @@ defconfig() {
 	
 	conf.tabc = 8;
 	conf.usetabs = 1;
+	conf.usebom = 1;
+	conf.usecrlf = 1;
 	conf.wire[0] = 64;
 	conf.wire[1] = 72;
 	conf.wire[2] = 80;

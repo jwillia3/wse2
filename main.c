@@ -290,17 +290,41 @@ updatemenu() {
 		ToggleLinebreak,
 		MF_BYCOMMAND | MF_STRING,
 		ToggleLinebreak,
-		usecrlf? L"CRLF Linebreaks": L"LF Linebreaks");
+		conf.usecrlf? L"Windows Linebreaks": L"UNIX Linebreaks");
 	ModifyMenu(encodingmenu,
 		ToggleTabs,
-		MF_BYCOMMAND | MF_STRING,
+		MF_BYCOMMAND | MF_STRING | (conf.usetabs? MF_CHECKED: 0),
 		ToggleTabs,
-		conf.usetabs? L"Using Hard Tabs": L"Using Soft Tabs");
+		L"Use Tabs");
 	ModifyMenu(encodingmenu,
 		Toggle8Tab,
-		MF_BYCOMMAND | MF_STRING,
+		MF_BYCOMMAND | MF_STRING | (conf.tabc==8? MF_CHECKED: 0),
 		Toggle8Tab,
-		conf.tabc==8? L"8 EM Tabs": L"4 EM Tabs");
+		L"Tab Width 8");
+	ModifyMenu(encodingmenu,
+		ToggleBOM,
+		MF_BYCOMMAND | MF_STRING | (conf.usebom? MF_CHECKED: 0),
+		ToggleBOM,
+		L"Use Unicode BOM");
+	ModifyMenu(encodingmenu,
+		SetCP1252,
+		MF_BYCOMMAND | MF_STRING |
+			(!wcscmp(codec->name, L"cp1252")? MF_CHECKED: 0),
+		SetCP1252,
+		L"CP-1252");
+	ModifyMenu(encodingmenu,
+		SetUTF8,
+		MF_BYCOMMAND | MF_STRING |
+			(!wcscmp(codec->name, L"utf-8")? MF_CHECKED: 0),
+		SetUTF8,
+		L"UTF-8");
+	ModifyMenu(encodingmenu,
+		SetUTF16,
+		MF_BYCOMMAND | MF_STRING |
+			(!wcscmp(codec->name, L"utf-16")? MF_CHECKED: 0),
+		SetUTF16,
+		L"UTF-16");
+		
 }
 
 act(int action) {
@@ -396,6 +420,10 @@ act(int action) {
 		invdafter(top);
 		return 1;
 	
+	case ToggleBOM:
+		updatemenu();
+		return 1;
+	
 	case LoadFile:
 		if (!ok)
 			MessageBox(w, L"Could not load",
@@ -422,9 +450,13 @@ act(int action) {
 		invdafter(top);
 		return ok;
 	
-	case SaveFileUTF8:
-	case SaveFileUTF16:
-	case SaveFileCP1252:
+	case SetUTF8:
+	case SetUTF16:
+	case SetCP1252:
+		settitle(1);
+		updatemenu();
+		return 1;
+		
 	case SaveFile:
 		if (!ok)
 			MessageBox(w, L"Could not save",
@@ -926,7 +958,7 @@ paintstatus(HDC dc) {
 		NLINES,
 		SLN,
 		ind2col(SLN, SIND),
-		SLN==LN? abs(SIND-IND):abs(SLN-LN),
+		SLN==LN? abs(SIND-IND): abs(SLN-LN)+1,
 		SLN==LN? L"chars": L"lines");
 	TextOut(dc, 0,
 		height-conf.lheight+(conf.lheight-conf.aheight)/2,
@@ -1464,9 +1496,12 @@ initmenu() {
 	AppendMenu(m, MF_STRING, ToggleTabs, L"Using Hard Tabs");
 	AppendMenu(m, MF_STRING, Toggle8Tab, L"8 EM Tabs");
 	AppendMenu(m, MF_SEPARATOR, 0, 0);
-	AppendMenu(m, MF_STRING, SaveFileCP1252, L"Save as CP1252");
-	AppendMenu(m, MF_STRING, SaveFileUTF8, L"Save as UTF-8");
-	AppendMenu(m, MF_STRING, SaveFileUTF16, L"Save as UTF-16");
+	AppendMenu(m, MF_STRING, ToggleBOM, L"Not using Unicode BOM");
+	AppendMenu(m, MF_SEPARATOR, 0, 0);
+	AppendMenu(m, MF_STRING, SetUTF8, L"UTF-8");
+	AppendMenu(m, MF_STRING, SetCP1252, L"CP1252");
+	AppendMenu(m, MF_STRING, SetUTF16, L"UTF-16");
+	AppendMenu(m, MF_SEPARATOR, 0, 0);
 	AppendMenu(m, MF_STRING, ReloadFileCP1252, L"Reload as CP1252");
 	AppendMenu(m, MF_STRING, ReloadFileUTF8, L"Reload as UTF-8");
 	AppendMenu(m, MF_STRING, ReloadFileUTF16, L"Reload as UTF-16");

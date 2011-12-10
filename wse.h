@@ -72,7 +72,6 @@ wchar_t		opentbl[65536];
 wchar_t		closetbl[65536];
 wchar_t		*latch;
 Codec		*codec;
-int		usecrlf;
 
 int		config(),
 		selectconfig(int n);
