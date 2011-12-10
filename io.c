@@ -14,7 +14,10 @@
 #include <stdlib.h>
 #include "wse.h"
 #include "conf.h"
-
+static
+	sign_cp1252(unsigned char *buf),
+	sign_utf8(unsigned char *buf),
+	sign_utf16(unsigned char *buf);
 static wchar_t
 	*dec_cp1252(unsigned char *src, int sz),
 	*dec_utf8(unsigned char *src, int sz),
@@ -25,10 +28,10 @@ static
 	enc_utf16(unsigned char *buf, wchar_t *src, int len);
 
 static Codec	codecs[] = {
-	{L"utf-8", dec_utf8, enc_utf8 },
-	{L"utf-16", dec_utf16, enc_utf16 },
-	{L"cp1252", dec_cp1252, enc_cp1252},
-	{0, 0, 0},
+	{L"utf-8", sign_utf8, dec_utf8, enc_utf8 },
+	{L"utf-16", sign_utf16, dec_utf16, enc_utf16 },
+	{L"cp1252", sign_cp1252, dec_cp1252, enc_cp1252},
+	{0, 0, 0, 0},
 };
 Codec		*codec=codecs;
 int		usecrlf;
@@ -68,6 +71,11 @@ static wchar_t cp1252[] = {
 	0x017e, /* latin capital letter z with carron */
 	0x0178 /* latin capital letter y with diaressis */
 };
+
+static
+sign_cp1252(unsigned char *buf) {
+	return 0;
+}
 
 static wchar_t*
 dec_cp1252(unsigned char *src, int sz) {
@@ -116,12 +124,14 @@ dec_utf8(unsigned char *src, int sz) {
 
 static
 enc_utf8(unsigned char *buf, wchar_t *src, int len) {
-	int	sz;
-        if (conf.usebom)
-                memcpy(buf, "\xef\xbb\xbf", 3);
-	sz = WideCharToMultiByte(CP_UTF8, 0,
+	return WideCharToMultiByte(CP_UTF8, 0,
 		src, len, buf+(conf.usebom? 3: 0), len*3, 0, 0);
-	return sz + (conf.usebom? 3: 0);
+}
+
+static
+sign_utf8(unsigned char *buf) {
+	memcpy(buf, "\xef\xbb\xbf", 3);
+	return 3;
 }
 
 static wchar_t*
@@ -130,11 +140,15 @@ dec_utf16(unsigned char *src, int sz) {
 }
 
 static
+sign_utf16(unsigned char *buf) {
+	memcpy(buf, "\xff\xfe", 2);
+	return 2;
+}
+
+static
 enc_utf16(unsigned char *buf, wchar_t *src, int len) {
-	if (conf.usebom)
-                memcpy(buf, "\xff\xfe", 2);
-        memcpy(buf+(conf.usebom? 2: 0), src, len*2);
-	return len*2+(conf.usebom? 2: 0);
+        memcpy(buf, src, len*2);
+	return len*2;
 }
 
 static
@@ -225,6 +239,12 @@ save(wchar_t *fn) {
 		CREATE_ALWAYS, 0, 0);
 	if (f==INVALID_HANDLE_VALUE)
 		return 0;
+	
+	if (conf.usebom) {
+		unsigned char signature[16];
+		sz = codec->sign(signature);
+		WriteFile(f, signature, sz, &ign, 0);
+	}
 
 	max=0;
 	buf=malloc(sizeof(wchar_t));

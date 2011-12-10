@@ -942,14 +942,8 @@ _act(int action) {
 	case PromptReplace:
 		return 0;
 	
-	case ReloadConfig:
-		nconfs=0;
-		if (loadconfig(configfile))
-			return 1;
-		/* Use the default */
-		defconfig();
-		nconfs=1;
-		return 0;
+	case ReloadConfig:		
+		return config();
 	
 	case PrevConfig:
 		curconf = curconf? curconf-1: nconfs-1;

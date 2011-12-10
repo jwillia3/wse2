@@ -1,5 +1,4 @@
 Refresh only goes to row count not entire screen
-Show selection width (characters if on single line)
 Case-insensitive search
 Fix highlighting to highlight puncutation
 Multi-line highlighting

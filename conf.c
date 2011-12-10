@@ -153,8 +153,8 @@ defconfig() {
 	
 	conf.tabc = 8;
 	conf.usetabs = 1;
-	conf.usebom = 1;
-	conf.usecrlf = 1;
+	conf.usebom = 0;
+	conf.usecrlf = 0;
 	conf.wire[0] = 64;
 	conf.wire[1] = 72;
 	conf.wire[2] = 80;
@@ -345,6 +345,9 @@ selectconfig(int x) {
 
 config() {
 	wchar_t	path[MAX_PATH];
+	
+	nconfs=0;
+	nlangs=0;
 	
 	GetCurrentDirectory(MAX_PATH, path);
 	wcscpy(wcsrchr(path, L'\\')+1, L"wse.conf");

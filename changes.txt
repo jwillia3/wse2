@@ -80,3 +80,8 @@
 	Added support for BOM in UTF-8 & UTF-16.
 	Added BOM and CRLF config options.
 	Fixed off-by-one error in line counter on status bar.
+10 December 2011
+	Fixed error where each line is signed with BOM.
+	Set default to UNIX linebreaks and no BOM.
+	Cleared language count fixing config reload error.
+	Searches directories on reload config.

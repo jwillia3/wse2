@@ -17,6 +17,7 @@ struct	Line {
 
 struct	Codec {
 	wchar_t	*name;
+	int	(*sign)(unsigned char*);
 	wchar_t *(*dec)(unsigned char*,int);
 	int	(*enc)(unsigned char*,wchar_t*,int);
 };
