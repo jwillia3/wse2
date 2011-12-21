@@ -1,3 +1,7 @@
+struct textstyle {
+	int		style;
+	unsigned	color;
+};
 struct conf {
 	int		tabc;
 	int		usetabs;
@@ -9,9 +13,9 @@ struct conf {
 			
 	int		bg;
 	int		fg;
-	int		oddlinebg;
+	int		bg2;
 	int		selbg;
-	int		color[8];
+	struct textstyle style[8];
 	wchar_t		bgimage[128];
 	
 	int		doublebuffer;
@@ -40,7 +44,7 @@ struct lang {
 	wchar_t		brace[128];
 	wchar_t		kwd[64][256];
 	wchar_t		kwdcol[64];
-	wchar_t		kwdstyle[64];
+	wchar_t		cmdwrapper[128];
 	int		nkwd, commentcol;
 } lang;
 

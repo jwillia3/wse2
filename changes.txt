@@ -85,3 +85,8 @@
 	Set default to UNIX linebreaks and no BOM.
 	Cleared language count fixing config reload error.
 	Searches directories on reload config.
+19 December 2011
+    Made the "cmd /c %ls && pause >nul" optional in cmd_wrapper.
+    Changed c0-c7 to style0 and added bold/italic settings.
+    Removed bold/italic settings from keywords.
+    wse.conf is no longer loaded from local directory.

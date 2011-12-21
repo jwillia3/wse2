@@ -327,6 +327,26 @@ updatemenu() {
 		
 }
 
+spawn_cmd() {
+	STARTUPINFO		si;
+	PROCESS_INFORMATION	pi;
+	wchar_t wrap[MAX_PATH*3];
+	
+	ZeroMemory(&si, sizeof si);
+        ZeroMemory(&pi, sizeof pi);
+        si.cb=sizeof si;
+	
+	swprintf(wrap,
+		sizeof wrap/sizeof *wrap,
+		lang.cmdwrapper,
+		lastcmd,
+		filename);
+	if (CreateProcess(0,wrap, 0,0,0,0,0,0,&si, &pi)) {
+		CloseHandle(pi.hProcess);
+		CloseHandle(pi.hThread);
+	}
+}
+
 act(int action) {
 	
 	STARTUPINFO		si;
@@ -387,14 +407,8 @@ act(int action) {
 		break;
 		
 	case SpawnCmd:
-		ZeroMemory(&si, sizeof si);
-		ZeroMemory(&pi, sizeof pi);
-		si.cb=sizeof si;
-		if (CreateProcess(0,lastcmd, 0,0,0,0,0,0,&si, &pi)) {
-			CloseHandle(pi.hProcess);
-			CloseHandle(pi.hThread);
-		}
-		break;
+		spawn_cmd();
+                break;
 	
 	case PromptSpawn:
 		ok=openspawn(w, lastcmd_cmd, lastcmd_arg);
@@ -993,7 +1007,8 @@ paintlines(HDC dc, int first, int last) {
 			}
 		
 			if (sect>0) {
-				int style=lang.kwdstyle[k];
+				int style=conf.style[lang.kwdcol[k]].style;
+				
 				/*
 				 * Draw the preceding section
 				 * Then draw the keyword
@@ -1001,7 +1016,7 @@ paintlines(HDC dc, int first, int last) {
 				TabbedTextOut(dc, x,y, txt+i,
 					j-i, 1, &conf.tabw,0);
 				x=ind2px(line,j);
-				SetTextColor(dc, conf.color[lang.kwdcol[k]]);
+				SetTextColor(dc, conf.style[lang.kwdcol[k]].color);
 				style && SelectObject(dc,font[style]);
 				TabbedTextOut(dc, x,y, txt+j,
 					sect, 1, &conf.tabw,0);
@@ -1053,9 +1068,9 @@ paint(PAINTSTRUCT *ps) {
 	SelectObject(dc, GetStockObject(DC_PEN));
 	
 	/* Draw odd line's background */
-	if (!*conf.bgimage && conf.oddlinebg != conf.bg) {
-		SetDCPenColor(dc, conf.oddlinebg);
-		SetDCBrushColor(dc, conf.oddlinebg);
+	if (!*conf.bgimage && conf.bg2 != conf.bg) {
+		SetDCPenColor(dc, conf.bg2);
+		SetDCBrushColor(dc, conf.bg2);
 		y=line2px(first);
 		for (i=first; i<=last; i++) {
 			if (i % 2)
@@ -1065,8 +1080,8 @@ paint(PAINTSTRUCT *ps) {
 	}
 	
 	/* Draw comment line's background */
-	SetDCPenColor(dc, conf.color[lang.commentcol]);
-	SetDCBrushColor(dc, conf.color[lang.commentcol]);
+	SetDCPenColor(dc, conf.style[lang.commentcol].color);
+	SetDCBrushColor(dc, conf.style[lang.commentcol].color);
 	clen=wcslen(lang.comment);
 	y=line2px(first);
 	for (i=first; i<=last; i++) {

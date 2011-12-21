@@ -12,6 +12,7 @@ enum {
 	Boolean,
 	Int,
 	Color,
+	Style,
 	Float,
 	String,
 	Keyword
@@ -25,20 +26,20 @@ struct field {
 
 static struct	field fields[] = {
 		{L"bg_color", Color, &conf.bg},
+		{L"bg_color2", Color, &conf.bg2},
 		{L"fg_color", Color, &conf.fg},
 		{L"select_color", Color, &conf.selbg},
-		{L"odd_line_color", Color, &conf.oddlinebg},
 		{L"bg_image", String, &conf.bgimage},
 		{L"doublebuffer", Boolean, &conf.doublebuffer},
 		
-		{L"c0", Color, &conf.color[0]},
-		{L"c1", Color, &conf.color[1]},
-		{L"c2", Color, &conf.color[2]},
-		{L"c3", Color, &conf.color[3]},
-		{L"c4", Color, &conf.color[4]},
-		{L"c5", Color, &conf.color[5]},
-		{L"c6", Color, &conf.color[6]},
-		{L"c7", Color, &conf.color[7]},
+		{L"style0", Style, &conf.style[0]},
+		{L"style1", Style, &conf.style[1]},
+		{L"style2", Style, &conf.style[2]},
+		{L"style3", Style, &conf.style[3]},
+		{L"style4", Style, &conf.style[4]},
+		{L"style5", Style, &conf.style[5]},
+		{L"style6", Style, &conf.style[6]},
+		{L"style7", Style, &conf.style[7]},
 		
 		{L"font_name", String, &conf.fontname},
 		{L"font_size", Float, &conf.fontsz},
@@ -54,6 +55,7 @@ static struct	field fields[] = {
 		{L"break", String, &lang.brk},
 		{L"brace", String, &lang.brace},
 		{L"kwd", Keyword, 0},
+		{L"cmd_wrapper", String, &lang.cmdwrapper},
 		
 		{L"wire", Int, conf.wire},
 		{L"wire2", Int, conf.wire+1},
@@ -136,17 +138,18 @@ deflang() {
 	wcscpy(lang.brk, L"~!@#$%^&*()-+={}[]\\|;:'\",.<>/?");
 	wcscpy(lang.brace, L"()[]{}''\"\"<>``");
 	memset(lang.kwd,0,sizeof lang.kwd);
+	wcscpy(lang.cmdwrapper, L"cmd /c %ls & pause >nul");
 	lang.nkwd=0;
 	lang.commentcol=0;
 }
 
 defconfig() {
-	memset(conf.color, 0, sizeof conf.color);
+	memset(conf.style, 0, sizeof conf.style);
 	conf.bg = RGB(255,255,255);
-	conf.oddlinebg = RGB(240,240,240);
+	conf.bg2 = RGB(240,240,240);
 	conf.fg = RGB(64,64,64);
 	conf.selbg = RGB(160,160,192);
-	conf.color[0] = RGB(160,160,192);
+	conf.style[0].color = RGB(160,160,192);
 	wcscpy(conf.bgimage, L"");
 	
 	conf.doublebuffer=1;
@@ -210,6 +213,7 @@ configline(int ln, wchar_t *s) {
 	wchar_t		fname[32], *arg;
 	int		flen;
 	int		r,g,b;
+	struct textstyle *style;
 	struct field	*cf;
 	
 	while (iswspace(*s))
@@ -249,8 +253,27 @@ configline(int ln, wchar_t *s) {
 		return 1;
 
 	case Color:
-		swscanf(s+flen+1, L"%d %d %d", &r,&g,&b);
+		swscanf(arg, L"%d %d %d", &r,&g,&b);
 		*(int*)cf->ptr = (b<<16)+(g<<8)+r;
+		return 1;
+	
+	case Style:
+		style = (struct textstyle*)cf->ptr;
+		style->style = 0;
+		for (;;) {
+			while (iswspace(*arg))
+				arg++;
+			if (!wcsncmp(arg, L"bold", 4))
+				arg+=4, style->style |= 1;
+			else if (!wcsncmp(arg, L"italics", 7))
+				arg+=7, style->style |= 2;
+			else if (!wcsncmp(arg, L"italic", 6))
+				arg+=6, style->style |= 2;
+			else
+				break;
+		}
+		swscanf(arg, L"%d %d %d", &r,&g,&b);
+		style->color = (b<<16)+(g<<8)+r;
 		return 1;
 	
 	case Float:
@@ -269,12 +292,6 @@ configline(int ln, wchar_t *s) {
 	case Keyword:
 		while (iswspace(*arg))
 			arg++;
-		lang.kwdstyle[lang.nkwd] = tolower(*arg)=='b'
-			? (arg++,1)
-			: 0;
-		lang.kwdstyle[lang.nkwd] += tolower(*arg)=='i'
-			? (arg++,2)
-			: 0;
 		
 		lang.kwdcol[lang.nkwd] = wcstoul(arg,&arg,0);
 		while (iswspace(*arg))
@@ -348,13 +365,6 @@ config() {
 	
 	nconfs=0;
 	nlangs=0;
-	
-	GetCurrentDirectory(MAX_PATH, path);
-	wcscpy(wcsrchr(path, L'\\')+1, L"wse.conf");
-	if (loadconfig(path)) {
-		configfile=wcsdup(path);
-		return 1;
-	}
 	
 	GetModuleFileName(0, path, MAX_PATH);
 	wcscpy(wcsrchr(path, L'\\')+1, L"wse.conf");
