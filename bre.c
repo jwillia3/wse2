@@ -276,7 +276,7 @@ star(M *m, str re, str rest, int rem) {
 		return 1;
 	
 	restore(m, &s);
-        return 0;
+	return 0;
 }
 
 static
@@ -455,5 +455,3 @@ subst(struct match *m, wchar_t *re, wchar_t *txt, wchar_t *repl) {
 	_subst(s, m, repl);
 	return s;
 }
-
-

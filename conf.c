@@ -113,7 +113,7 @@ configfont() {
 	font[2] = CreateFontIndirect(&lf); /* Italic */
 	
 	lf.lfItalic ^= 1;
-	lf.lfWeight = 900;
+	lf.lfWeight = lf.lfWeight==900? 400: 900;
 	font[1] = CreateFontIndirect(&lf); /* Bold */
 	
 	lf.lfItalic ^= 1;
@@ -241,6 +241,11 @@ configline(int ln, wchar_t *s) {
 			arg++;
 		if (!wcsncmp(arg,L"yes",3)) {
 			arg += 3;
+			while (iswspace(*arg))
+				arg++;
+			*(int*)cf->ptr = !*arg;
+		} else if (!wcsncmp(arg,L"true",4)) {
+			arg += 4;
 			while (iswspace(*arg))
 				arg++;
 			*(int*)cf->ptr = !*arg;

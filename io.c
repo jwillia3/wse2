@@ -114,8 +114,8 @@ enc_cp1252(unsigned char *buf, wchar_t *src, int len) {
 static wchar_t*
 dec_utf8(unsigned char *src, int sz) {
 	wchar_t	*dst;
-        if (!memcmp(src, "\xef\xbb\xbf", 3))
-                conf.usebom = 1;
+	if (!memcmp(src, "\xef\xbb\xbf", 3))
+	conf.usebom = 1;
 	dst = LocalAlloc(0, (sz+1) * sizeof(wchar_t));
 	MultiByteToWideChar(CP_UTF8, 0, src, sz+1, dst, sz+1);
 	LocalFree(src);
@@ -125,7 +125,7 @@ dec_utf8(unsigned char *src, int sz) {
 static
 enc_utf8(unsigned char *buf, wchar_t *src, int len) {
 	return WideCharToMultiByte(CP_UTF8, 0,
-		src, len, buf+(conf.usebom? 3: 0), len*3, 0, 0);
+		src, len, buf, len*3, 0, 0);
 }
 
 static
@@ -147,7 +147,7 @@ sign_utf16(unsigned char *buf) {
 
 static
 enc_utf16(unsigned char *buf, wchar_t *src, int len) {
-        memcpy(buf, src, len*2);
+	memcpy(buf, src, len*2);
 	return len*2;
 }
 
@@ -157,19 +157,19 @@ detectenc(BYTE *buf, DWORD sz) {
 		memmove(buf,buf+3,sz);
 		buf[sz-3]=0;
 		setcodec(L"utf-8");
-                conf.usebom = 1;
+		conf.usebom = 1;
 	} else if (*buf==0xff && buf[1]==0xfe) {
 		memmove(buf,buf+2,sz);
 		((wchar_t*)buf)[sz/2 - 1] = 0;
 		setcodec(L"utf-16");
-                conf.usebom = 1;
+		conf.usebom = 1;
 	} else if (memchr(buf,0,sz)) {
 		setcodec(L"utf-16");
-                conf.usebom = 0;
+		conf.usebom = 0;
 	} else {
 		setcodec(L"utf-8");
-                conf.usebom = 0;
-        }
+		conf.usebom = 0;
+	}
 }
 
 Codec*

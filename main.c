@@ -333,8 +333,8 @@ spawn_cmd() {
 	wchar_t wrap[MAX_PATH*3];
 	
 	ZeroMemory(&si, sizeof si);
-        ZeroMemory(&pi, sizeof pi);
-        si.cb=sizeof si;
+	ZeroMemory(&pi, sizeof pi);
+	si.cb=sizeof si;
 	
 	swprintf(wrap,
 		sizeof wrap/sizeof *wrap,
@@ -408,7 +408,7 @@ act(int action) {
 		
 	case SpawnCmd:
 		spawn_cmd();
-                break;
+		break;
 	
 	case PromptSpawn:
 		ok=openspawn(w, lastcmd_cmd, lastcmd_arg);
@@ -997,26 +997,33 @@ paintlines(HDC dc, int first, int last) {
 		while (j<len) {
 			/*
 			 * Match a keyword followed by break.
+			 * Breaking chars need not be follwed
+			 * by breaks.
 			 * Start of line or break precedes it.
 			 */
 			for (k=0,sect=0; k<lang.nkwd; k++) {
 				sect=re_run(txt+j, lang.kwd[k]);
-				if (sect>0
-				  && (!txt[j+sect]|| brktbl[txt[j+sect]&0xffff]))
-					break;
+				if (sect <= 0) /* matched */
+					continue;
+				if (brktbl[txt[j]&0xffff])
+					break; /* is a breaker itself */
+				
+				if (brktbl[txt[j+sect]&0xffff]
+				  && brktbl[txt[j? j-1: 0]&0xffff])
+					break; /* braced by breaks */
+				
 			}
 		
 			if (sect>0) {
 				int style=conf.style[lang.kwdcol[k]].style;
 				
-				/*
-				 * Draw the preceding section
-				 * Then draw the keyword
-				 */
+				/* Draw the preceding section */
 				TabbedTextOut(dc, x,y, txt+i,
 					j-i, 1, &conf.tabw,0);
 				x=ind2px(line,j);
 				SetTextColor(dc, conf.style[lang.kwdcol[k]].color);
+				
+				/* Then draw the keyword */
 				style && SelectObject(dc,font[style]);
 				TabbedTextOut(dc, x,y, txt+j,
 					sect, 1, &conf.tabw,0);
@@ -1025,12 +1032,11 @@ paintlines(HDC dc, int first, int last) {
 				i=j+=sect;
 				x=ind2px(line,j);
 			} else {
-				/*
-				 * advance past next punct
-				 */
-				while (txt[j] && !brktbl[txt[j]&0xffff])
-					j++;
-				if (txt[j])
+				/* Skip spaces */
+				if (brktbl[txt[j]&0xffff] == 2)
+					while (brktbl[txt[j]&0xffff] == 2)
+						j++;
+				else /* Skip one breaker */
 					j++;
 			}
 		}
@@ -1379,6 +1385,7 @@ reinitlang() {
 	s=L" \t\n";
 	while (*s)
 		brktbl[*s++ & 0xffff] = 2;
+	brktbl[0] = 1;
 	
 	s=lang.brace;
 	ZeroMemory(opentbl, sizeof opentbl);
@@ -1412,6 +1419,9 @@ reinitconfig() {
 		bgbrush=CreateSolidBrush(conf.bg);
 		bgpen=CreatePen(PS_SOLID, 1, conf.bg);
 	}
+    
+    /* Fix visible line count if font size changed */
+    vis = height/conf.lheight - 1;
 	
 	/* Fix the caret size */
 	if (GetFocus()==w)

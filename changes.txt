@@ -90,3 +90,10 @@
     Changed c0-c7 to style0 and added bold/italic settings.
     Removed bold/italic settings from keywords.
     wse.conf is no longer loaded from local directory.
+03 January 2012
+	Fixed BOM encoding w/ UTF-8.
+	Visible line count is updated when font config is changed.
+	Fixed syntax highlighting to work with puncutation.
+	'true' can be used as a value for booleans.
+	.9 weight causes bold style to be .4 weight.
+	
