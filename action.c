@@ -1,4 +1,4 @@
-#
+/* vim: set noexpandtab:tabstop=8 */
 /*
  *		Actions
  * These routines are the middle level between the low-level
@@ -24,12 +24,12 @@ static join(int lo, int hi, int space);
 /* Insert considering tab-to-space */
 static
 instabb(int c) {
-	if (c=='\t' && !conf.usetabs) {
+	if (c=='\t' && !file_usetabs) {
 		int i = 0;
 		do {
 			insb(b,' ');
 			i++;
-		} while ((ind2col(LN, IND)-1) % conf.tabc);
+		} while ((ind2col(LN, IND)-1) % file_tabc);
 		return i;
 	} else
 		return insb(b,c);
@@ -249,8 +249,8 @@ autoindent(int ln, int lvl) {
 	
 	gob(b, ln, 0);
 
-	nt=(lvl-1)/conf.tabc;
-	ns=(lvl-1)%conf.tabc;
+	nt=(lvl-1)/file_tabc;
+	ns=(lvl-1)%file_tabc;
 	
 	while (nt--)
 		instabb(L'\t');
@@ -519,8 +519,15 @@ reload(wchar_t *encoding) {
 	return 0;
 }
 
+static
+istabspaces(wchar_t *at, int dir) {
+	int n;
+	for (n=0; n < file_tabc && *at == ' '; n++, at+=dir);
+	return n==file_tabc;
+}
+
 _act(int action) {
-	int		indent, len, sel, oldln, oldind;
+	int		indent, n, len, sel, oldln, oldind;
 	int		undos;
 	Loc		lo, hi;
 	wchar_t		*txt;
@@ -534,26 +541,27 @@ _act(int action) {
 		filename=wcsdup(L"//Untitled");
 		clearb(b);
 		setcodec(L"utf-8");
+		defaultperfile();
 		return 1;
 	
 	case LoadFile:
 		return clear_load(filename,0);
 	
 	case ToggleLinebreak:
-		conf.usecrlf ^= 1;
+		file_usecrlf ^= 1;
 		return 1;
 	
 	case ToggleTabs:
-		conf.usetabs = !conf.usetabs;
+		file_usetabs = !file_usetabs;
 		return 1;
 	
 	case Toggle8Tab:
-		conf.tabc = (conf.tabc == 8)? 4: 8;
-		conf.tabw = conf.em * conf.tabc;
+		file_tabc = (file_tabc == 8)? 4: 8;
+		file_tabw = conf.em * file_tabc;
 		return 1;
 	
 	case ToggleBOM:
-		conf.usebom ^= 1;
+		file_usebom ^= 1;
 		return 1;
 	
 	case ReloadFileUTF8:
@@ -599,6 +607,9 @@ _act(int action) {
 		return gob(b, LN+vis-1, IND);
 	
 	case MoveLeft:
+		txt=getb(b, LN, 0);
+		if (file_tabc<=IND && istabspaces(txt+IND-1, -1))
+			return gob(b,LN,IND-file_tabc);
 		if (gob(b, LN, IND-1))
 			return 1;
 		if (LN==1)
@@ -630,6 +641,10 @@ _act(int action) {
 		return 1;
 	
 	case MoveRight:
+		txt=getb(b, LN, 0);
+		if (istabspaces(txt+IND, +1))
+			return gob(b, LN, IND+file_tabc);
+			
 		if (gob(b, LN, IND+1))
 			return 1;
 		if (LN==NLINES)
@@ -695,7 +710,12 @@ _act(int action) {
 		}
 		
 		record(UndoSwap, LN, LN);
-		delb(b);
+		txt=getb(b, LN, 0);
+		if (istabspaces(txt+IND, +1))
+			for (n=0; n<file_tabc; n++)
+				delb(b);
+		else
+			delb(b);
 		return 1;
 	
 	case BackspaceChar:
@@ -713,7 +733,13 @@ _act(int action) {
 		
 		record(UndoSwap, LN, LN);
 		_act(MoveLeft);
-		return delb(b);
+		txt=getb(b, LN, 0);
+		if (istabspaces(txt+IND, +1))
+			for (n=0; n<file_tabc; n++)
+				delb(b);
+		else
+			delb(b);
+		return 1;
 	
 	case SpaceAbove:
 		if (sel)
@@ -865,7 +891,7 @@ _act(int action) {
 			int i;
 			if (!ordersel(&lo, &hi))
 				return 0;
-			for (i=0; i<conf.tabc; i++)
+			for (i=0; i<file_tabc; i++)
 				if (!delprefix(lo.ln, hi.ln, L" "))
 					break;
 			if (i) {

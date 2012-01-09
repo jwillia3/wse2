@@ -1,3 +1,4 @@
+/* vim: set noexpandtab:tabstop=8 */
 #include <stdlib.h>
 #include <wchar.h>
 #include "wse.h"

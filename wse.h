@@ -1,3 +1,4 @@
+/* vim: set noexpandtab:tabstop=8 */
 typedef struct Codec	Codec;
 typedef struct Line	Line;
 typedef struct Buf	Buf;
@@ -75,7 +76,9 @@ wchar_t		*latch;
 Codec		*codec;
 
 int		config(),
-		selectconfig(int n);
+		selectconfig(int n),
+		configfont(),
+		defaultperfile();
 
 Codec*		setcodec(wchar_t *name);
 

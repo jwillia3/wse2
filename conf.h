@@ -1,3 +1,4 @@
+/* vim: set noexpandtab:tabstop=8 */
 struct textstyle {
 	int		style;
 	unsigned	color;
@@ -49,6 +50,12 @@ struct lang {
 } lang;
 
 wchar_t		shell[128];
+
+int		file_usecrlf;
+int		file_usetabs;
+int		file_tabc;
+int		file_tabw;
+int		file_usebom;
 
 wchar_t		*configfile;
 int		nconfs;

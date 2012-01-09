@@ -1,3 +1,4 @@
+/* vim: set noexpandtab:tabstop=8 */
 enum {
 	ToggleLinebreak,
 	ToggleTabs,

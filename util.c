@@ -1,3 +1,4 @@
+/* vim: set noexpandtab:tabstop=8 */
 #include <wchar.h>
 #include "wse.h"
 #include "conf.h"
@@ -36,7 +37,7 @@ line2px(int ln) {
 nextcol(int vc, int c) {
 	if (c!='\t')
 		return 1;
-	return conf.tabc - (vc + conf.tabc-1) % conf.tabc;
+	return file_tabc - (vc + file_tabc-1) % file_tabc;
 }
 
 col2ind(int ln, int col) {
@@ -67,7 +68,7 @@ ind2px(int ln, int ind) {
 
 	txt=getb(b, ln, 0);
 	px=0;
-	tab=conf.tabw;
+	tab=file_tabw;
 	for (i=0; txt[i] && i<ind; i++)
 		px += txt[i]=='\t'
 			? tab - (px + tab) % tab
@@ -81,7 +82,7 @@ px2ind(int ln, int x) {
 
 	txt=getb(b, ln, 0);
 	px=0;
-	tab=conf.tabw;
+	tab=file_tabw;
 	for (i=0; txt[i] && px<x; i++)
 		px += txt[i]=='\t'
 			? tab - (px + tab) % tab

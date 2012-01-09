@@ -1,3 +1,4 @@
+/* vim: set noexpandtab:tabstop=8 */
 #define _WIN32_WINNT 0x0501
 #define WIN32_LEAN_AND_MEAN
 #define UNICODE
@@ -6,6 +7,7 @@
 #include <stdlib.h>
 #include <wchar.h>
 #include "conf.h"
+#include "wse.h"
 #include "re.h"
 
 enum {
@@ -130,6 +132,7 @@ configfont() {
 		+ tm.tmExternalLeading;
 	conf.em = tm.tmAveCharWidth;
 	conf.tabw = conf.em * conf.tabc;
+	return 1;
 }
 
 deflang() {
@@ -146,7 +149,7 @@ deflang() {
 defconfig() {
 	memset(conf.style, 0, sizeof conf.style);
 	conf.bg = RGB(255,255,255);
-	conf.bg2 = RGB(240,240,240);
+	conf.bg2 = RGB(245,245,245);
 	conf.fg = RGB(64,64,64);
 	conf.selbg = RGB(160,160,192);
 	conf.style[0].color = RGB(160,160,192);
@@ -154,8 +157,8 @@ defconfig() {
 	
 	conf.doublebuffer=1;
 	
-	conf.tabc = 8;
-	conf.usetabs = 1;
+	conf.tabc = 4;
+	conf.usetabs = 0;
 	conf.usebom = 0;
 	conf.usecrlf = 0;
 	conf.wire[0] = 64;
@@ -165,8 +168,8 @@ defconfig() {
 	conf.cols = 80;
 	conf.rows = 24;
 	
-	wcscpy(conf.fontname, L"Lucida Console");
-	conf.fontsz = 10.0;
+	wcscpy(conf.fontname, L"Courier New");
+	conf.fontsz = 12.0;
 	conf.fontasp = 0.0;
 	conf.leading = 1.5;
 	conf.smooth = 1.0;
@@ -208,58 +211,83 @@ directive(wchar_t *s) {
 	return 1;
 }
 
+getcolor(wchar_t *arg) {
+	double		h, s, v; /* hue,chroma,luma */
+	int		r,g,b;
+	
+	if (3 == swscanf(arg, L"%lf\x00b0 %lf %lf", &h,&s,&v)
+	|| 3 == swscanf(arg, L"%lf* %lf %lf", &h,&s,&v)) {
+		double r,g,b, f, p,q,t;
+		if (s == 0.0) {
+			r=g=b=v;
+			return ((unsigned)(b*255)<<16)+
+				((unsigned)(g*255)<<8)+
+				((unsigned)(r*255));
+		}
+		h /= 60.0;
+		f = h - floor(h);
+		p = v * (1.0 - s);
+		q = v * (1.0 - s * f);
+		t = v * (1.0 - s * (1.0 - f));
+		if (h < 1.0) r=v, g=t, b=p;
+		else if (h < 2.0) r=q, g=v, b=p;
+		else if (h < 3.0) r=p, g=v, b=t;
+		else if (h < 4.0) r=p, g=q, b=v;
+		else if (h < 5.0) r=t, g=p, b=v;
+		else r=v, g=p, b=q;
+		
+		return ((unsigned)(b*255)<<16)+
+			((unsigned)(g*255)<<8)+
+			((unsigned)(r*255));
+	} else {
+		swscanf(arg, L"%d %d %d", &r,&g,&b);
+		return (b<<16)+(g<<8)+r;
+	}
+	return 0;
+}
+
 static
 configline(int ln, wchar_t *s) {
-	wchar_t		fname[32], *arg;
-	int		flen;
-	int		r,g,b;
+	wchar_t		*arg;
 	struct textstyle *style;
 	struct field	*cf;
 	
 	while (iswspace(*s))
 		s++;
-		
 	if (*s=='#' || !*s)
 		return 0;
-	
 	if (*s=='.')
 		return directive(s+1);
 	
-	for (flen=0; iswalnum(s[flen]) || s[flen]=='_'; flen++);
-	s[flen]=0;
-	arg=s+flen+1;
+	/* Cut field name */
+	for (arg=s; *arg && !iswspace(*arg); arg++);
+	*arg++=0;
+	while (iswspace(*arg)) arg++;
 	
+	/* Find field */
 	for (cf=fields; cf->name && wcscmp(cf->name, s); cf++);
-	
 	if (!cf->name)
 		return 0;
+	
+	/* Remove comment if not string or keyword */
+	if (cf->type != String && cf->type != Keyword)
+		arg[wcscspn(arg, L"#")] = 0;
 	
 	switch (cf->type) {
 	
 	case Boolean:
-		while (iswspace(*arg))
-			arg++;
-		if (!wcsncmp(arg,L"yes",3)) {
-			arg += 3;
-			while (iswspace(*arg))
-				arg++;
-			*(int*)cf->ptr = !*arg;
-		} else if (!wcsncmp(arg,L"true",4)) {
-			arg += 4;
-			while (iswspace(*arg))
-				arg++;
-			*(int*)cf->ptr = !*arg;
-		} else
-			*(int*)cf->ptr = 0;
+		if (!wcscmp(arg,L"yes")) *(int*)cf->ptr = 1;
+		else if (!wcscmp(arg,L"true")) *(int*)cf->ptr = 1;
+		else *(int*)cf->ptr = 0;
+		while (*++arg);
 		return 1;
 	
 	case Int:
-		swscanf(s+flen+1, L"%d", cf->ptr);
+		*(int*)cf->ptr = wcstol(arg, &arg, 0);
 		return 1;
 
 	case Color:
-		swscanf(arg, L"%d %d %d", &r,&g,&b);
-		*(int*)cf->ptr = (b<<16)+(g<<8)+r;
+		*(int*)cf->ptr = getcolor(arg);
 		return 1;
 	
 	case Style:
@@ -277,27 +305,18 @@ configline(int ln, wchar_t *s) {
 			else
 				break;
 		}
-		swscanf(arg, L"%d %d %d", &r,&g,&b);
-		style->color = (b<<16)+(g<<8)+r;
+		style->color = getcolor(arg);
 		return 1;
 	
 	case Float:
-		swscanf(s+flen+1, L"%lf", cf->ptr);
+		*(double*)cf->ptr = wcstod(arg, &arg);
 		return 1;
 	
 	case String:
-		if (s[flen+1]) {
-			flen++;
-			while (iswspace(s[flen]))
-				flen++;
-		}
-		wcscpy(cf->ptr, s+flen);
+		wcscpy(cf->ptr, arg);
 		return 1;
 	
 	case Keyword:
-		while (iswspace(*arg))
-			arg++;
-		
 		lang.kwdcol[lang.nkwd] = wcstoul(arg,&arg,0);
 		while (iswspace(*arg))
 			arg++;

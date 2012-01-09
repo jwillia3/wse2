@@ -1,3 +1,4 @@
+/* vim: set noexpandtab:tabstop=8 */
 #include <stdarg.h>
 #include <stdio.h>
 

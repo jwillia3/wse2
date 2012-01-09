@@ -1,4 +1,4 @@
-#
+/* vim: set noexpandtab:tabstop=8 */
 /*
 		POSIX BASIC REGULAR EXPRESSION
 		    JERRY LEE WILLIAMS JR

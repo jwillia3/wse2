@@ -96,4 +96,11 @@
 	Fixed syntax highlighting to work with puncutation.
 	'true' can be used as a value for booleans.
 	.9 weight causes bold style to be .4 weight.
-	
+08 January 2012
+    Keywords no longer required to end with break.
+    Added \b and \~, break and backspace to keyword expressions.
+    No tabs & 4-character tabbing is the default now.
+    vi modelines: tabstop=*,[no]expandtab.
+    Left and right now move over tab spaces as a group.
+    Per-file settings: tab_width, use_tab, use_crlf, use_bom.
+    Added HSV colours: [0-360]° [0,1] [0,1] (° = Alt+0176).

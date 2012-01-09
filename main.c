@@ -1,3 +1,4 @@
+/* vim: set noexpandtab:tabstop=8 */
 #define WIN32_LEAN_AND_MEAN
 #define _WIN32_WINNT 0x0501
 #define STRICT
@@ -290,20 +291,20 @@ updatemenu() {
 		ToggleLinebreak,
 		MF_BYCOMMAND | MF_STRING,
 		ToggleLinebreak,
-		conf.usecrlf? L"Windows Linebreaks": L"UNIX Linebreaks");
+		file_usecrlf? L"Windows Linebreaks": L"UNIX Linebreaks");
 	ModifyMenu(encodingmenu,
 		ToggleTabs,
-		MF_BYCOMMAND | MF_STRING | (conf.usetabs? MF_CHECKED: 0),
+		MF_BYCOMMAND | MF_STRING | (file_usetabs? MF_CHECKED: 0),
 		ToggleTabs,
 		L"Use Tabs");
 	ModifyMenu(encodingmenu,
 		Toggle8Tab,
-		MF_BYCOMMAND | MF_STRING | (conf.tabc==8? MF_CHECKED: 0),
+		MF_BYCOMMAND | MF_STRING | (file_tabc==8? MF_CHECKED: 0),
 		Toggle8Tab,
 		L"Tab Width 8");
 	ModifyMenu(encodingmenu,
 		ToggleBOM,
-		MF_BYCOMMAND | MF_STRING | (conf.usebom? MF_CHECKED: 0),
+		MF_BYCOMMAND | MF_STRING | (file_usebom? MF_CHECKED: 0),
 		ToggleBOM,
 		L"Use Unicode BOM");
 	ModifyMenu(encodingmenu,
@@ -418,6 +419,7 @@ act(int action) {
 		top=1;
 		b->changes=0;
 		setfilename(L"//Untitled");
+		updatemenu();
 		settitle(0);
 		break;
 	
@@ -981,70 +983,51 @@ paintstatus(HDC dc) {
 
 #include "re.h"
 
+paintline(HDC dc, int x, int y, int line) {
+	int	k,len,sect;
+	void	*txt = getb(b,line,&len);
+	unsigned short *i = txt, *j = txt, *end = i + len;
+	SIZE	size;
+	
+	while (j<end) {
+		/* Match a keyword  */
+		for (k=0,sect=0; k<lang.nkwd; k++) {
+			sect=re_run(j, lang.kwd[k]);
+			if (sect > 0) /* matched */
+				break;
+		}
+	
+		if (sect>0) {
+			int style=conf.style[lang.kwdcol[k]].style;
+			
+			/* Draw the preceding section */
+			SelectObject(dc, font[0]);
+			TabbedTextOut(dc, x,y, i, j-i, 1, &file_tabw,0);
+			x=ind2px(line, j-txt);
+			SetTextColor(dc, conf.style[lang.kwdcol[k]].color);
+			
+			/* Then draw the keyword */
+			SelectObject(dc, font[style]);
+			TabbedTextOut(dc, x,y, j, sect, 1, &file_tabw,0);
+			SetTextColor(dc, conf.fg);
+			i=j+=sect;
+			x=ind2px(line,j-txt);
+		} else  if (*j && brktbl[*j] != 1) { /* Skip spaces or word */
+			int kind = brktbl[*j];
+			while (*j && brktbl[*j] == kind) j++;
+		} else /* Skip one breaker */
+			j++;
+	}
+	SelectObject(dc, font[0]);
+	if (j>i) TabbedTextOut(dc, x,y, i, j-i, 1, &file_tabw, 0);
+}
+
 paintlines(HDC dc, int first, int last) {
-	int	_y=line2px(first);
-	int	line,len,k;
-	wchar_t	*txt;
+	int	line, _y=line2px(first);
 	
 	SetTextColor(dc, conf.fg);
-	for (line=first; line<=last; line++) {
-		int	x=0, y=_y + (conf.lheight-conf.aheight)/2;
-		int	i,j,k,sect;
-		SIZE	size;
-		
-		txt = getb(b,line,&len);
-		i=j=0;
-		while (j<len) {
-			/*
-			 * Match a keyword followed by break.
-			 * Breaking chars need not be follwed
-			 * by breaks.
-			 * Start of line or break precedes it.
-			 */
-			for (k=0,sect=0; k<lang.nkwd; k++) {
-				sect=re_run(txt+j, lang.kwd[k]);
-				if (sect <= 0) /* matched */
-					continue;
-				if (brktbl[txt[j]&0xffff])
-					break; /* is a breaker itself */
-				
-				if (brktbl[txt[j+sect]&0xffff]
-				  && brktbl[txt[j? j-1: 0]&0xffff])
-					break; /* braced by breaks */
-				
-			}
-		
-			if (sect>0) {
-				int style=conf.style[lang.kwdcol[k]].style;
-				
-				/* Draw the preceding section */
-				TabbedTextOut(dc, x,y, txt+i,
-					j-i, 1, &conf.tabw,0);
-				x=ind2px(line,j);
-				SetTextColor(dc, conf.style[lang.kwdcol[k]].color);
-				
-				/* Then draw the keyword */
-				style && SelectObject(dc,font[style]);
-				TabbedTextOut(dc, x,y, txt+j,
-					sect, 1, &conf.tabw,0);
-				style && SelectObject(dc,font[0]);
-				SetTextColor(dc, conf.fg);
-				i=j+=sect;
-				x=ind2px(line,j);
-			} else {
-				/* Skip spaces */
-				if (brktbl[txt[j]&0xffff] == 2)
-					while (brktbl[txt[j]&0xffff] == 2)
-						j++;
-				else /* Skip one breaker */
-					j++;
-			}
-		}
-		if (j>i)
-			TabbedTextOut(dc, x,y, txt+i,
-				j-i, 1, &conf.tabw,0);
-		_y += conf.lheight;
-	}
+	for (line=first; line<=last; line++, _y += conf.lheight)
+		paintline(dc, 0, _y + (conf.lheight-conf.aheight)/2, line);
 }
 
 paint(PAINTSTRUCT *ps) {
@@ -1419,9 +1402,9 @@ reinitconfig() {
 		bgbrush=CreateSolidBrush(conf.bg);
 		bgpen=CreatePen(PS_SOLID, 1, conf.bg);
 	}
-    
-    /* Fix visible line count if font size changed */
-    vis = height/conf.lheight - 1;
+	
+	/* Fix visible line count if font size changed */
+	vis = height/conf.lheight - 1;
 	
 	/* Fix the caret size */
 	if (GetFocus()==w)
@@ -1466,8 +1449,8 @@ init() {
 		WS_EX_ACCEPTFILES,
 		L"Window", L"",
 		WS_OVERLAPPEDWINDOW|WS_VISIBLE,
-		(rt.right-rt.left)/2 - conf.cols*conf.em/2,
-		(rt.bottom-rt.top)/2 - (conf.rows+1)*conf.lheight/2,
+		max(0, (rt.right-rt.left)/2 - conf.cols*conf.em/2),
+		max(0, (rt.bottom-rt.top)/2 - (conf.rows+1)*conf.lheight/2),
 		conf.cols * conf.em,
 		(conf.rows+1) * conf.lheight,
 		NULL, menu, GetModuleHandle(0), NULL);

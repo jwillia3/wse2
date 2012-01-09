@@ -1,4 +1,5 @@
-enum { RE_LIT_=1, RE_DOT_, RE_BRA_, RE_CBRA_, RE_STAR_=8, RE_Q_=16 };
+/* vim: set noexpandtab:tabstop=8 */
+enum { RE_LIT_=1, RE_DOT_, RE_BRA_, RE_CBRA_, RE_BRK_, RE_BKSP_, RE_STAR_=8, RE_Q_=16 };
 static _re_map_[]={1,2,4,8,16,32,64,128};
 
 static wchar_t*
@@ -30,6 +31,10 @@ re_comp(wchar_t *out, wchar_t *re) {
 			*prev|=RE_STAR_;
 		else if (*re=='?' && prev)
 			*prev|=RE_Q_;
+		else if (*re=='\\' && re[1]=='b')
+			*(prev=o++)=RE_BRK_, re++;
+		else if (*re=='\\' && re[1]=='~')
+			*(prev=o++)=RE_BKSP_, re++;
 		else if (*re=='\\') {
 			*(prev=o++)=RE_LIT_;
 			*o++=1;
@@ -91,6 +96,18 @@ re_run(wchar_t *txt, wchar_t *m) {
 					return -1;
 				txt++;
 			}
+			break;
+		case RE_BRK_:
+			if (!(*m & RE_STAR_)
+			&& !(*m & RE_Q_)
+			&& !brktbl[*txt&0xffff])
+				return -1;
+			break;
+		case RE_BKSP_:
+			if (*m & RE_STAR_)
+				txt = org;
+			else if (org < txt)
+				txt--;
 			break;
 		}
 	return txt-org;
