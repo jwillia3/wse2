@@ -1039,6 +1039,10 @@ paint(PAINTSTRUCT *ps) {
 	if (conf.doublebuffer) {
 		dc=CreateCompatibleDC(ps->hdc);
 		SelectObject(dc, dbmp);
+		IntersectClipRect(dc, ps->rcPaint.left,
+			ps->rcPaint.top,
+			ps->rcPaint.right,
+			ps->rcPaint.bottom);
 	} else
 		dc=ps->hdc;
 	SetBkMode(dc, TRANSPARENT);

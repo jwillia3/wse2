@@ -104,3 +104,5 @@
     Left and right now move over tab spaces as a group.
     Per-file settings: tab_width, use_tab, use_crlf, use_bom.
     Added HSV colours: [0-360]° [0,1] [0,1] (° = Alt+0176).
+17 January 2012
+    Clipping applied to dirty bitmap sections.
