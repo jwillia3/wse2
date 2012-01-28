@@ -112,7 +112,7 @@ openspawn(HWND hwnd, wchar_t *initcmd, wchar_t *initarg) {
 		DWORD		cls;
 		wchar_t		*txt;
 	} *i, items[] = {
-		{{WS_BORDER|WS_VISIBLE|WS_TABSTOP,0,
+		{{WS_BORDER|WS_VISIBLE|WS_TABSTOP|ES_AUTOHSCROLL,0,
 			48,4, 256-48-4,14, 100},
 			0x81, initcmd},
 		{{WS_VISIBLE,0,

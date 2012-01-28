@@ -106,3 +106,6 @@
     Added HSV colours: [0-360]° [0,1] [0,1] (° = Alt+0176).
 17 January 2012
     Clipping applied to dirty bitmap sections.
+28 January 2012
+    Added visual styles to dialog boxes.
+    Run command input box automatically scrolls.
