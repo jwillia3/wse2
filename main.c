@@ -255,16 +255,16 @@ invdafter(int lo) {
 static
 commitlatch() {
 	wchar_t	*txt;
+	HANDLE handle;
 	if (!latch)
 		return 0;
 
-	/* MSDN says you need GMEM_MOVEABLE, but that
-	 * doesn't work
-	 */
-	txt=GlobalAlloc(0, (wcslen(latch)+1)*sizeof (wchar_t));
+	handle=GlobalAlloc(GMEM_MOVEABLE, (wcslen(latch)+1)*sizeof (wchar_t));
+	txt=GlobalLock(handle);
 	wcscpy(txt, latch);
 	free(latch);
 	latch=0;
+	GlobalUnlock(handle);
 	
 	OpenClipboard(w);
 	EmptyClipboard();
