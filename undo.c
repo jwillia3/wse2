@@ -173,7 +173,7 @@ undo(Undo **stk) {
 		
 	}
 	
-	CAR=u->car;
+	gob(b, u->car.ln, u->car.ind);
 	free(u);
 	return 1;
 }
