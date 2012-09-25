@@ -213,17 +213,31 @@ directive(wchar_t *s) {
 
 getcolor(wchar_t *arg) {
 	double		h, s, v; /* hue,chroma,luma */
+	double		y; /* luma (Y'601) */
 	int		r,g,b;
-	
-	if (3 == swscanf(arg, L"%lf\x00b0 %lf %lf", &h,&s,&v)
-	|| 3 == swscanf(arg, L"%lf* %lf %lf", &h,&s,&v)) {
+	if (3 == swscanf(arg, L"hsy %lf %lf %lf", &h,&s,&y)) {
+		float x, r1,g1,b1, m;
+		h /= 60.0;
+		x = s * (1 - fabs(fmod(h, 2) - 1));
+		if (0 <= h && h <= 1)	r1 = s, g1 = x, b1 = 0;
+		else if (h <= 2)	r1 = x, g1 = s, b1 = 0;
+		else if (h <= 3) 	r1 = 0, g1 = s, b1 = x;
+		else if (h <= 4) 	r1 = 0, g1 = x, b1 = s;
+		else if (h <= 5) 	r1 = x, g1 = 0, b1 = s;
+		else if (h <= 6) 	r1 = s, g1 = 0, b1 = x;
+		else	 		r1 = 0, g1 = 0, b1 = 0;
+		m = y - (.3*r1 + .59*g1 + .11*b1);
+		r = 255 * (r1 + m);
+		g = 255 * (g1 + m);
+		b = 255 * (b1 + m);
+		if (r < 0) r = 0; else if (r > 255) r = 255;
+		if (g < 0) g = 0; else if (g > 255) g = 255;
+		if (b < 0) b = 0; else if (b > 255) b = 255;
+		return ((unsigned)b<<16)+
+			((unsigned)g<<8)+
+			((unsigned)r);
+	} else if (3 == swscanf(arg, L"hsl %lf %lf %lf", &h,&s,&v)) {
 		double r,g,b, f, p,q,t;
-		if (s == 0.0) {
-			r=g=b=v;
-			return ((unsigned)(b*255)<<16)+
-				((unsigned)(g*255)<<8)+
-				((unsigned)(r*255));
-		}
 		h /= 60.0;
 		f = h - floor(h);
 		p = v * (1.0 - s);
@@ -235,12 +249,11 @@ getcolor(wchar_t *arg) {
 		else if (h < 4.0) r=p, g=q, b=v;
 		else if (h < 5.0) r=t, g=p, b=v;
 		else r=v, g=p, b=q;
-		
 		return ((unsigned)(b*255)<<16)+
 			((unsigned)(g*255)<<8)+
 			((unsigned)(r*255));
-	} else {
-		swscanf(arg, L"%d %d %d", &r,&g,&b);
+	} else if (3 == swscanf(arg, L"%d %d %d", &r,&g,&b)
+	  || 3 == swscanf(arg, L"rgb %d %d %d", &r,&g,&b)) {
 		return (b<<16)+(g<<8)+r;
 	}
 	return 0;

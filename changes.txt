@@ -109,3 +109,6 @@
 28 January 2012
     Added visual styles to dialog boxes.
     Run command input box automatically scrolls.
+25 September 2012
+    Added HSY colour space.
+    Changed format for HSL colour space.
