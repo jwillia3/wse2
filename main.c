@@ -28,6 +28,8 @@ Loc		click;
 int		width;
 int		height;
 HMENU		encodingmenu;
+BOOL		use_console = TRUE;
+#define		ID_CONSOLE 104
 
 OPENFILENAME	ofn = {
 			sizeof ofn,
@@ -67,16 +69,8 @@ SpawnProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 		switch (wparam) {
 		case IDOK:
 			len=GetWindowText(GetDlgItem(hwnd,100),
-				lastcmd_cmd,
-				sizeof lastcmd_cmd/sizeof *lastcmd_cmd);
-			GetWindowText(GetDlgItem(hwnd,101),
-				lastcmd_arg,
-				sizeof lastcmd_arg/sizeof *lastcmd_arg);
-			swprintf(lastcmd,
-				sizeof lastcmd/sizeof *lastcmd,
-				L"%ls %ls",
-				lastcmd_cmd,
-				lastcmd_arg);
+				lastcmd,
+				sizeof lastcmd/sizeof *lastcmd);
 			dlg=0;
 			DestroyWindow(hwnd);
 			act(SpawnCmd);
@@ -84,6 +78,9 @@ SpawnProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 		case IDCANCEL:
 			dlg=0;
 			DestroyWindow(hwnd);
+			return TRUE;
+		case ID_CONSOLE:
+			use_console = IsDlgButtonChecked(hwnd, ID_CONSOLE);
 			return TRUE;
 		}
 	}
@@ -103,10 +100,11 @@ makedlgitem(void *mem, DLGITEMTEMPLATE *it, int class, wchar_t *txt) {
 }
 
 static
-openspawn(HWND hwnd, wchar_t *initcmd, wchar_t *initarg) {
-	static char	buf[4096];
+openspawn(HWND hwnd, wchar_t *initcmd) {
+	static char	buf[8192];
 	void		*mem;
 	wchar_t		*title=L"Run";
+	HWND		dlgwnd;
 	struct {
 		DLGITEMTEMPLATE	dlg;
 		DWORD		cls;
@@ -118,6 +116,9 @@ openspawn(HWND hwnd, wchar_t *initcmd, wchar_t *initarg) {
 		{{WS_VISIBLE,0,
 			4,8, 44,16, 103},
 			0x82, L"Command: "},
+		{{WS_VISIBLE|BS_AUTOCHECKBOX|WS_TABSTOP,0,
+			4,20, 96,16, ID_CONSOLE},
+			0x80, L"Run with &console"},
 		{{WS_VISIBLE|BS_DEFPUSHBUTTON|WS_TABSTOP,0,
 			256,4, 28,16, IDOK},
 			0x80, L"OK"},
@@ -125,7 +126,8 @@ openspawn(HWND hwnd, wchar_t *initcmd, wchar_t *initarg) {
 			256,20+4, 28,16, IDCANCEL},
 			0x80, L"Cancel"}
 	};
-	DLGTEMPLATE	dlg = { WS_SYSMENU|WS_VISIBLE, 0,
+	wchar_t		*font = L"Segoe UI";
+	DLGTEMPLATE	dlg = { WS_SYSMENU|WS_VISIBLE|DS_SETFONT, 0,
 				sizeof items/sizeof *items,
 				0,0, 256+28+8,20+4+16+4+24};
 	
@@ -134,11 +136,14 @@ openspawn(HWND hwnd, wchar_t *initcmd, wchar_t *initarg) {
 	*((WORD*)mem)++=0;	/* menu */
 	*((WORD*)mem)++=0;	/* class */
 	mem=wcscpy(mem,title) + wcslen(title)+1;
+	*((WORD*)mem)++=9;	/* font size */
+	mem=wcscpy(mem,font) + wcslen(font)+1;
 	for (i=items; i < items+dlg.cdit; i++)
 		mem=makedlgitem(mem, &i->dlg, i->cls, i->txt);
 	
-	CreateDialogIndirect(GetModuleHandle(0),(void*)buf,
+	dlgwnd = CreateDialogIndirect(GetModuleHandle(0),(void*)buf,
 		hwnd,SpawnProc);
+	CheckDlgButton(dlgwnd, ID_CONSOLE, use_console);
 }
 			
 static
@@ -337,11 +342,15 @@ spawn_cmd() {
 	ZeroMemory(&pi, sizeof pi);
 	si.cb=sizeof si;
 	
-	swprintf(wrap,
-		sizeof wrap/sizeof *wrap,
-		lang.cmdwrapper,
-		lastcmd,
-		filename);
+	if (use_console)
+		swprintf(wrap,
+			sizeof wrap/sizeof *wrap,
+			lang.cmdwrapper,
+			lastcmd,
+			filename);
+	else
+		wcscpy(wrap, lastcmd);
+		
 	if (CreateProcess(0,wrap, 0,0,0,0,0,0,&si, &pi)) {
 		CloseHandle(pi.hProcess);
 		CloseHandle(pi.hThread);
@@ -412,7 +421,7 @@ act(int action) {
 		break;
 	
 	case PromptSpawn:
-		ok=openspawn(w, lastcmd_cmd, lastcmd_arg);
+		ok=openspawn(w, lastcmd);
 		break;
 	
 	case NewFile:

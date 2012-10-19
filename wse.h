@@ -65,8 +65,6 @@ wchar_t		filepath[512];
 wchar_t		filebase[512];
 wchar_t		fileext[512];
 wchar_t		lastcmd[512];
-wchar_t		lastcmd_cmd[512];
-wchar_t		lastcmd_arg[512];
 int		top;
 int		vis;
 char		brktbl[65536];
