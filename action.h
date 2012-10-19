@@ -41,6 +41,8 @@ enum {
 	DupLine,
 	AscendLine,
 	DescendLine,
+	PromptWrap,
+	WrapLine,
 	
 	SelectAll,
 	StartSelection,

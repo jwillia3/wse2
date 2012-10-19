@@ -114,3 +114,4 @@
     Changed format for HSL colour space.
 18 October 2012
     Fixed error where last line cannot be joined.
+    Fixed Run... dialog and added run w/o console.

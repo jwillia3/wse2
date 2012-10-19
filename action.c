@@ -212,6 +212,29 @@ insprefix(int lo, int hi, wchar_t *txt) {
 }
 
 static
+wrap(int lo, int hi, wchar_t *pre, wchar_t *suf) {
+	Loc	old=CAR;
+	int	i, advance = 0;
+	wchar_t* p;
+
+	record(UndoSwap, lo, hi);
+	for (i=lo; i<=hi; i++) {
+		gob(b, i, 0);
+		advance = 0;
+		for (p=pre; *p; p++)
+			advance += instabb(*p);
+		_act(MoveEnd);
+		for (p=suf; *p; p++)
+			instabb(*p);
+	}
+	
+	if (SLN)
+		SIND += advance;
+	gob(b, old.ln, old.ind+advance);
+	return hi-lo+1;
+}
+
+static
 delprefix(int lo, int hi, wchar_t *pre) {
 	Loc	old=CAR;
 	wchar_t	*txt;
@@ -852,6 +875,11 @@ _act(int action) {
 		record(UndoGroup, 0, 2);
 		gob(b, oldln+1, oldind);
 		return dellb(b, oldln+2);
+	
+	case WrapLine:
+		if (ordersel(&lo, &hi))
+			return wrap(lo.ln, hi.ln, wrapbefore, wrapafter);
+		return wrap(LN, LN, wrapbefore, wrapafter);
 	
 	case SelectAll:
 		SLN=0;

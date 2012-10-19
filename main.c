@@ -53,6 +53,49 @@ WNDCLASSEX	wc = {
 			0, 0, 0, 0, 0, 0, 0,
 			0, L"Window", 0 };
 
+
+
+static void*
+makedlgitem(void *mem, DLGITEMTEMPLATE *it, int class, wchar_t *txt) {
+	mem=(void*)((LONG_PTR)mem + 3 & ~3); /* align */
+	memcpy(mem,it,sizeof *it);
+	mem=(DLGITEMTEMPLATE*)mem + 1;
+	*((WORD*)mem)++=0xffff;	/* class */
+	*((WORD*)mem)++=class;	/* button */
+	mem=wcscpy(mem,txt) + wcslen(txt)+1;
+	*((WORD*)mem)++=0;	/* creation data */
+	return mem;
+}
+
+typedef struct {
+	DLGITEMTEMPLATE	dlg;
+	DWORD		cls;
+	wchar_t		*txt;
+} DIALOG_ITEM;
+
+HWND makedlg(HWND hwnd, DIALOG_ITEM *items, int n, wchar_t *title, DLGPROC proc) {
+	static char	buf[8192];
+	void		*mem;
+	DIALOG_ITEM	*i;
+	wchar_t		*font = L"Segoe UI";
+	DLGTEMPLATE	dlg = { WS_SYSMENU|WS_VISIBLE|DS_SETFONT, 0,
+				n, 0,0, 256+28+8,20+4+16+4+24};
+	
+	memcpy(buf, &dlg, sizeof dlg);
+	mem=buf + sizeof dlg;
+	*((WORD*)mem)++=0;	/* menu */
+	*((WORD*)mem)++=0;	/* class */
+	mem=wcscpy(mem,title) + wcslen(title)+1;
+	*((WORD*)mem)++=9;	/* font size */
+	mem=wcscpy(mem,font) + wcslen(font)+1;
+	for (i=items; i < items+dlg.cdit; i++)
+		mem=makedlgitem(mem, &i->dlg, i->cls, i->txt);
+	
+	return CreateDialogIndirect(GetModuleHandle(0),(void*)buf,
+		hwnd,proc);
+}
+
+
 INT_PTR CALLBACK
 SpawnProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 	int	len;
@@ -87,29 +130,9 @@ SpawnProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 	return FALSE;
 }
 
-static void*
-makedlgitem(void *mem, DLGITEMTEMPLATE *it, int class, wchar_t *txt) {
-	mem=(void*)((LONG_PTR)mem + 3 & ~3); /* align */
-	memcpy(mem,it,sizeof *it);
-	mem=(DLGITEMTEMPLATE*)mem + 1;
-	*((WORD*)mem)++=0xffff;	/* class */
-	*((WORD*)mem)++=class;	/* button */
-	mem=wcscpy(mem,txt) + wcslen(txt)+1;
-	*((WORD*)mem)++=0;	/* creation data */
-	return mem;
-}
-
 static
 openspawn(HWND hwnd, wchar_t *initcmd) {
-	static char	buf[8192];
-	void		*mem;
-	wchar_t		*title=L"Run";
-	HWND		dlgwnd;
-	struct {
-		DLGITEMTEMPLATE	dlg;
-		DWORD		cls;
-		wchar_t		*txt;
-	} *i, items[] = {
+	DIALOG_ITEM	items[] = {
 		{{WS_BORDER|WS_VISIBLE|WS_TABSTOP|ES_AUTOHSCROLL,0,
 			48,4, 256-48-4,14, 100},
 			0x81, initcmd},
@@ -126,26 +149,72 @@ openspawn(HWND hwnd, wchar_t *initcmd) {
 			256,20+4, 28,16, IDCANCEL},
 			0x80, L"Cancel"}
 	};
-	wchar_t		*font = L"Segoe UI";
-	DLGTEMPLATE	dlg = { WS_SYSMENU|WS_VISIBLE|DS_SETFONT, 0,
-				sizeof items/sizeof *items,
-				0,0, 256+28+8,20+4+16+4+24};
-	
-	memcpy(buf, &dlg, sizeof dlg);
-	mem=buf + sizeof dlg;
-	*((WORD*)mem)++=0;	/* menu */
-	*((WORD*)mem)++=0;	/* class */
-	mem=wcscpy(mem,title) + wcslen(title)+1;
-	*((WORD*)mem)++=9;	/* font size */
-	mem=wcscpy(mem,font) + wcslen(font)+1;
-	for (i=items; i < items+dlg.cdit; i++)
-		mem=makedlgitem(mem, &i->dlg, i->cls, i->txt);
-	
-	dlgwnd = CreateDialogIndirect(GetModuleHandle(0),(void*)buf,
-		hwnd,SpawnProc);
+	HWND dlgwnd = makedlg(hwnd, items, sizeof items/sizeof *items,
+		L"Run", SpawnProc);
 	CheckDlgButton(dlgwnd, ID_CONSOLE, use_console);
 }
-			
+
+INT_PTR CALLBACK
+WrapProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
+	int	len;
+	
+	switch (msg) {
+	case WM_INITDIALOG:
+		dlg=hwnd;
+		return TRUE;
+	case WM_CLOSE:
+		dlg=0;
+		DestroyWindow(hwnd);
+		return TRUE;
+	case WM_COMMAND:
+		switch (wparam) {
+		case IDOK:
+			GetWindowText(GetDlgItem(hwnd,100),
+				wrapbefore,
+				sizeof wrapbefore/sizeof *wrapbefore);
+			GetWindowText(GetDlgItem(hwnd,101),
+				wrapafter,
+				sizeof wrapafter/sizeof *wrapafter);
+			dlg=0;
+			DestroyWindow(hwnd);
+			act(WrapLine);
+			return TRUE;
+		case IDCANCEL:
+			dlg=0;
+			DestroyWindow(hwnd);
+			return TRUE;
+		}
+	}
+	return FALSE;
+}
+
+static
+openwrap(HWND hwnd) {
+	DIALOG_ITEM	items[] = {
+		{{WS_BORDER|WS_VISIBLE|WS_TABSTOP|ES_AUTOHSCROLL,0,
+			48,4, 256-48-4,14, 100},
+			0x81, wrapbefore},
+		{{WS_BORDER|WS_VISIBLE|WS_TABSTOP|ES_AUTOHSCROLL,0,
+			48,20, 256-48-4,14, 101},
+			0x81, wrapafter},
+		{{WS_VISIBLE,0,
+			4,8, 44,16, 102},
+			0x82, L"Before: "},
+		{{WS_VISIBLE,0,
+			4,24, 44,16, 103},
+			0x82, L"After: "},
+		{{WS_VISIBLE|BS_DEFPUSHBUTTON|WS_TABSTOP,0,
+			256,4, 28,16, IDOK},
+			0x80, L"OK"},
+		{{WS_VISIBLE|WS_TABSTOP,0,
+			256,20+4, 28,16, IDCANCEL},
+			0x80, L"Cancel"}
+	};
+	makedlg(hwnd, items, sizeof items/sizeof *items,
+		L"Wrap Lines", WrapProc);
+	
+}
+
 static
 settitle(int mod) {
 	wchar_t	all[MAX_PATH];
@@ -422,6 +491,10 @@ act(int action) {
 	
 	case PromptSpawn:
 		ok=openspawn(w, lastcmd);
+		break;
+	
+	case PromptWrap:
+		ok=openwrap(w);
 		break;
 	
 	case NewFile:
@@ -934,7 +1007,6 @@ wmkey(int c) {
 		if (ctl)
 			return act(ReloadConfig);
 		return act(shift? PrevConfig: NextConfig);
-		
 	}
 	return 0;
 }
@@ -1502,6 +1574,9 @@ initmenu() {
 	AppendMenu(m, MF_STRING, PromptFind, L"&Find...	^F");
 	AppendMenu(m, MF_STRING, PromptReplace, L"&Replace...	^R");
 	AppendMenu(m, MF_STRING, PromptGo, L"&Go To Line...	^G");
+	AppendMenu(m, MF_SEPARATOR, 0, 0);
+	AppendMenu(m, MF_STRING, PromptWrap, L"&Wrap Line...");
+	AppendMenu(m, MF_STRING, WrapLine, L"Repeat Wrap Line");
 	AppendMenu(m, MF_SEPARATOR, 0, 0);
 	AppendMenu(m, MF_STRING, SelectAll, L"Select All	^A");
 	AppendMenu(menu, MF_POPUP, (INT_PTR)m, L"&Edit");
