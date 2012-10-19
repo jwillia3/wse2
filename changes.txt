@@ -112,3 +112,5 @@
 25 September 2012
     Added HSY colour space.
     Changed format for HSL colour space.
+18 October 2012
+    Fixed error where last line cannot be joined.

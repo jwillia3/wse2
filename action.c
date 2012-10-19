@@ -804,9 +804,6 @@ _act(int action) {
 		return 1;
 	
 	case JoinLine:
-		if (LN==NLINES)
-			return 0;
-		
 		if (sel) {
 			ordersel(&lo, &hi);
 			return join(lo.ln, hi.ln, 1);
