@@ -34,6 +34,7 @@ int		width;
 int		height;
 HMENU		encodingmenu;
 BOOL		use_console = TRUE;
+BOOL		transparent = FALSE;
 #define		ID_CONSOLE 104
 
 OPENFILENAME	ofn = {
@@ -716,7 +717,10 @@ act(int action) {
 		}
 		free(txt);
 		break;
-	
+	case ToggleTransparency:
+		transparent = !transparent;
+		SetLayeredWindowAttributes(w, 0, 255*(transparent?1:alpha), LWA_ALPHA);
+		break;
 	default:
 		invdafter(top);
 	}
@@ -1008,6 +1012,8 @@ wmkey(int c) {
 			return act(PromptSpawn);
 		else
 			return act(SpawnCmd);
+	case VK_F11:
+		return act(ToggleTransparency);
 	case VK_F12:
 		if (ctl)
 			return act(ReloadConfig);
@@ -1571,7 +1577,7 @@ init() {
 	
 	SystemParametersInfo(SPI_GETWORKAREA, 0, &rt, 0);
 	w = CreateWindowEx(
-		WS_EX_ACCEPTFILES,
+		WS_EX_ACCEPTFILES|WS_EX_LAYERED,
 		L"Window", L"",
 		WS_OVERLAPPEDWINDOW|WS_VISIBLE,
 		max(0, (rt.right-rt.left)/2 - conf.cols*conf.em/2),
@@ -1579,6 +1585,7 @@ init() {
 		conf.cols * conf.em,
 		(conf.rows+1) * conf.lheight,
 		NULL, menu, GetModuleHandle(0), NULL);
+	SetLayeredWindowAttributes(w, 0, 255, LWA_ALPHA);
 	reinitconfig();
 	gofr.hwndOwner = w;
 	fr.hwndOwner = w;
@@ -1599,6 +1606,7 @@ initmenu() {
 	AppendMenu(m, MF_SEPARATOR, 0, 0);
 	AppendMenu(m, MF_STRING, SpawnEditor, L"New Window	F2");
 	AppendMenu(m, MF_STRING, SpawnShell, L"Shell	^F2");
+	AppendMenu(m, MF_STRING, ToggleTransparency, L"Toggle Transparency	F11");
 	AppendMenu(m, MF_STRING, ExitEditor, L"E&xit");
 	AppendMenu(menu, MF_POPUP, (INT_PTR)m, L"&File");
 	

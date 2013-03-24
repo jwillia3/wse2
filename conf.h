@@ -53,6 +53,7 @@ struct lang {
 } lang;
 
 wchar_t		shell[128];
+double		alpha;
 
 int		file_usecrlf;
 int		file_usetabs;

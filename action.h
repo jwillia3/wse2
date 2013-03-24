@@ -77,5 +77,7 @@ enum {
 	ReloadConfig,
 	PrevConfig,
 	NextConfig,
-	EditConfig
+	EditConfig,
+	
+	ToggleTransparency
 };

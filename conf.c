@@ -73,6 +73,7 @@ static struct	field fields[] = {
 		{L"cols", Int, &conf.cols},
 		{L"rows", Int, &conf.rows},
 		
+		{L"alpha", Float, &alpha},
 		{L"shell", String, &shell},
 		{0}
 		};
