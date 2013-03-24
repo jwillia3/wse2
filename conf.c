@@ -171,6 +171,7 @@ defconfig() {
 	conf.wire[3] = 128;
 	conf.cols = 80;
 	conf.rows = 24;
+	alpha = .9;
 	
 	wcscpy(conf.fontname, L"Courier New");
 	conf.fontsz = 12.0;

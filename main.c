@@ -719,7 +719,7 @@ act(int action) {
 		break;
 	case ToggleTransparency:
 		transparent = !transparent;
-		SetLayeredWindowAttributes(w, 0, 255*(transparent?1:alpha), LWA_ALPHA);
+		SetLayeredWindowAttributes(w, 0, 255*(transparent?alpha:1), LWA_ALPHA);
 		break;
 	default:
 		invdafter(top);
