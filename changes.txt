@@ -117,4 +117,4 @@
     Fixed Run... dialog and added run w/o console.
 24 March 2012
     Put #pragma comments instead of listing libraries on commandline
-    Added overstrike font rendering
+    Added blurred rendering

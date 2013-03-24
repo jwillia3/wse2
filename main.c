@@ -1044,33 +1044,8 @@ paintsel(HDC dc) {
 	return 1;
 }
 
-paintstatus(HDC dc) {
-	wchar_t	buf[1024];
-	wchar_t *selmsg=L"%d:%d of %d Sel %d:%d (%d %ls)";
-	wchar_t *noselmsg=L"%d:%d of %d";
-	int	len;
-	
-	SetTextColor(dc, conf.bg);
-	SetDCPenColor(dc, conf.fg);
-	SetDCBrushColor(dc, conf.fg);
-	Rectangle(dc, 0, height-conf.lheight, width, height);
-	
-	len=swprintf(buf, 1024, SLN? selmsg: noselmsg,
-		LN, ind2col(LN, IND),
-		NLINES,
-		SLN,
-		ind2col(SLN, SIND),
-		SLN==LN? abs(SIND-IND): abs(SLN-LN)+1,
-		SLN==LN? L"chars": L"lines");
-	TextOut(dc, 0,
-		height-conf.lheight+(conf.lheight-conf.aheight)/2,
-		buf, len);
-}
-
-#include "re.h"
-
 COLORREF
-lerp_color(COLORREF b, COLORREF f, double contrast) {
+blend(COLORREF b, COLORREF f, double contrast) {
 	int fr=GetRValue(f);
 	int fg=GetGValue(f);
 	int fb=GetBValue(f);
@@ -1083,12 +1058,50 @@ lerp_color(COLORREF b, COLORREF f, double contrast) {
 	return RGB(fr,fg,fb);
 }
 
+blurtext(HDC dc, int x, int y, wchar_t *txt, int n, COLORREF bg, COLORREF fg) {
+	SetTextColor(dc, blend(bg,fg,1-conf.blur));
+	TabbedTextOut(dc, x+conf.fbx, y+conf.fby, txt, n, 1, &file_tabw,0);
+	SetTextColor(dc, blend(bg,fg,conf.blur));
+	TabbedTextOut(dc, x,y, txt, n, 1, &file_tabw,0);
+}
+
+paintstatus(HDC dc) {
+	wchar_t	buf[1024];
+	wchar_t *selmsg=L"%d:%d of %d Sel %d:%d (%d %ls)";
+	wchar_t *noselmsg=L"%d:%d of %d";
+	int	len;
+	
+	SetDCPenColor(dc, conf.fg);
+	SetDCBrushColor(dc, conf.fg);
+	Rectangle(dc, 0, height-conf.lheight, width, height);
+	
+	len=swprintf(buf, 1024, SLN? selmsg: noselmsg,
+		LN, ind2col(LN, IND),
+		NLINES,
+		SLN,
+		ind2col(SLN, SIND),
+		SLN==LN? abs(SIND-IND): abs(SLN-LN)+1,
+		SLN==LN? L"chars": L"lines");
+	blurtext(dc, 0,
+		height-conf.lheight+(conf.lheight-conf.aheight)/2,
+		buf, len, conf.fg, conf.bg);
+}
+
+#include "re.h"
+
 paintline(HDC dc, int x, int y, int line) {
 	int	k,len,sect;
 	void	*txt = getb(b,line,&len);
 	unsigned short *i = txt, *j = txt, *end = i + len;
 	SIZE	size;
-	COLORREF bg = line%2==0? conf.bg2: conf.bg;
+	COLORREF bg;
+	
+	if (iscommentline(line))
+		bg=conf.style[lang.commentcol].color;
+	else if (line%2==0)
+		bg=conf.bg2;
+	else
+		bg=conf.bg;
 	
 	while (j<end) {
 		/* Match a keyword  */
@@ -1103,24 +1116,13 @@ paintline(HDC dc, int x, int y, int line) {
 			
 			/* Draw the preceding section */
 			SelectObject(dc, font[0]);
-			if (conf.overstrike) {
-				SetTextColor(dc, lerp_color(bg,conf.fg,1-conf.contrast));
-				TabbedTextOut(dc, x+1,y+1, i, j-i, 1, &file_tabw,0);
-				SetTextColor(dc, conf.fg);
-			}
-			TabbedTextOut(dc, x,y, i, j-i, 1, &file_tabw,0);
+			blurtext(dc, x, y, i, j-i, bg,conf.fg);
 			x=ind2px(line, j-txt);
 			
 			/* Then draw the keyword */
 			SelectObject(dc, font[style]);
-			if (conf.overstrike) {
-				SetTextColor(dc, lerp_color(bg,
-					conf.style[lang.kwdcol[k]].color,
-					1-conf.contrast));
-				TabbedTextOut(dc, x+1,y+1, j, sect, 1, &file_tabw,0);
-			}
-			SetTextColor(dc, conf.style[lang.kwdcol[k]].color);
-			TabbedTextOut(dc, x,y, j, sect, 1, &file_tabw,0);
+			blurtext(dc, x,y, j, sect,
+				bg, conf.style[lang.kwdcol[k]].color);
 			SetTextColor(dc, conf.fg);
 			i=j+=sect;
 			x=ind2px(line,j-txt);
@@ -1131,14 +1133,8 @@ paintline(HDC dc, int x, int y, int line) {
 			j++;
 	}
 	SelectObject(dc, font[0]);
-	if (j>i) {
-		if (conf.overstrike) {
-			SetTextColor(dc, lerp_color(bg,conf.fg,1-conf.contrast));
-			TabbedTextOut(dc, x+1,y+1, i, j-i, 1, &file_tabw, 0);
-			SetTextColor(dc, conf.fg);
-		}
-		TabbedTextOut(dc, x,y, i, j-i, 1, &file_tabw, 0);
-	}
+	if (j>i)
+		blurtext(dc, x,y, i, j-i, bg, conf.fg);
 }
 
 paintlines(HDC dc, int first, int last) {
@@ -1149,11 +1145,19 @@ paintlines(HDC dc, int first, int last) {
 		paintline(dc, 0, _y + (conf.lheight-conf.aheight)/2, line);
 }
 
+iscommentline(int line) {
+	wchar_t	*txt;
+	int 	clen,len;
+	txt = getb(b, line, &len);
+	clen=wcslen(lang.comment);
+	return clen && !wcsncmp(txt, lang.comment, clen);
+}
+
 paint(PAINTSTRUCT *ps) {
 	HDC	dc;
 	wchar_t	*txt;
 	SIZE	size;
-	int	i,n,clen,y,x,len,first,last;
+	int	i,n,y,x,len,first,last;
 
 	if (conf.doublebuffer) {
 		dc=CreateCompatibleDC(ps->hdc);
@@ -1194,11 +1198,9 @@ paint(PAINTSTRUCT *ps) {
 	/* Draw comment line's background */
 	SetDCPenColor(dc, conf.style[lang.commentcol].color);
 	SetDCBrushColor(dc, conf.style[lang.commentcol].color);
-	clen=wcslen(lang.comment);
 	y=line2px(first);
 	for (i=first; i<=last; i++) {
-		txt = getb(b, i, &len);
-		if (clen && !wcsncmp(txt, lang.comment, clen))
+		if (iscommentline(i))
 			Rectangle(dc, 0, y, width, y+conf.lheight);
 		y += conf.lheight;
 	}

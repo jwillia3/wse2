@@ -28,8 +28,9 @@ struct conf {
 	double		leading;
 	double		weight;
 	double		smooth;
-	int		overstrike;
-	double		contrast;
+	double		blur;
+	int		fbx; /* font blur x direction */
+	int		fby; /* font blur y direction */
 	int		italic;
 	
 	/* Derived Font metrics */
