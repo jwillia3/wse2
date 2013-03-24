@@ -49,7 +49,10 @@ static struct	field fields[] = {
 		{L"font_weight", Float, &conf.weight},
 		{L"font_smoothing", Float, &conf.smooth},
 		{L"font_italic", Boolean, &conf.italic},
+		{L"font_over", Boolean, &conf.overstrike},
+		{L"font_overstrike", Boolean, &conf.overstrike},
 		{L"line_height", Float, &conf.leading},
+		{L"font_contrast", Float, &conf.contrast},
 		
 		{L"ext", String, &lang.ext},
 		{L"comment", String, &lang.comment},
@@ -175,6 +178,8 @@ defconfig() {
 	conf.smooth = 1.0;
 	conf.italic = 0;
 	conf.weight = .4;
+	conf.overstrike = 1;
+	conf.contrast = .2;
 	
 	configfont();
 	return 1;

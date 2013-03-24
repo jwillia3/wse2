@@ -1069,11 +1069,26 @@ paintstatus(HDC dc) {
 
 #include "re.h"
 
+COLORREF
+lerp_color(COLORREF b, COLORREF f, double contrast) {
+	int fr=GetRValue(f);
+	int fg=GetGValue(f);
+	int fb=GetBValue(f);
+	int br=GetRValue(b);
+	int bg=GetGValue(b);
+	int bb=GetBValue(b);
+	fr=fr*(1.0-contrast)+br*contrast;
+	fg=fg*(1.0-contrast)+bg*contrast;
+	fb=fb*(1.0-contrast)+bb*contrast;
+	return RGB(fr,fg,fb);
+}
+
 paintline(HDC dc, int x, int y, int line) {
 	int	k,len,sect;
 	void	*txt = getb(b,line,&len);
 	unsigned short *i = txt, *j = txt, *end = i + len;
 	SIZE	size;
+	COLORREF bg = line%2==0? conf.bg2: conf.bg;
 	
 	while (j<end) {
 		/* Match a keyword  */
@@ -1088,12 +1103,23 @@ paintline(HDC dc, int x, int y, int line) {
 			
 			/* Draw the preceding section */
 			SelectObject(dc, font[0]);
+			if (conf.overstrike) {
+				SetTextColor(dc, lerp_color(bg,conf.fg,1-conf.contrast));
+				TabbedTextOut(dc, x+1,y+1, i, j-i, 1, &file_tabw,0);
+				SetTextColor(dc, conf.fg);
+			}
 			TabbedTextOut(dc, x,y, i, j-i, 1, &file_tabw,0);
 			x=ind2px(line, j-txt);
-			SetTextColor(dc, conf.style[lang.kwdcol[k]].color);
 			
 			/* Then draw the keyword */
 			SelectObject(dc, font[style]);
+			if (conf.overstrike) {
+				SetTextColor(dc, lerp_color(bg,
+					conf.style[lang.kwdcol[k]].color,
+					1-conf.contrast));
+				TabbedTextOut(dc, x+1,y+1, j, sect, 1, &file_tabw,0);
+			}
+			SetTextColor(dc, conf.style[lang.kwdcol[k]].color);
 			TabbedTextOut(dc, x,y, j, sect, 1, &file_tabw,0);
 			SetTextColor(dc, conf.fg);
 			i=j+=sect;
@@ -1105,7 +1131,14 @@ paintline(HDC dc, int x, int y, int line) {
 			j++;
 	}
 	SelectObject(dc, font[0]);
-	if (j>i) TabbedTextOut(dc, x,y, i, j-i, 1, &file_tabw, 0);
+	if (j>i) {
+		if (conf.overstrike) {
+			SetTextColor(dc, lerp_color(bg,conf.fg,1-conf.contrast));
+			TabbedTextOut(dc, x+1,y+1, i, j-i, 1, &file_tabw, 0);
+			SetTextColor(dc, conf.fg);
+		}
+		TabbedTextOut(dc, x,y, i, j-i, 1, &file_tabw, 0);
+	}
 }
 
 paintlines(HDC dc, int first, int last) {

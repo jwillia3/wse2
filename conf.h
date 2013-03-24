@@ -28,6 +28,8 @@ struct conf {
 	double		leading;
 	double		weight;
 	double		smooth;
+	int		overstrike;
+	double		contrast;
 	int		italic;
 	
 	/* Derived Font metrics */
