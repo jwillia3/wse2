@@ -3,6 +3,11 @@
 #define _WIN32_WINNT 0x0501
 #define STRICT
 #define UNICODE
+#pragma comment(lib,"user32.lib")
+#pragma comment(lib,"gdi32.lib")
+#pragma comment(lib,"shell32.lib")
+#pragma comment(lib,"comdlg32.lib")
+#pragma comment(lib,"uxtheme.lib")
 
 #include <Windows.h>
 #include <shellapi.h>
