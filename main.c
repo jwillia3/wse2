@@ -1105,9 +1105,9 @@ paintline(HDC dc, int x, int y, int line) {
 	if (iscommentline(line))
 		bg=conf.style[lang.commentcol].color;
 	else if (line%2==0)
-		bg=conf.bg2;
-	else
 		bg=conf.bg;
+	else
+		bg=conf.bg2;
 	
 	while (j<end) {
 		/* Match a keyword  */
