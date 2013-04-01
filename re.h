@@ -21,7 +21,13 @@ re_comp(wchar_t *out, wchar_t *re) {
 				: RE_BRA_;
 			memset(o,0,32);
 			for (re++; *re && *re!=']'; re++)
-				if (re[1]=='-' && (re+=2))
+				if (*re=='\\' && (re++)) {
+					for (c=esc; *c && *c!=*re; c+=2);
+					if (*c)
+						o[*c/8] |= _re_map_[*c&7];
+					else
+						o[*re/8] |= _re_map_[*re&7];
+				} else if (re[1]=='-' && (re+=2))
 					for (i=re[-2]; i<=*re; i++)
 						o[i/8] |= _re_map_[i&7];
 				else
