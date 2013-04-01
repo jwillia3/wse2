@@ -26,14 +26,6 @@ ordersel(Loc *lo, Loc *hi) {
 	return SLN!=0;
 }
 
-px2line(int px) {
-	return px/conf.lheight + top;
-}
-
-line2px(int ln) {
-	return (ln-top)*conf.lheight;
-}
-
 nextcol(int vc, int c) {
 	if (c!='\t')
 		return 1;
@@ -60,32 +52,4 @@ ind2col(int ln, int ind) {
 	for (i=0; i<ind; i++)
 		vc += nextcol(vc, txt[i]);
 	return vc;
-}
-
-ind2px(int ln, int ind) {
-	wchar_t	*txt;
-	int	i,px,tab;
-
-	txt=getb(b, ln, 0);
-	px=0;
-	tab=file_tabw;
-	for (i=0; txt[i] && i<ind; i++)
-		px += txt[i]=='\t'
-			? tab - (px + tab) % tab
-			: conf.widths[txt[i] & 0xffff];
-	return px;
-}
-
-px2ind(int ln, int x) {
-	wchar_t	*txt;
-	int	i,px,tab;
-
-	txt=getb(b, ln, 0);
-	px=0;
-	tab=file_tabw;
-	for (i=0; txt[i] && px<x; i++)
-		px += txt[i]=='\t'
-			? tab - (px + tab) % tab
-			: conf.widths[txt[i] & 0xffff];
-	return i;
 }

@@ -101,12 +101,8 @@ int		samerange(Loc *lo1, Loc *hi1, Loc *lo2, Loc *hi2),
 		sameloc(Loc *x, Loc *y),
 		cmploc(Loc *x, Loc *y),
 		ordersel(Loc *lo, Loc *hi),
-		px2line(int px),
-		line2px(int ln),
 		col2ind(int ln, int col),
-		ind2col(int ln, int ind),
-		ind2px(int ln, int ind),
-		col2px(int ln, int col);
+		ind2col(int ln, int ind);
 
 int		inslb(Buf *b, int ln, wchar_t *txt, int len),
 		insb(Buf *b, int c),
