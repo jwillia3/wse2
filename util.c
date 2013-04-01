@@ -29,7 +29,7 @@ ordersel(Loc *lo, Loc *hi) {
 nextcol(int vc, int c) {
 	if (c!='\t')
 		return 1;
-	return file_tabc - (vc + file_tabc-1) % file_tabc;
+	return file.tabc - (vc + file.tabc-1) % file.tabc;
 }
 
 col2ind(int ln, int col) {

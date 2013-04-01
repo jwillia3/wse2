@@ -420,20 +420,20 @@ updatemenu() {
 		ToggleLinebreak,
 		MF_BYCOMMAND | MF_STRING,
 		ToggleLinebreak,
-		file_usecrlf? L"Windows Linebreaks": L"UNIX Linebreaks");
+		file.usecrlf? L"Windows Linebreaks": L"UNIX Linebreaks");
 	ModifyMenu(encodingmenu,
 		ToggleTabs,
-		MF_BYCOMMAND | MF_STRING | (file_usetabs? MF_CHECKED: 0),
+		MF_BYCOMMAND | MF_STRING | (file.usetabs? MF_CHECKED: 0),
 		ToggleTabs,
 		L"Use Tabs");
 	ModifyMenu(encodingmenu,
 		Toggle8Tab,
-		MF_BYCOMMAND | MF_STRING | (file_tabc==8? MF_CHECKED: 0),
+		MF_BYCOMMAND | MF_STRING | (file.tabc==8? MF_CHECKED: 0),
 		Toggle8Tab,
 		L"Tab Width 8");
 	ModifyMenu(encodingmenu,
 		ToggleBOM,
-		MF_BYCOMMAND | MF_STRING | (file_usebom? MF_CHECKED: 0),
+		MF_BYCOMMAND | MF_STRING | (file.usebom? MF_CHECKED: 0),
 		ToggleBOM,
 		L"Use Unicode BOM");
 	ModifyMenu(encodingmenu,
@@ -534,7 +534,7 @@ act(int action) {
 		ZeroMemory(&si, sizeof si);
 		ZeroMemory(&pi, sizeof pi);
 		si.cb=sizeof si;
-		if (CreateProcess(0,shell, 0,0,0,0,0,0,&si, &pi)) {
+		if (CreateProcess(0,file.shell, 0,0,0,0,0,0,&si, &pi)) {
 			CloseHandle(pi.hProcess);
 			CloseHandle(pi.hThread);
 		}
@@ -569,7 +569,7 @@ act(int action) {
 		return 1;
 	
 	case Toggle8Tab:
-		font_tabw = font_em * file_tabc;
+		font_tabw = font_em * file.tabc;
 		updatemenu();
 		invdafter(top);
 		return 1;
@@ -584,7 +584,7 @@ act(int action) {
 				L"Error", MB_OK);
 		settitle(0);
 		updatemenu();
-		font_tabw = font_em * file_tabc;
+		font_tabw = font_em * file.tabc;
 		
 		/* Can't rely on generalinvd() because the
 		 * selection and line counts might not change
@@ -603,7 +603,7 @@ act(int action) {
 		updatemenu();
 		snap();
 		invdafter(top);
-		font_tabw = font_em * file_tabc;
+		font_tabw = font_em * file.tabc;
 		return ok;
 	
 	case SetUTF8:
@@ -771,7 +771,7 @@ act(int action) {
 		break;
 	case ToggleTransparency:
 		transparent = !transparent;
-		SetLayeredWindowAttributes(w, 0, 255*(transparent?alpha:1), LWA_ALPHA);
+		SetLayeredWindowAttributes(w, 0, 255*(transparent?file.alpha:1), LWA_ALPHA);
 		break;
 	default:
 		invdafter(top);
@@ -1256,13 +1256,13 @@ paint(PAINTSTRUCT *ps) {
 	paintsel(ddc);
 	
 	/* Draw the wire */
-	if (conf.wire) {
+	if (file.wire) {
 		HPEN pen;
-		int i, n=sizeof conf.wire/sizeof *conf.wire;
+		int i, n=sizeof file.wire/sizeof *file.wire;
 		pen = CreatePen(PS_DOT, 1, conf.fg);
 		SelectObject(ddc, pen);
 		for (i=0; i<n; i++) {
-			x=conf.wire[i]*font_em;
+			x=file.wire[i]*font_em;
 			MoveToEx(ddc, x, ps->rcPaint.top, 0);
 			LineTo(ddc, x, ps->rcPaint.bottom);
 		}
@@ -1601,7 +1601,7 @@ configfont() {
 	font_lheight = font_aheight * conf.leading
 		+ tm.tmExternalLeading;
 	font_em = tm.tmAveCharWidth;
-	font_tabw = font_em * conf.tabc;
+	font_tabw = font_em * file.tabc;
 	return 1;
 }
 
@@ -1675,10 +1675,10 @@ init() {
 		WS_EX_ACCEPTFILES|WS_EX_LAYERED,
 		L"Window", L"",
 		WS_OVERLAPPEDWINDOW|WS_VISIBLE,
-		max(0, (rt.right-rt.left)/2 - conf.cols*font_em/2),
-		max(0, (rt.bottom-rt.top)/2 - (conf.rows+1)*font_lheight/2),
-		conf.cols * font_em,
-		(conf.rows+1) * font_lheight,
+		max(0, (rt.right-rt.left)/2 - file.cols*font_em/2),
+		max(0, (rt.bottom-rt.top)/2 - (file.rows+1)*font_lheight/2),
+		file.cols * font_em,
+		(file.rows+1) * font_lheight,
 		NULL, menu, GetModuleHandle(0), NULL);
 	SetLayeredWindowAttributes(w, 0, 255, LWA_ALPHA);
 	reinitconfig();

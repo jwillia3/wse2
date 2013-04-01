@@ -114,7 +114,7 @@ static wchar_t*
 dec_utf8(unsigned char *src, int sz) {
 	wchar_t	*dst;
 	if (!memcmp(src, "\xef\xbb\xbf", 3))
-	file_usebom = 1;
+	file.usebom = 1;
 	dst = LocalAlloc(0, (sz+1) * sizeof(wchar_t));
 	MultiByteToWideChar(CP_UTF8, 0, src, sz+1, dst, sz+1);
 	LocalFree(src);
@@ -156,18 +156,18 @@ detectenc(BYTE *buf, DWORD sz) {
 		memmove(buf,buf+3,sz);
 		buf[sz-3]=0;
 		setcodec(L"utf-8");
-		file_usebom = 1;
+		file.usebom = 1;
 	} else if (*buf==0xff && buf[1]==0xfe) {
 		memmove(buf,buf+2,sz);
 		((wchar_t*)buf)[sz/2 - 1] = 0;
 		setcodec(L"utf-16");
-		file_usebom = 1;
+		file.usebom = 1;
 	} else if (memchr(buf,0,sz)) {
 		setcodec(L"utf-16");
-		file_usebom = 0;
+		file.usebom = 0;
 	} else {
 		setcodec(L"utf-8");
-		file_usebom = 0;
+		file.usebom = 0;
 	}
 }
 
@@ -180,20 +180,14 @@ setcodec(wchar_t *name) {
 	return codec;
 }
 
-defaultperfile() {
-	file_usecrlf = conf.usecrlf;
-	file_usebom = conf.usebom;
-	file_usetabs = conf.usetabs;
-	file_tabc = conf.tabc;
-	return 0;
-}
-
 load(wchar_t *fn, wchar_t *encoding) {
 	wchar_t	*dst, *odst, *eol, eolc;
 	unsigned char	*src;
 	HANDLE	f;
 	int	n, cr=0;
 	DWORD	sz;
+	
+	defaultperfile();
 	
 	f = CreateFile(fn, GENERIC_READ,
 		FILE_SHARE_READ|FILE_SHARE_WRITE, 0,
@@ -213,7 +207,6 @@ load(wchar_t *fn, wchar_t *encoding) {
 	
 	CloseHandle(f);
 	
-	defaultperfile();
 	n=0;
 	while (*dst) {
 		n++;
@@ -226,11 +219,11 @@ load(wchar_t *fn, wchar_t *encoding) {
 			void	*txt = getb(b,1,&len); /* WORK ON THIS LINE ONLY */
 			
 			if (settab = wcsstr(txt, L"tabstop="))
-				file_tabc = wcstol(settab+8, 0, 0);
+				file.tabc = wcstol(settab+8, 0, 0);
 			if (wcsstr(txt, L"noexpandtab"))
-				file_usetabs = 1;
+				file.usetabs = 1;
 			else if (wcsstr(txt, L"expandtab"))
-				file_usetabs = 0;
+				file.usetabs = 0;
 		}
 		
 		if (*eol==L'\r')
@@ -239,14 +232,14 @@ load(wchar_t *fn, wchar_t *encoding) {
 			eol++;
 		dst=eol;
 	}
-	file_usecrlf = !!cr;
+	file.usecrlf = !!cr;
 	LocalFree(odst);
 	!eolc && dellb(b,NLINES); /* initial line wasn't in file */
 	return 1;
 }
 
 save(wchar_t *fn) {
-	wchar_t *linebreak = file_usecrlf? L"\r\n": L"\n";
+	wchar_t *linebreak = file.usecrlf? L"\r\n": L"\n";
 	HANDLE	*f;
 	unsigned char	*buf;
 	wchar_t	*src;
@@ -258,7 +251,7 @@ save(wchar_t *fn) {
 	if (f==INVALID_HANDLE_VALUE)
 		return 0;
 	
-	if (file_usebom) {
+	if (file.usebom) {
 		unsigned char signature[16];
 		sz = codec->sign(signature);
 		WriteFile(f, signature, sz, &ign, 0);

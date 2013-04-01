@@ -24,12 +24,12 @@ static join(int lo, int hi, int space);
 /* Insert considering tab-to-space */
 static
 instabb(int c) {
-	if (c=='\t' && !file_usetabs) {
+	if (c=='\t' && !file.usetabs) {
 		int i = 0;
 		do {
 			insb(b,' ');
 			i++;
-		} while ((ind2col(LN, IND)-1) % file_tabc);
+		} while ((ind2col(LN, IND)-1) % file.tabc);
 		return i;
 	} else
 		return insb(b,c);
@@ -272,8 +272,8 @@ autoindent(int ln, int lvl) {
 	
 	gob(b, ln, 0);
 
-	nt=(lvl-1)/file_tabc;
-	ns=(lvl-1)%file_tabc;
+	nt=(lvl-1)/file.tabc;
+	ns=(lvl-1)%file.tabc;
 	
 	while (nt--)
 		instabb(L'\t');
@@ -545,8 +545,8 @@ reload(wchar_t *encoding) {
 static
 istabspaces(wchar_t *at, int dir) {
 	int n;
-	for (n=0; n < file_tabc && *at == ' '; n++, at+=dir);
-	return n==file_tabc;
+	for (n=0; n < file.tabc && *at == ' '; n++, at+=dir);
+	return n==file.tabc;
 }
 
 _act(int action) {
@@ -571,19 +571,19 @@ _act(int action) {
 		return clear_load(filename,0);
 	
 	case ToggleLinebreak:
-		file_usecrlf ^= 1;
+		file.usecrlf ^= 1;
 		return 1;
 	
 	case ToggleTabs:
-		file_usetabs = !file_usetabs;
+		file.usetabs = !file.usetabs;
 		return 1;
 	
 	case Toggle8Tab:
-		file_tabc = (file_tabc == 8)? 4: 8;
+		file.tabc = (file.tabc == 8)? 4: 8;
 		return 1;
 	
 	case ToggleBOM:
-		file_usebom ^= 1;
+		file.usebom ^= 1;
 		return 1;
 	
 	case ReloadFileUTF8:
@@ -630,8 +630,8 @@ _act(int action) {
 	
 	case MoveLeft:
 		txt=getb(b, LN, 0);
-		if (file_tabc<=IND && istabspaces(txt+IND-1, -1))
-			return gob(b,LN,IND-file_tabc);
+		if (file.tabc<=IND && istabspaces(txt+IND-1, -1))
+			return gob(b,LN,IND-file.tabc);
 		if (gob(b, LN, IND-1))
 			return 1;
 		if (LN==1)
@@ -665,7 +665,7 @@ _act(int action) {
 	case MoveRight:
 		txt=getb(b, LN, 0);
 		if (istabspaces(txt+IND, +1))
-			return gob(b, LN, IND+file_tabc);
+			return gob(b, LN, IND+file.tabc);
 			
 		if (gob(b, LN, IND+1))
 			return 1;
@@ -734,7 +734,7 @@ _act(int action) {
 		record(UndoSwap, LN, LN);
 		txt=getb(b, LN, 0);
 		if (istabspaces(txt+IND, +1))
-			for (n=0; n<file_tabc; n++)
+			for (n=0; n<file.tabc; n++)
 				delb(b);
 		else
 			delb(b);
@@ -757,7 +757,7 @@ _act(int action) {
 		_act(MoveLeft);
 		txt=getb(b, LN, 0);
 		if (istabspaces(txt+IND, +1))
-			for (n=0; n<file_tabc; n++)
+			for (n=0; n<file.tabc; n++)
 				delb(b);
 		else
 			delb(b);
@@ -915,7 +915,7 @@ _act(int action) {
 			int i;
 			if (!ordersel(&lo, &hi))
 				return 0;
-			for (i=0; i<file_tabc; i++)
+			for (i=0; i<file.tabc; i++)
 				if (!delprefix(lo.ln, hi.ln, L" "))
 					break;
 			if (i) {

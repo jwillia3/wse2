@@ -61,23 +61,36 @@ static struct	field fields[] = {
 		{L"kwd", Keyword, 0},
 		{L"cmd_wrapper", String, &lang.cmdwrapper},
 		
-		{L"wire", Int, conf.wire},
-		{L"wire2", Int, conf.wire+1},
-		{L"wire3", Int, conf.wire+2},
-		{L"wire4", Int, conf.wire+3},
-		{L"tab_width", Int, &conf.tabc},
-		{L"use_tabs", Boolean, &conf.usetabs},
-		{L"use_bom", Boolean, &conf.usebom},
-		{L"use_crlf", Boolean, &conf.usecrlf},
-		{L"cols", Int, &conf.cols},
-		{L"rows", Int, &conf.rows},
-		
-		{L"alpha", Float, &alpha},
-		{L"shell", String, &shell},
+		{L"wire", Int, file.wire},
+		{L"wire2", Int, file.wire+1},
+		{L"wire3", Int, file.wire+2},
+		{L"wire4", Int, file.wire+3},
+		{L"tab_width", Int, &file.tabc},
+		{L"use_tabs", Boolean, &file.usetabs},
+		{L"use_bom", Boolean, &file.usebom},
+		{L"use_crlf", Boolean, &file.usecrlf},
+		{L"cols", Int, &file.cols},
+		{L"rows", Int, &file.rows},		
+		{L"alpha", Float, &file.alpha},
+		{L"shell", String, &file.shell},
 		{0}
 		};
-wchar_t		shell[128]=L"cmd";
 
+defaultperfile() {
+	file.alpha = .9;
+	file.rows = 80;
+	file.cols = 25;
+	file.wire[0] = 64;
+	file.wire[1] = 72;
+	file.wire[2] = 80;
+	file.wire[3] = 132;
+	file.tabc = 4;
+	file.usetabs = 0;
+	file.usebom = 0;
+	file.usecrlf = 0;
+	wcscpy(file.shell, L"cmd");
+	return 0;
+}
 
 static
 deflang() {
@@ -101,17 +114,17 @@ defconfig() {
 	conf.style[0].color = RGB(160,160,192);
 	wcscpy(conf.bgimage, L"");
 	
-	conf.tabc = 4;
-	conf.usetabs = 0;
-	conf.usebom = 0;
-	conf.usecrlf = 0;
-	conf.wire[0] = 64;
-	conf.wire[1] = 72;
-	conf.wire[2] = 80;
-	conf.wire[3] = 128;
-	conf.cols = 80;
-	conf.rows = 24;
-	alpha = .9;
+	file.tabc = 4;
+	file.usetabs = 0;
+	file.usebom = 0;
+	file.usecrlf = 0;
+	file.wire[0] = 64;
+	file.wire[1] = 72;
+	file.wire[2] = 80;
+	file.wire[3] = 128;
+	file.cols = 80;
+	file.rows = 24;
+	file.alpha = .9;
 	
 	wcscpy(conf.fontname, L"Courier New");
 	conf.fontsz = 12.0;

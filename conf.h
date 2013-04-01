@@ -3,15 +3,7 @@ struct textstyle {
 	int		style;
 	unsigned	color;
 };
-struct conf {
-	int		tabc;
-	int		usetabs;
-	int		usebom;
-	int		usecrlf;
-	int		rows;
-	int		cols;
-	int		wire[4];
-			
+struct conf {		
 	int		bg;
 	int		fg;
 	int		bg2;
@@ -31,6 +23,20 @@ struct conf {
 	int		fby; /* font blur y direction */
 	int		italic;
 } conf;
+struct file {
+	double		alpha;
+	
+	int		rows;
+	int		cols;
+	int		wire[4];
+	
+	int		tabc;
+	int		usetabs;
+	int		usebom;
+	int		usecrlf;
+	
+	wchar_t		shell[128];
+} file;
 
 struct lang {
 	wchar_t		ext[128];
@@ -42,14 +48,6 @@ struct lang {
 	wchar_t		cmdwrapper[128];
 	int		nkwd, commentcol;
 } lang;
-
-wchar_t		shell[128];
-double		alpha;
-
-int		file_usecrlf;
-int		file_usetabs;
-int		file_tabc;
-int		file_usebom;
 
 wchar_t		*configfile;
 int		nconfs;
