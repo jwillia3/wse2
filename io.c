@@ -185,7 +185,6 @@ defaultperfile() {
 	file_usebom = conf.usebom;
 	file_usetabs = conf.usetabs;
 	file_tabc = conf.tabc;
-	file_tabw = conf.em * file_tabc;
 	return 0;
 }
 
@@ -232,7 +231,6 @@ load(wchar_t *fn, wchar_t *encoding) {
 				file_usetabs = 1;
 			else if (wcsstr(txt, L"expandtab"))
 				file_usetabs = 0;
-			file_tabw = conf.em * file_tabc;
 		}
 		
 		if (*eol==L'\r')

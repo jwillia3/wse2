@@ -30,12 +30,6 @@ struct conf {
 	int		fbx; /* font blur x direction */
 	int		fby; /* font blur y direction */
 	int		italic;
-	
-	/* Derived Font metrics */
-	int		aheight; /* ascender height */
-	int		lheight; /* height w/ leading */
-	int		em;
-	int		tabw;
 } conf;
 
 struct lang {
@@ -55,7 +49,6 @@ double		alpha;
 int		file_usecrlf;
 int		file_usetabs;
 int		file_tabc;
-int		file_tabw;
 int		file_usebom;
 
 wchar_t		*configfile;

@@ -76,67 +76,10 @@ static struct	field fields[] = {
 		{L"shell", String, &shell},
 		{0}
 		};
-
-static LOGFONT	lf = {
-		0, 0, 0,0, FW_NORMAL, 0,0,0,
-		DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
-		CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
-		FF_DONTCARE|DEFAULT_PITCH, 0
-		};
-extern HFONT	font[4];
-
 wchar_t		shell[128]=L"cmd";
 
-configfont() {
-	HDC		hdc;
-	int		dpi,i;
-	TEXTMETRIC	tm;
-	
-	if (font[0]) {
-		DeleteObject(font[0]);
-		DeleteObject(font[1]);
-		DeleteObject(font[2]);
-		DeleteObject(font[3]);
-	}
-	
-	/* Get device resolution */
-	hdc = GetDC(0);
-	dpi = GetDeviceCaps(hdc, LOGPIXELSY);
-	
-	/* Create font */
-	lf.lfHeight = -conf.fontsz * dpi/72.0;
-	lf.lfWidth = fabs(lf.lfHeight) * conf.fontasp;
-	lf.lfItalic = conf.italic;
-	lf.lfWeight = conf.weight * 1000;
-	lf.lfQuality = conf.smooth
-		? (conf.smooth<=0.5? ANTIALIASED_QUALITY: CLEARTYPE_QUALITY)
-		: NONANTIALIASED_QUALITY;
-	wcscpy(lf.lfFaceName, conf.fontname);
-	font[0] = CreateFontIndirect(&lf); /* Regular */
-	
-	lf.lfItalic ^= 1;
-	font[2] = CreateFontIndirect(&lf); /* Italic */
-	
-	lf.lfItalic ^= 1;
-	lf.lfWeight = lf.lfWeight==900? 400: 900;
-	font[1] = CreateFontIndirect(&lf); /* Bold */
-	
-	lf.lfItalic ^= 1;
-	font[3] = CreateFontIndirect(&lf); /* Bold & Italic */
-	
-	/* Get metrics */
-	SelectObject(hdc, font[0]);
-	GetTextMetrics(hdc, & tm);
-	ReleaseDC(0, hdc);
-	
-	conf.aheight = tm.tmHeight;
-	conf.lheight = conf.aheight * conf.leading
-		+ tm.tmExternalLeading;
-	conf.em = tm.tmAveCharWidth;
-	conf.tabw = conf.em * conf.tabc;
-	return 1;
-}
 
+static
 deflang() {
 	*lang.ext=0;
 	wcscpy(lang.comment, L"");
@@ -148,6 +91,7 @@ deflang() {
 	lang.commentcol=0;
 }
 
+static
 defconfig() {
 	memset(conf.style, 0, sizeof conf.style);
 	conf.bg = RGB(255,255,255);
@@ -179,8 +123,6 @@ defconfig() {
 	conf.blur = .2;
 	conf.fbx = 0;
 	conf.fby = -1;
-	
-	configfont();
 	return 1;
 }
 
@@ -215,6 +157,7 @@ directive(wchar_t *s) {
 	return 1;
 }
 
+static
 getcolor(wchar_t *arg) {
 	double		h, s, v; /* hue,chroma,luma */
 	double		y; /* luma (Y'601) */
@@ -344,6 +287,7 @@ configline(int ln, wchar_t *s) {
 	return 0;
 }
 
+static
 loadconfig(wchar_t *fn) {
 	HANDLE		file;
 	DWORD		sz, ign;
@@ -387,9 +331,6 @@ loadconfig(wchar_t *fn) {
 		s += eol + (c!=0);
 	}
 	free(buf);
-	
-	configfont();
-
 	return 1;
 }
 

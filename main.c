@@ -33,6 +33,10 @@ UINT		WM_FIND;
 Loc		click;
 int		width;
 int		height;
+int		font_aheight;	/* Ascender height */
+int		font_lheight;	/* Line height */
+int		font_em;	/* Width of 'M' */
+int		font_tabw;	/* Tab width */
 HMENU		encodingmenu;
 BOOL		use_console = TRUE;
 BOOL		transparent = FALSE;
@@ -61,12 +65,12 @@ WNDCLASSEX	wc = {
 			0, L"Window", 0 };
 static
 px2line(int px) {
-	return px/conf.lheight + top;
+	return px/font_lheight + top;
 }
 
 static
 line2px(int ln) {
-	return (ln-top)*conf.lheight;
+	return (ln-top)*font_lheight;
 }
 
 static
@@ -83,7 +87,7 @@ ind2px(int ln, int ind) {
 
 	txt=getb(b, ln, 0);
 	px=0;
-	tab=file_tabw;
+	tab=font_tabw;
 	for (i=0; txt[i] && i<ind; i++)
 		px += txt[i]=='\t'
 			? tab - (px + tab) % tab
@@ -98,7 +102,7 @@ px2ind(int ln, int x) {
 
 	txt=getb(b, ln, 0);
 	px=0;
-	tab=file_tabw;
+	tab=font_tabw;
 	for (i=0; txt[i] && px<x; i++)
 		px += txt[i]=='\t'
 			? tab - (px + tab) % tab
@@ -327,8 +331,8 @@ movecaret() {
 	
 	x = ind2px(LN, IND);
 	y = line2px(LN);
-	if (y > height-conf.lheight)
-		y += conf.lheight;
+	if (y > height-font_lheight)
+		y += font_lheight;
 	if (GetFocus()==w)
 		SetCaretPos(x, y);
 	
@@ -565,6 +569,7 @@ act(int action) {
 		return 1;
 	
 	case Toggle8Tab:
+		font_tabw = font_em * file_tabc;
 		updatemenu();
 		invdafter(top);
 		return 1;
@@ -579,6 +584,7 @@ act(int action) {
 				L"Error", MB_OK);
 		settitle(0);
 		updatemenu();
+		font_tabw = font_em * file_tabc;
 		
 		/* Can't rely on generalinvd() because the
 		 * selection and line counts might not change
@@ -597,6 +603,7 @@ act(int action) {
 		updatemenu();
 		snap();
 		invdafter(top);
+		font_tabw = font_em * file_tabc;
 		return ok;
 	
 	case SetUTF8:
@@ -1082,15 +1089,15 @@ paintsel(HDC dc) {
 	x1=ind2px(lo.ln, lo.ind);
 	y1=line2px(lo.ln);
 	if (diff)
-		Rectangle(dc, x1, y1, width, y1 + conf.lheight);
+		Rectangle(dc, x1, y1, width, y1 + font_lheight);
 	
 	x1=diff? 0: x1;
 	x2=ind2px(hi.ln, hi.ind);
 	y2=line2px(hi.ln);
-	Rectangle(dc, x1, y2, x2, y2 + conf.lheight);
+	Rectangle(dc, x1, y2, x2, y2 + font_lheight);
 	
 	if (diff > 1)
-		Rectangle(dc, 0, y1 + conf.lheight, 
+		Rectangle(dc, 0, y1 + font_lheight, 
 			width, y2);
 	return 1;
 }
@@ -1111,9 +1118,9 @@ blend(COLORREF b, COLORREF f, double contrast) {
 
 blurtext(HDC dc, int x, int y, wchar_t *txt, int n, COLORREF bg, COLORREF fg) {
 	SetTextColor(dc, blend(bg,fg,1-conf.blur));
-	TabbedTextOut(dc, x+conf.fbx, y+conf.fby, txt, n, 1, &file_tabw,0);
+	TabbedTextOut(dc, x+conf.fbx, y+conf.fby, txt, n, 1, &font_tabw,0);
 	SetTextColor(dc, blend(bg,fg,conf.blur));
-	TabbedTextOut(dc, x,y, txt, n, 1, &file_tabw,0);
+	TabbedTextOut(dc, x,y, txt, n, 1, &font_tabw,0);
 }
 
 paintstatus(HDC dc) {
@@ -1124,7 +1131,7 @@ paintstatus(HDC dc) {
 	
 	SetDCPenColor(dc, conf.fg);
 	SetDCBrushColor(dc, conf.fg);
-	Rectangle(dc, 0, height-conf.lheight, width, height);
+	Rectangle(dc, 0, height-font_lheight, width, height);
 	
 	len=swprintf(buf, 1024, SLN? selmsg: noselmsg,
 		LN, ind2col(LN, IND),
@@ -1134,7 +1141,7 @@ paintstatus(HDC dc) {
 		SLN==LN? abs(SIND-IND): abs(SLN-LN)+1,
 		SLN==LN? L"chars": L"lines");
 	blurtext(dc, 0,
-		height-conf.lheight+(conf.lheight-conf.aheight)/2,
+		height-font_lheight+(font_lheight-font_aheight)/2,
 		buf, len, conf.fg, conf.bg);
 }
 
@@ -1192,8 +1199,8 @@ paintlines(HDC dc, int first, int last) {
 	int	line, _y=line2px(first);
 	
 	SetTextColor(dc, conf.fg);
-	for (line=first; line<=last; line++, _y += conf.lheight)
-		paintline(dc, 0, _y + (conf.lheight-conf.aheight)/2, line);
+	for (line=first; line<=last; line++, _y += font_lheight)
+		paintline(dc, 0, _y + (font_lheight-font_aheight)/2, line);
 }
 
 iscommentline(int line) {
@@ -1231,8 +1238,8 @@ paint(PAINTSTRUCT *ps) {
 		y=line2px(first);
 		for (i=first; i<=last; i++) {
 			if (i % 2)
-				Rectangle(ddc, 0, y, width, y+conf.lheight);
-			y += conf.lheight;
+				Rectangle(ddc, 0, y, width, y+font_lheight);
+			y += font_lheight;
 		}
 	}
 	
@@ -1242,8 +1249,8 @@ paint(PAINTSTRUCT *ps) {
 	y=line2px(first);
 	for (i=first; i<=last; i++) {
 		if (iscommentline(i))
-			Rectangle(ddc, 0, y, width, y+conf.lheight);
-		y += conf.lheight;
+			Rectangle(ddc, 0, y, width, y+font_lheight);
+		y += font_lheight;
 	}
 	
 	paintsel(ddc);
@@ -1255,7 +1262,7 @@ paint(PAINTSTRUCT *ps) {
 		pen = CreatePen(PS_DOT, 1, conf.fg);
 		SelectObject(ddc, pen);
 		for (i=0; i<n; i++) {
-			x=conf.wire[i]*conf.em;
+			x=conf.wire[i]*font_em;
 			MoveToEx(ddc, x, ps->rcPaint.top, 0);
 			LineTo(ddc, x, ps->rcPaint.bottom);
 		}
@@ -1402,7 +1409,7 @@ WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 		return 0;
 	
 	case WM_SETFOCUS:
-		CreateCaret(hwnd, 0, 0, conf.lheight);
+		CreateCaret(hwnd, 0, 0, font_lheight);
 		movecaret();
 		ShowCaret(hwnd);
 		return 0;
@@ -1414,7 +1421,7 @@ WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 	case WM_SIZE:
 		width = (short) LOWORD(lparam);
 		height = (short) HIWORD(lparam);
-		vis = height/conf.lheight - 1;
+		vis = height/font_lheight - 1;
 		
 		/* Resize double-buffer */
 		DeleteObject(dbmp);
@@ -1542,6 +1549,63 @@ reinitlang() {
 }
 
 static
+configfont() {
+	HDC		hdc;
+	int		dpi,i;
+	TEXTMETRIC	tm;
+	LOGFONT		lf = {
+			0, 0, 0,0, FW_NORMAL, 0,0,0,
+			DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
+			CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
+			FF_DONTCARE|DEFAULT_PITCH, 0
+			};
+	
+	if (font[0]) {
+		DeleteObject(font[0]);
+		DeleteObject(font[1]);
+		DeleteObject(font[2]);
+		DeleteObject(font[3]);
+	}
+	
+	/* Get device resolution */
+	hdc = GetDC(0);
+	dpi = GetDeviceCaps(hdc, LOGPIXELSY);
+	
+	/* Create font */
+	lf.lfHeight = -conf.fontsz * dpi/72.0;
+	lf.lfWidth = fabs(lf.lfHeight) * conf.fontasp;
+	lf.lfItalic = conf.italic;
+	lf.lfWeight = conf.weight * 1000;
+	lf.lfQuality = conf.smooth
+		? (conf.smooth<=0.5? ANTIALIASED_QUALITY: CLEARTYPE_QUALITY)
+		: NONANTIALIASED_QUALITY;
+	wcscpy(lf.lfFaceName, conf.fontname);
+	font[0] = CreateFontIndirect(&lf); /* Regular */
+	
+	lf.lfItalic ^= 1;
+	font[2] = CreateFontIndirect(&lf); /* Italic */
+	
+	lf.lfItalic ^= 1;
+	lf.lfWeight = lf.lfWeight==900? 400: 900;
+	font[1] = CreateFontIndirect(&lf); /* Bold */
+	
+	lf.lfItalic ^= 1;
+	font[3] = CreateFontIndirect(&lf); /* Bold & Italic */
+	
+	/* Get metrics */
+	SelectObject(hdc, font[0]);
+	GetTextMetrics(hdc, & tm);
+	ReleaseDC(0, hdc);
+	
+	font_aheight = tm.tmHeight;
+	font_lheight = font_aheight * conf.leading
+		+ tm.tmExternalLeading;
+	font_em = tm.tmAveCharWidth;
+	font_tabw = font_em * conf.tabc;
+	return 1;
+}
+
+static
 reinitconfig() {
 	RECT	rt;
 	wchar_t	*s;
@@ -1566,7 +1630,7 @@ reinitconfig() {
 	}
 	
 	/* Fix visible line count if font size changed */
-	vis = height/conf.lheight - 1;
+	vis = height/font_lheight - 1;
 	
 	/* Fix the caret size */
 	if (GetFocus()==w)
@@ -1611,10 +1675,10 @@ init() {
 		WS_EX_ACCEPTFILES|WS_EX_LAYERED,
 		L"Window", L"",
 		WS_OVERLAPPEDWINDOW|WS_VISIBLE,
-		max(0, (rt.right-rt.left)/2 - conf.cols*conf.em/2),
-		max(0, (rt.bottom-rt.top)/2 - (conf.rows+1)*conf.lheight/2),
-		conf.cols * conf.em,
-		(conf.rows+1) * conf.lheight,
+		max(0, (rt.right-rt.left)/2 - conf.cols*font_em/2),
+		max(0, (rt.bottom-rt.top)/2 - (conf.rows+1)*font_lheight/2),
+		conf.cols * font_em,
+		(conf.rows+1) * font_lheight,
 		NULL, menu, GetModuleHandle(0), NULL);
 	SetLayeredWindowAttributes(w, 0, 255, LWA_ALPHA);
 	reinitconfig();
@@ -1700,6 +1764,7 @@ WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show) {
 
 	b = &buf;
 	config();
+	reinitconfig();
 	initmenu();
 	init();
 

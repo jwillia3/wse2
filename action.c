@@ -580,7 +580,6 @@ _act(int action) {
 	
 	case Toggle8Tab:
 		file_tabc = (file_tabc == 8)? 4: 8;
-		file_tabw = conf.em * file_tabc;
 		return 1;
 	
 	case ToggleBOM:
