@@ -23,6 +23,7 @@
 HWND		w;
 HMENU		menu;
 HWND		dlg;
+HDC		ddc;
 HBITMAP		dbmp;
 HBITMAP		bgbmp;
 HBRUSH		bgbrush;
@@ -1194,91 +1195,78 @@ iscommentline(int line) {
 }
 
 paint(PAINTSTRUCT *ps) {
-	HDC	dc;
 	wchar_t	*txt;
 	SIZE	size;
 	int	i,n,y,x,len,first,last;
 
-	if (conf.doublebuffer) {
-		dc=CreateCompatibleDC(ps->hdc);
-		SelectObject(dc, dbmp);
-		IntersectClipRect(dc, ps->rcPaint.left,
-			ps->rcPaint.top,
-			ps->rcPaint.right,
-			ps->rcPaint.bottom);
-	} else
-		dc=ps->hdc;
-	SetBkMode(dc, TRANSPARENT);
-	SelectObject(dc, font[0]);
+	SetBkMode(ddc, TRANSPARENT);
+	SelectObject(ddc, font[0]);
 	
 	first = px2line(ps->rcPaint.top);
 	last = px2line(ps->rcPaint.bottom);
 	
 	/* Clear the background */
-	SelectObject(dc, bgbrush);
-	SelectObject(dc, bgpen);
-	Rectangle(dc, ps->rcPaint.left-1, ps->rcPaint.top-1,
+	SelectObject(ddc, bgbrush);
+	SelectObject(ddc, bgpen);
+	Rectangle(ddc, ps->rcPaint.left-1, ps->rcPaint.top-1,
 		ps->rcPaint.right+1, ps->rcPaint.bottom+1);
 
-	SelectObject(dc, GetStockObject(DC_BRUSH));
-	SelectObject(dc, GetStockObject(DC_PEN));
+	SelectObject(ddc, GetStockObject(DC_BRUSH));
+	SelectObject(ddc, GetStockObject(DC_PEN));
 	
 	/* Draw odd line's background */
 	if (!*conf.bgimage && conf.bg2 != conf.bg) {
-		SetDCPenColor(dc, conf.bg2);
-		SetDCBrushColor(dc, conf.bg2);
+		SetDCPenColor(ddc, conf.bg2);
+		SetDCBrushColor(ddc, conf.bg2);
 		y=line2px(first);
 		for (i=first; i<=last; i++) {
 			if (i % 2)
-				Rectangle(dc, 0, y, width, y+conf.lheight);
+				Rectangle(ddc, 0, y, width, y+conf.lheight);
 			y += conf.lheight;
 		}
 	}
 	
 	/* Draw comment line's background */
-	SetDCPenColor(dc, conf.style[lang.commentcol].color);
-	SetDCBrushColor(dc, conf.style[lang.commentcol].color);
+	SetDCPenColor(ddc, conf.style[lang.commentcol].color);
+	SetDCBrushColor(ddc, conf.style[lang.commentcol].color);
 	y=line2px(first);
 	for (i=first; i<=last; i++) {
 		if (iscommentline(i))
-			Rectangle(dc, 0, y, width, y+conf.lheight);
+			Rectangle(ddc, 0, y, width, y+conf.lheight);
 		y += conf.lheight;
 	}
 	
-	paintsel(dc);
+	paintsel(ddc);
 	
 	/* Draw the wire */
 	if (conf.wire) {
 		HPEN pen;
 		int i, n=sizeof conf.wire/sizeof *conf.wire;
 		pen = CreatePen(PS_DOT, 1, conf.fg);
-		SelectObject(dc, pen);
+		SelectObject(ddc, pen);
 		for (i=0; i<n; i++) {
 			x=conf.wire[i]*conf.em;
-			MoveToEx(dc, x, ps->rcPaint.top, 0);
-			LineTo(dc, x, ps->rcPaint.bottom);
+			MoveToEx(ddc, x, ps->rcPaint.top, 0);
+			LineTo(ddc, x, ps->rcPaint.bottom);
 		}
-		SelectObject(dc, GetStockObject(DC_PEN));
+		SelectObject(ddc, GetStockObject(DC_PEN));
 		DeleteObject(pen);
 	}
 	
-	paintlines(dc,first,last);
+	paintlines(ddc,first,last);
 	
-	if (conf.doublebuffer) {
-		BitBlt(ps->hdc,
-			ps->rcPaint.left,
-			ps->rcPaint.top,
-			ps->rcPaint.right,
-			ps->rcPaint.bottom,
-			dc,
-			ps->rcPaint.left,
-			ps->rcPaint.top,
-			SRCCOPY);
-		DeleteDC(dc);
-	}
+	BitBlt(ps->hdc,
+		ps->rcPaint.left,
+		ps->rcPaint.top,
+		ps->rcPaint.right,
+		ps->rcPaint.bottom,
+		ddc,
+		ps->rcPaint.left,
+		ps->rcPaint.top,
+		SRCCOPY);
 	
 	{
-		dc=GetDC(w);
+		HDC dc=GetDC(w);
 		SelectObject(dc, GetStockObject(DC_BRUSH));
 		SelectObject(dc, GetStockObject(DC_PEN));
 		SetBkMode(dc, TRANSPARENT);
@@ -1419,12 +1407,11 @@ WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 		vis = height/conf.lheight - 1;
 		
 		/* Resize double-buffer */
-		if (conf.doublebuffer) {
-			DeleteObject(dbmp);
-			dc=GetDC(hwnd);
-			dbmp=CreateCompatibleBitmap(dc, width, height);
-			ReleaseDC(hwnd, dc);
-		}
+		DeleteObject(dbmp);
+		dc=GetDC(hwnd);
+		dbmp=CreateCompatibleBitmap(dc, width, height);
+		SelectObject(ddc, dbmp);
+		ReleaseDC(hwnd, dc);
 		return 0;
 		
 	case WM_MOUSEWHEEL:
@@ -1603,11 +1590,11 @@ init() {
 	gofr.lpstrFindWhat = malloc(MAX_PATH * sizeof (wchar_t));
 	gofr.lpstrFindWhat[0] = 0;
 
-	if (conf.doublebuffer) {
-		dc=GetDC(0);
-		dbmp=CreateCompatibleBitmap(dc, 1,1);
-		ReleaseDC(w, dc);
-	}
+	dc=GetDC(0);
+	ddc=CreateCompatibleDC(dc);
+	dbmp=CreateCompatibleBitmap(dc, 1,1);
+	SelectObject(ddc, dbmp);
+	ReleaseDC(w, dc);
 	
 	SystemParametersInfo(SPI_GETWORKAREA, 0, &rt, 0);
 	w = CreateWindowEx(

@@ -19,8 +19,6 @@ struct conf {
 	struct textstyle style[8];
 	wchar_t		bgimage[128];
 	
-	int		doublebuffer;
-	
 	/* Font specifications */
 	wchar_t		fontname[128];
 	double		fontsz;
