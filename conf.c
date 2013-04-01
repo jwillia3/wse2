@@ -127,7 +127,6 @@ configfont() {
 	/* Get metrics */
 	SelectObject(hdc, font[0]);
 	GetTextMetrics(hdc, & tm);
-	GetCharWidth32(hdc, 0, 65535, conf.widths);
 	ReleaseDC(0, hdc);
 	
 	conf.aheight = tm.tmHeight;

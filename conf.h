@@ -36,7 +36,6 @@ struct conf {
 	int		lheight; /* height w/ leading */
 	int		em;
 	int		tabw;
-	int		widths[65536];
 } conf;
 
 struct lang {

@@ -59,15 +59,24 @@ WNDCLASSEX	wc = {
 			CS_VREDRAW|CS_HREDRAW|CS_DBLCLKS,
 			0, 0, 0, 0, 0, 0, 0,
 			0, L"Window", 0 };
-
+static
 px2line(int px) {
 	return px/conf.lheight + top;
 }
 
+static
 line2px(int ln) {
 	return (ln-top)*conf.lheight;
 }
 
+static
+charwidth(unsigned c) {
+	int width=0;
+	GetCharWidth32(ddc, c, c, &width);
+	return width;
+}
+
+static
 ind2px(int ln, int ind) {
 	wchar_t	*txt;
 	int	i,px,tab;
@@ -78,10 +87,11 @@ ind2px(int ln, int ind) {
 	for (i=0; txt[i] && i<ind; i++)
 		px += txt[i]=='\t'
 			? tab - (px + tab) % tab
-			: conf.widths[txt[i] & 0xffff];
+			: charwidth(txt[i]);
 	return px;
 }
 
+static
 px2ind(int ln, int x) {
 	wchar_t	*txt;
 	int	i,px,tab;
@@ -92,7 +102,7 @@ px2ind(int ln, int x) {
 	for (i=0; txt[i] && px<x; i++)
 		px += txt[i]=='\t'
 			? tab - (px + tab) % tab
-			: conf.widths[txt[i] & 0xffff];
+			: charwidth(txt[i]);
 	return i;
 }
 
