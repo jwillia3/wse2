@@ -534,7 +534,7 @@ act(int action) {
 		ZeroMemory(&si, sizeof si);
 		ZeroMemory(&pi, sizeof pi);
 		si.cb=sizeof si;
-		if (CreateProcess(0,file.shell, 0,0,0,0,0,0,&si, &pi)) {
+		if (CreateProcess(0,global.shell, 0,0,0,0,0,0,&si, &pi)) {
 			CloseHandle(pi.hProcess);
 			CloseHandle(pi.hThread);
 		}
@@ -771,7 +771,7 @@ act(int action) {
 		break;
 	case ToggleTransparency:
 		transparent = !transparent;
-		SetLayeredWindowAttributes(w, 0, 255*(transparent?file.alpha:1), LWA_ALPHA);
+		SetLayeredWindowAttributes(w, 0, 255*(transparent?global.alpha:1), LWA_ALPHA);
 		break;
 	default:
 		invdafter(top);
@@ -1256,13 +1256,13 @@ paint(PAINTSTRUCT *ps) {
 	paintsel(ddc);
 	
 	/* Draw the wire */
-	if (file.wire) {
+	if (global.wire) {
 		HPEN pen;
-		int i, n=sizeof file.wire/sizeof *file.wire;
+		int i, n=sizeof global.wire/sizeof *global.wire;
 		pen = CreatePen(PS_DOT, 1, conf.fg);
 		SelectObject(ddc, pen);
 		for (i=0; i<n; i++) {
-			x=file.wire[i]*font_em;
+			x=global.wire[i]*font_em;
 			MoveToEx(ddc, x, ps->rcPaint.top, 0);
 			LineTo(ddc, x, ps->rcPaint.bottom);
 		}
@@ -1675,10 +1675,10 @@ init() {
 		WS_EX_ACCEPTFILES|WS_EX_LAYERED,
 		L"Window", L"",
 		WS_OVERLAPPEDWINDOW|WS_VISIBLE,
-		max(0, (rt.right-rt.left)/2 - file.cols*font_em/2),
-		max(0, (rt.bottom-rt.top)/2 - (file.rows+1)*font_lheight/2),
-		file.cols * font_em,
-		(file.rows+1) * font_lheight,
+		max(0, (rt.right-rt.left)/2 - global.cols*font_em/2),
+		max(0, (rt.bottom-rt.top)/2 - (global.rows+1)*font_lheight/2),
+		global.cols * font_em,
+		(global.rows+1) * font_lheight,
 		NULL, menu, GetModuleHandle(0), NULL);
 	SetLayeredWindowAttributes(w, 0, 255, LWA_ALPHA);
 	reinitconfig();
@@ -1763,7 +1763,8 @@ WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show) {
 	Buf	buf;
 
 	b = &buf;
-	defaultperfile();
+	defglobals();
+	defperfile();
 	config();
 	reinitconfig();
 	initmenu();

@@ -24,19 +24,18 @@ struct conf {
 	int		italic;
 } conf;
 struct file {
-	double		alpha;
-	
-	int		rows;
-	int		cols;
-	int		wire[4];
-	
 	int		tabc;
 	int		usetabs;
 	int		usebom;
 	int		usecrlf;
-	
-	wchar_t		shell[128];
 } file;
+struct {
+	int		rows;
+	int		cols;
+	int		wire[4];
+	double		alpha;
+	wchar_t		shell[128];
+} global;
 
 struct lang {
 	wchar_t		ext[128];

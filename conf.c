@@ -61,34 +61,36 @@ static struct	field fields[] = {
 		{L"kwd", Keyword, 0},
 		{L"cmd_wrapper", String, &lang.cmdwrapper},
 		
-		{L"wire", Int, file.wire},
-		{L"wire2", Int, file.wire+1},
-		{L"wire3", Int, file.wire+2},
-		{L"wire4", Int, file.wire+3},
 		{L"tab_width", Int, &file.tabc},
 		{L"use_tabs", Boolean, &file.usetabs},
 		{L"use_bom", Boolean, &file.usebom},
 		{L"use_crlf", Boolean, &file.usecrlf},
-		{L"cols", Int, &file.cols},
-		{L"rows", Int, &file.rows},		
-		{L"alpha", Float, &file.alpha},
-		{L"shell", String, &file.shell},
+		{L"wire", Int, global.wire},
+		{L"wire2", Int, global.wire+1},
+		{L"wire3", Int, global.wire+2},
+		{L"wire4", Int, global.wire+3},
+		{L"cols", Int, &global.cols},
+		{L"rows", Int, &global.rows},		
+		{L"alpha", Float, &global.alpha},
+		{L"shell", String, &global.shell},
 		{0}
 		};
-
-defaultperfile() {
-	file.alpha = .9;
-	file.rows = 24;
-	file.cols = 80;
-	file.wire[0] = 64;
-	file.wire[1] = 72;
-	file.wire[2] = 80;
-	file.wire[3] = 132;
+defglobals() {
+	global.alpha = .9;
+	global.rows = 24;
+	global.cols = 80;
+	global.wire[0] = 64;
+	global.wire[1] = 72;
+	global.wire[2] = 80;
+	global.wire[3] = 132;
+	wcscpy(global.shell, L"cmd");
+	return 0;
+}
+defperfile() {
 	file.tabc = 4;
 	file.usetabs = 0;
 	file.usebom = 0;
 	file.usecrlf = 0;
-	wcscpy(file.shell, L"cmd");
 	return 0;
 }
 

@@ -574,7 +574,7 @@ _act(int action) {
 		filename=wcsdup(L"//Untitled");
 		clearb(b);
 		setcodec(L"utf-8");
-		defaultperfile();
+		defperfile();
 		return 1;
 	
 	case LoadFile:

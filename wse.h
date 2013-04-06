@@ -78,7 +78,8 @@ Codec		*codec;
 int		config(),
 		selectconfig(int n),
 		configfont(),
-		defaultperfile();
+		defperfile(),
+		defglobals();
 
 Codec*		setcodec(wchar_t *name);
 

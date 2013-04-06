@@ -204,7 +204,7 @@ load(wchar_t *fn, wchar_t *encoding) {
 	int	n, cr=0;
 	DWORD	sz;
 	
-	defaultperfile();
+	defperfile();
 	
 	f = CreateFile(fn, GENERIC_READ,
 		FILE_SHARE_READ|FILE_SHARE_WRITE, 0,
