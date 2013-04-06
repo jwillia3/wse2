@@ -180,6 +180,23 @@ setcodec(wchar_t *name) {
 	return codec;
 }
 
+static
+ex_settings(int line) {
+	int	len;
+	wchar_t *settab;
+	wchar_t	*txt = getb(b,line,&len);
+	if ((wcsstr(txt,L" ex:") && (txt+=4))
+	  || (wcsstr(txt,L" vi:") && (txt+=4))
+	  || (wcsstr(txt,L" vim:") && (txt+=5))) {
+		if (settab = wcsstr(txt, L"tabstop="))
+			file.tabc = wcstol(settab+8, 0, 0);
+		if (wcsstr(txt, L"noexpandtab"))
+			file.usetabs = 1;
+		else if (wcsstr(txt, L"expandtab"))
+			file.usetabs = 0;
+	}
+}
+
 load(wchar_t *fn, wchar_t *encoding) {
 	wchar_t	*dst, *odst, *eol, eolc;
 	unsigned char	*src;
@@ -213,19 +230,6 @@ load(wchar_t *fn, wchar_t *encoding) {
 		eol=dst + wcscspn(dst, L"\r\n");
 		eolc=*eol;
 		inslb(b, n, dst, eol-dst);
-		if (n==1) { /* Accept vim per-file settings */
-			int	len;
-			wchar_t *settab;
-			void	*txt = getb(b,1,&len); /* WORK ON THIS LINE ONLY */
-			
-			if (settab = wcsstr(txt, L"tabstop="))
-				file.tabc = wcstol(settab+8, 0, 0);
-			if (wcsstr(txt, L"noexpandtab"))
-				file.usetabs = 1;
-			else if (wcsstr(txt, L"expandtab"))
-				file.usetabs = 0;
-		}
-		
 		if (*eol==L'\r')
 			eol++, cr++;
 		if (*eol==L'\n')
@@ -235,6 +239,11 @@ load(wchar_t *fn, wchar_t *encoding) {
 	file.usecrlf = !!cr;
 	LocalFree(odst);
 	!eolc && dellb(b,NLINES); /* initial line wasn't in file */
+	
+	for (n=1; n<=5 && n<=NLINES; n++)
+		ex_settings(n);
+	for (n=NLINES-5; n>1 && n<=NLINES; n++)
+		ex_settings(n);	
 	return 1;
 }
 
