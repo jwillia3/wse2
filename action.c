@@ -543,10 +543,20 @@ reload(wchar_t *encoding) {
 }
 
 static
-istabspaces(wchar_t *at, int dir) {
-	int n;
-	for (n=0; n < file.tabc && *at == ' '; n++, at+=dir);
-	return n==file.tabc;
+skiptabspaces(wchar_t *txt, int ln, int ind, int dir) {
+	int col=ind2col(ln, ind);
+	int i;
+	
+	if (dir > 0) {
+		int n=file.tabc - (col-1)%file.tabc;
+		for (i=0; i<n && txt[ind++]==' '; i++);
+		return i;
+	} else {
+		int n=(col-1)%file.tabc;
+		if (n==0) n=file.tabc;
+		for (i=0; i<n && ind>0 && txt[--ind]==' '; i++);
+		return i;
+	}
 }
 
 _act(int action) {
@@ -630,8 +640,8 @@ _act(int action) {
 	
 	case MoveLeft:
 		txt=getb(b, LN, 0);
-		if (file.tabc<=IND && istabspaces(txt+IND-1, -1))
-			return gob(b,LN,IND-file.tabc);
+		if (n=skiptabspaces(txt,LN,IND,-1))
+			return gob(b,LN,IND-n);
 		if (gob(b, LN, IND-1))
 			return 1;
 		if (LN==1)
@@ -664,8 +674,8 @@ _act(int action) {
 	
 	case MoveRight:
 		txt=getb(b, LN, 0);
-		if (istabspaces(txt+IND, +1))
-			return gob(b, LN, IND+file.tabc);
+		if (n=skiptabspaces(txt,LN,IND,+1))
+			return gob(b,LN,IND+n);
 			
 		if (gob(b, LN, IND+1))
 			return 1;
@@ -733,8 +743,8 @@ _act(int action) {
 		
 		record(UndoSwap, LN, LN);
 		txt=getb(b, LN, 0);
-		if (istabspaces(txt+IND, +1))
-			for (n=0; n<file.tabc; n++)
+		if ((n=skiptabspaces(txt,LN,IND,+1)) == file.tabc)
+			while (n-->0)
 				delb(b);
 		else
 			delb(b);
@@ -753,11 +763,12 @@ _act(int action) {
 			return 0;
 		}
 		
+		oldind=IND;
 		record(UndoSwap, LN, LN);
 		_act(MoveLeft);
 		txt=getb(b, LN, 0);
-		if (istabspaces(txt+IND, +1))
-			for (n=0; n<file.tabc; n++)
+		if (IND+(n=skiptabspaces(txt,LN,IND,+1)) <= oldind && n)
+			while (n-->0)
 				delb(b);
 		else
 			delb(b);

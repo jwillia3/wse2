@@ -7,4 +7,8 @@ Apply regex once; fix search
 Uppercase
 Strip spaces at the end of lines
 Convert tabs to spaces & back
-Align to tab stops not just 4 spaces with left/right
+Configurable shortcuts
+Fuzzy search
+Abstract UI
+Multi-window
+Visual style editor
