@@ -12,3 +12,5 @@ Fuzzy search
 Abstract UI
 Multi-window
 Visual style editor
+terminal emulator
+Normalise (C) Unicode to output Windows-1252

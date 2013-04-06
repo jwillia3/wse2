@@ -3,15 +3,12 @@
  *		Input/Output
  * This handles loading and storing files.
  * An important note is that decoders receive the entire file
- * as input, and is responsible for freeing it with LocalFree().
+ * as input, and is responsible for freeing it with free().
  * This is so 16-bit encodings can be done in-place.
  *
  */
-#define WIN32_LEAN_AND_MEAN
-#define STRICT
-#define UNICODE
-#include <Windows.h>
 #include <stdlib.h>
+#include <wchar.h>
 #include "wse.h"
 #include "conf.h"
 static
@@ -80,14 +77,14 @@ static wchar_t*
 dec_cp1252(unsigned char *src, int sz) {
 	wchar_t	*dst,*odst;
 	unsigned char *osrc=src;
-	odst=dst = LocalAlloc(0, (sz+1) * sizeof(wchar_t));
+	odst=dst = malloc((sz+1) * sizeof(wchar_t));
 	while (sz--)
 		*dst++ =
 			(0x80 <= *src && *src < 0xa0)
 			? cp1252[*src++-0x80]
 			: *src++;
 	*dst = 0;
-	LocalFree(osrc);
+	free(osrc);
 	return odst;
 }
 
@@ -96,8 +93,8 @@ enc_cp1252(unsigned char *buf, wchar_t *src, int len) {
 	unsigned char	*dst=buf;
 	wchar_t	*old=src;
 	int	i;
-	src = LocalAlloc(0, (len+1) * sizeof(wchar_t));
-	NormalizeString(NormalizationC, old, len+1, src, len+1);
+	src = malloc((len+1) * sizeof(wchar_t));
+//	NormalizeString(NormalizationC, old, len+1, src, len+1);
 	old = src;
 	for ( ; *src; src++)
 		if (*src < 0x100) /* Pass latin-1 through */
@@ -106,25 +103,25 @@ enc_cp1252(unsigned char *buf, wchar_t *src, int len) {
 			for (i=0; i<32 && *src != cp1252[i]; i++);
 			*dst++ = i<32? i+0x80: *src;
 		}
-	LocalFree(old);
+	free(old);
 	return dst-buf;
 }
 
 static wchar_t*
 dec_utf8(unsigned char *src, int sz) {
-	wchar_t	*dst;
-	if (!memcmp(src, "\xef\xbb\xbf", 3))
-	file.usebom = 1;
-	dst = LocalAlloc(0, (sz+1) * sizeof(wchar_t));
-	MultiByteToWideChar(CP_UTF8, 0, src, sz+1, dst, sz+1);
-	LocalFree(src);
+	wchar_t *dst;
+	if (!memcmp(src, "\xef\xbb\xbf", 3)) {
+		src+=3;
+		file.usebom = 1;
+	}
+	dst = decodeutf8(src, src+sz);
+	free(src);
 	return dst;
 }
 
 static
 enc_utf8(unsigned char *buf, wchar_t *src, int len) {
-	return WideCharToMultiByte(CP_UTF8, 0,
-		src, len, buf, len*3, 0, 0);
+	return encodeutf8to(buf, src, src+len);
 }
 
 static
@@ -151,7 +148,7 @@ enc_utf16(unsigned char *buf, wchar_t *src, int len) {
 }
 
 static
-detectenc(BYTE *buf, DWORD sz) {
+detectenc(unsigned char *buf, int sz) {
 	if (*buf==0xef && buf[1]==0xbb && buf[2]==0xbf) {
 		memmove(buf,buf+3,sz);
 		buf[sz-3]=0;
@@ -200,29 +197,25 @@ ex_settings(int line) {
 load(wchar_t *fn, wchar_t *encoding) {
 	wchar_t	*dst, *odst, *eol, eolc;
 	unsigned char	*src;
-	HANDLE	f;
-	int	n, cr=0;
-	DWORD	sz;
+	int	sz,n,cr=0;
+	void	*f;
 	
 	defperfile();
 	
-	f = CreateFile(fn, GENERIC_READ,
-		FILE_SHARE_READ|FILE_SHARE_WRITE, 0,
-		OPEN_EXISTING, 0, 0);
-	if (f==INVALID_HANDLE_VALUE)
+	f=platform_openfile(fn,0,&sz);
+	if (!f)
 		return 0;
 	
-	sz = GetFileSize(f, 0);
-	src = LocalAlloc(0, sz+sizeof(wchar_t));
-	ReadFile(f, src, sz, &sz, 0);
-	src[sz] = 0;
-	src[sz+1] = 0;
+	src=malloc(sz+sizeof(wchar_t));
+	platform_readfile(f,src,sz);
+	src[sz]=0;
+	src[sz+1]=0;
 	
 	if (!encoding || !setcodec(encoding))
 		detectenc(src,sz);
 	dst=odst = codec->dec(src,sz);
 	
-	CloseHandle(f);
+	platform_closefile(f);
 	
 	n=0;
 	while (*dst) {
@@ -237,7 +230,7 @@ load(wchar_t *fn, wchar_t *encoding) {
 		dst=eol;
 	}
 	file.usecrlf = !!cr;
-	LocalFree(odst);
+	free(odst);
 	!eolc && dellb(b,NLINES); /* initial line wasn't in file */
 	
 	for (n=1; n<=5 && n<=NLINES; n++)
@@ -249,21 +242,17 @@ load(wchar_t *fn, wchar_t *encoding) {
 
 save(wchar_t *fn) {
 	wchar_t *linebreak = file.usecrlf? L"\r\n": L"\n";
-	HANDLE	*f;
 	unsigned char	*buf;
 	wchar_t	*src;
 	int	i,len,sz,max;
-	DWORD	ign;
+	void	*f;
 	
-	f = CreateFile(fn, GENERIC_WRITE, 0, 0,
-		CREATE_ALWAYS, 0, 0);
-	if (f==INVALID_HANDLE_VALUE)
-		return 0;
+	f=platform_openfile(fn,1,0);
 	
 	if (file.usebom) {
 		unsigned char signature[16];
 		sz = codec->sign(signature);
-		WriteFile(f, signature, sz, &ign, 0);
+		platform_writefile(f, signature, sz);
 	}
 
 	max=0;
@@ -280,10 +269,10 @@ save(wchar_t *fn) {
 		if (i != NLINES)
 			sz += codec->enc(buf+sz,
 				linebreak, wcslen(linebreak));
-		WriteFile(f, buf, sz, &ign, 0);
+		platform_writefile(f,buf,sz);
 	}
 	
-	CloseHandle(f);
+	platform_closefile(f);
 	free(buf);
 	return 1;
 }
