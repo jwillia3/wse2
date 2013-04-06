@@ -78,8 +78,8 @@ static struct	field fields[] = {
 
 defaultperfile() {
 	file.alpha = .9;
-	file.rows = 80;
-	file.cols = 25;
+	file.rows = 24;
+	file.cols = 80;
 	file.wire[0] = 64;
 	file.wire[1] = 72;
 	file.wire[2] = 80;
@@ -113,18 +113,6 @@ defconfig() {
 	conf.selbg = RGB(160,160,192);
 	conf.style[0].color = RGB(160,160,192);
 	wcscpy(conf.bgimage, L"");
-	
-	file.tabc = 4;
-	file.usetabs = 0;
-	file.usebom = 0;
-	file.usecrlf = 0;
-	file.wire[0] = 64;
-	file.wire[1] = 72;
-	file.wire[2] = 80;
-	file.wire[3] = 128;
-	file.cols = 80;
-	file.rows = 24;
-	file.alpha = .9;
 	
 	wcscpy(conf.fontname, L"Courier New");
 	conf.fontsz = 12.0;

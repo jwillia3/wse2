@@ -1763,6 +1763,7 @@ WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show) {
 	Buf	buf;
 
 	b = &buf;
+	defaultperfile();
 	config();
 	reinitconfig();
 	initmenu();
