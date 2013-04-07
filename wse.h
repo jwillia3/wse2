@@ -86,6 +86,7 @@ void		*platform_openfile(wchar_t *name, int write, int *sz);
 void		platform_closefile(void *file);
 void		platform_writefile(void *f, void *buf, int sz);
 void		platform_readfile(void *f, void *buf, int sz);
+wchar_t		*platform_bindir(wchar_t *path);
 unsigned char*	encodeutf8(wchar_t *in, wchar_t *end);
 int		encodeutf8to(unsigned char *out, wchar_t *in, wchar_t *end);
 wchar_t*	decodeutf8(unsigned char *in, unsigned char *end);

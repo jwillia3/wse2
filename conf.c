@@ -1,14 +1,12 @@
 /* vim: set noexpandtab:tabstop=8 */
-#define _WIN32_WINNT 0x0501
-#define WIN32_LEAN_AND_MEAN
-#define UNICODE
-#include <Windows.h>
 #include <math.h>
 #include <stdlib.h>
 #include <wchar.h>
 #include "conf.h"
 #include "wse.h"
 #include "re.h"
+
+#define RGB(r,g,b) (((b&255)<<16)+((g&255)<<8)+(r&255))
 
 enum {
 	Boolean,
@@ -112,8 +110,8 @@ defconfig() {
 	conf.bg = RGB(255,255,255);
 	conf.bg2 = RGB(245,245,245);
 	conf.fg = RGB(64,64,64);
-	conf.selbg = RGB(160,160,192);
-	conf.style[0].color = RGB(160,160,192);
+	conf.selbg = RGB(224,224,255);
+	conf.style[0].color = RGB(255,255,255);
 	wcscpy(conf.bgimage, L"");
 	
 	wcscpy(conf.fontname, L"Courier New");
@@ -292,26 +290,20 @@ configline(int ln, wchar_t *s) {
 
 static
 loadconfig(wchar_t *fn) {
-	HANDLE		file;
-	DWORD		sz, ign;
 	int		c,ln,eol;
 	char		*utf;
 	wchar_t		*buf, *s;
+	void		*f;
+	int		sz;
 	
-	file=CreateFile(fn, GENERIC_READ, FILE_SHARE_READ, 0,
-		OPEN_EXISTING, 0, 0);
-	if (file==INVALID_HANDLE_VALUE)
+	f=platform_openfile(fn,0,&sz);
+	if (!f)
 		return 0;
 	
-	sz=GetFileSize(file, 0);
 	utf=malloc(sz+1);
-	ReadFile(file, utf, sz, &ign, 0);
-	CloseHandle(file);
-	utf[sz]=0;
-	
-	sz=MultiByteToWideChar(CP_UTF8, 0, utf, sz+1, 0, 0);
-	buf=malloc((sz+1) * sizeof (wchar_t));
-	MultiByteToWideChar(CP_UTF8, 0, utf, sz+1, buf, sz+1);
+	platform_readfile(f,utf,sz);
+	platform_closefile(f);
+	buf=decodeutf8(utf,utf+sz);
 	free(utf);
 	
 	defconfig();
@@ -346,12 +338,12 @@ selectconfig(int x) {
 }
 
 config() {
-	wchar_t	path[MAX_PATH];
+	wchar_t	path[512];
 	
 	nconfs=0;
 	nlangs=0;
+	platform_bindir(path);
 	
-	GetModuleFileName(0, path, MAX_PATH);
 	wcscpy(wcsrchr(path, L'\\')+1, L"wse.conf");
 	if (loadconfig(path)) {
 		configfile=wcsdup(path);

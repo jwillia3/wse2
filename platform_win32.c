@@ -36,3 +36,9 @@ platform_readfile(void *f, void *buf, int sz) {
     DWORD ignore;
     ReadFile(f,buf,sz,&ignore, 0);
 }
+
+wchar_t*
+platform_bindir(wchar_t *path) {
+    GetModuleFileName(0, path, 256);
+    return path;
+}
