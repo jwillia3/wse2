@@ -324,7 +324,7 @@ pastetext(wchar_t *txt) {
 	
 	/* Append first line from board */
 	for (s=txt; *s!=L'\r' && *s!=L'\n'; s++)
-		instabb(*s);
+		insb(b, *s);
 	
 	/* Insert other lines one-by-one */
 	n=1;
