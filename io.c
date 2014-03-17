@@ -187,9 +187,11 @@ ex_settings(int line) {
 	  || (wcsstr(txt,L" vim:") && (txt+=5))) {
 		if (settab = wcsstr(txt, L"tabstop="))
 			file.tabc = wcstol(settab+8, 0, 0);
-		if (wcsstr(txt, L"noexpandtab"))
+		if (settab = wcsstr(txt, L"ts="))
+			file.tabc = wcstol(settab+3, 0, 0);
+		if (wcsstr(txt, L"noexpandtab") || wcsstr(txt, L"noet"))
 			file.usetabs = 1;
-		else if (wcsstr(txt, L"expandtab"))
+		else if (wcsstr(txt, L"expandtab") || wcsstr(txt, L"et"))
 			file.usetabs = 0;
 	}
 }
@@ -199,6 +201,7 @@ load(wchar_t *fn, wchar_t *encoding) {
 	unsigned char	*src;
 	int	sz,n,cr=0;
 	void	*f;
+	int	has_tab=0;
 	
 	defperfile();
 	
@@ -214,6 +217,9 @@ load(wchar_t *fn, wchar_t *encoding) {
 	if (!encoding || !setcodec(encoding))
 		detectenc(src,sz);
 	dst=odst = codec->dec(src,sz);
+	
+	if (wcschr(dst, L'\t'))
+		file.usetabs = 1;
 	
 	platform_closefile(f);
 	
