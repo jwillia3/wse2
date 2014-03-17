@@ -1164,13 +1164,16 @@ paintline(HDC dc, int x, int y, int line) {
 	while (j<end) {
 		/* Match a keyword  */
 		for (k=0,sect=0; k<lang.nkwd; k++) {
-			sect=re_run(j, lang.kwd[k]);
+			wchar_t *comp=lang.kwd_comp[k];
+			unsigned options=lang.kwd_opt[k];
+			sect=re_run(j, comp, options);
+			
 			if (sect > 0) /* matched */
 				break;
 		}
 	
 		if (sect>0) {
-			int style=conf.style[lang.kwdcol[k]].style;
+			int style=conf.style[lang.kwd_color[k]].style;
 			
 			/* Draw the preceding section */
 			SelectObject(dc, font[0]);
@@ -1180,7 +1183,7 @@ paintline(HDC dc, int x, int y, int line) {
 			/* Then draw the keyword */
 			SelectObject(dc, font[style]);
 			blurtext(dc, x,y, j, sect,
-				bg, conf.style[lang.kwdcol[k]].color);
+				bg, conf.style[lang.kwd_color[k]].color);
 			SetTextColor(dc, conf.fg);
 			i=j+=sect;
 			x=ind2px(line,j-txt);

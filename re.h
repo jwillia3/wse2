@@ -1,14 +1,19 @@
 /* vim: set noexpandtab:tabstop=8 */
 enum { RE_LIT_=1, RE_DOT_, RE_BRA_, RE_CBRA_, RE_BRK_, RE_BKSP_, RE_STAR_=8, RE_Q_=16 };
+enum { RE_OPTION_NOCASE_=1 };
 static _re_map_[]={1,2,4,8,16,32,64,128};
 
 static wchar_t*
-re_comp(wchar_t *out, wchar_t *re) {
+re_comp(wchar_t *out, wchar_t *re, unsigned *options) {
+	wchar_t *original_re = re;
 	wchar_t	*spec=L".*[?\\", *esc=L"n\nr\rt\t";
-	wchar_t	*o=out, *prev=0, *c;
+	wchar_t	*o=out, *prev=0, *c, end_slash = 0;
 	int	span, i;
-	for ( ; *re; re++)
-		if (span=(wcscspn(re,spec) & 127)) {
+	
+	if (*re=='/' && re[1]!='/')
+		end_slash = *re++;
+	for ( ; *re && *re!=end_slash; re++)
+		if (span=wcscspn(re,spec)) {
 			*(prev=o++)=RE_LIT_;
 			*o++=span;
 			wmemcpy(o,re,span);
@@ -51,26 +56,41 @@ re_comp(wchar_t *out, wchar_t *re) {
 			*o++=1;
 			*o++=*re;
 		}
-			
-	*o++=0;
+	*o=0;
+	if (end_slash) {
+		unsigned (*m)[2];
+		unsigned map[][2] = {	{'i', RE_OPTION_NOCASE_},
+					{0, 0}};
+		*options=0;
+		for ( ; *re; re++)
+			for (m=map; **m; m++)
+				if (**m==*re) {
+					*options |= m[0][1];
+					break;
+				}
+	}
 	return out;
 }
 
 static
-re_run(wchar_t *txt, wchar_t *m) {
+re_run(wchar_t *txt, wchar_t *m, unsigned options) {
+	#define RE_IN_SET_(C) !!(m[1+(C)/8] & _re_map_[(C)&7])
 	wchar_t	*org=txt;
-	int	c;
+	int	wanted;
+	int (*_ncmp)(const wchar_t *a, const wchar_t *b, size_t n) =
+		(options & RE_OPTION_NOCASE_)? wcsnicmp: wcsncmp;
+	
 	for ( ; *m; m++)
 		switch (*m & 7) {
 		case RE_LIT_:
 			if (*m & RE_STAR_)
-				while (!wcsncmp(txt,m+2,m[1]))
+				while (!_ncmp(txt,m+2,m[1]))
 					txt+=m[1];
 			else if (*m & RE_Q_) {
-				if (!wcsncmp(txt,m+2,m[1]))
+				if (!_ncmp(txt,m+2,m[1]))
 					txt+=m[1];
 			} else {
-				if (wcsncmp(txt,m+2,m[1]))
+				if (_ncmp(txt,m+2,m[1]))
 					return -1;
 				txt+=m[1];
 			}
@@ -78,15 +98,15 @@ re_run(wchar_t *txt, wchar_t *m) {
 			break;
 		case RE_BRA_:
 		case RE_CBRA_:
-			c=(*m & 7)==RE_CBRA_;
+			wanted=(*m & 7)==RE_CBRA_;
 			if (*m & RE_STAR_)
-				while (*txt && c==!(m[1+*txt/8] & _re_map_[*txt&7]))
+				while (*txt && RE_IN_SET_(*txt) != wanted)
 					txt++;
 			else if (*m & RE_Q_) {
-				if (*txt && c==!(m[1+*txt/8] & _re_map_[*txt&7]))
+				if (*txt && RE_IN_SET_(*txt) != wanted)
 					txt++;
 			} else {
-				if (!*txt || c==!!(m[1+*txt/8] & _re_map_[*txt&7]))
+				if (!*txt || RE_IN_SET_(*txt) == wanted)
 					return -1;
 				txt++;
 			}
@@ -97,11 +117,9 @@ re_run(wchar_t *txt, wchar_t *m) {
 				while (*txt && txt++);
 			else if (*m & RE_Q_)
 				*txt && txt++;
-			else {
-				if (!*txt)
-					return -1;
-				txt++;
-			}
+			else if (!*txt)
+				return -1;
+			txt++;
 			break;
 		case RE_BRK_:
 			if (!(*m & RE_STAR_)

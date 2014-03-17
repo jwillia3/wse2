@@ -1,4 +1,5 @@
 /* vim: set noexpandtab:tabstop=8 */
+#define	KWD_MAX		128
 struct textstyle {
 	int		style;
 	unsigned	color;
@@ -42,8 +43,10 @@ struct lang {
 	wchar_t		comment[128];
 	wchar_t		brk[128];
 	wchar_t		brace[128];
-	wchar_t		kwd[64][256];
-	wchar_t		kwdcol[64];
+	wchar_t		kwd_re[KWD_MAX][256];
+	wchar_t		kwd_comp[KWD_MAX][256];
+	wchar_t		kwd_color[KWD_MAX];
+	unsigned	kwd_opt[KWD_MAX];
 	wchar_t		cmdwrapper[128];
 	int		nkwd, commentcol;
 } lang;

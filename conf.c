@@ -98,7 +98,10 @@ deflang() {
 	wcscpy(lang.comment, L"");
 	wcscpy(lang.brk, L"~!@#$%^&*()-+={}[]\\|;:'\",.<>/?");
 	wcscpy(lang.brace, L"()[]{}''\"\"<>``");
-	memset(lang.kwd,0,sizeof lang.kwd);
+	memset(lang.kwd_re,0,sizeof lang.kwd_re);
+	memset(lang.kwd_comp,0,sizeof lang.kwd_comp);
+	memset(lang.kwd_color,0,sizeof lang.kwd_color);
+	memset(lang.kwd_opt,0,sizeof lang.kwd_opt);
 	wcscpy(lang.cmdwrapper, L"cmd /c %ls & pause >nul");
 	lang.nkwd=0;
 	lang.commentcol=0;
@@ -278,10 +281,11 @@ configline(int ln, wchar_t *s) {
 		return 1;
 	
 	case Keyword:
-		lang.kwdcol[lang.nkwd] = wcstoul(arg,&arg,0);
+		lang.kwd_color[lang.nkwd] = wcstoul(arg,&arg,0);
 		while (iswspace(*arg))
 			arg++;
-		re_comp(lang.kwd[lang.nkwd], arg);
+		wcscpy(lang.kwd_re[lang.nkwd], arg);
+		re_comp(lang.kwd_comp[lang.nkwd], arg, &lang.kwd_opt[lang.nkwd]);
 		lang.nkwd++;
 		return 1;
 	}
