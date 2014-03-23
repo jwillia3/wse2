@@ -86,7 +86,7 @@ ind2px(int ln, int ind) {
 	int	i,px,tab;
 
 	txt=getb(b, ln, 0);
-	px=0;
+	px=conf.margin_left*width;
 	tab=font_tabw;
 	for (i=0; txt[i] && i<ind; i++)
 		px += txt[i]=='\t'
@@ -101,7 +101,7 @@ px2ind(int ln, int x) {
 	int	i,px,tab;
 
 	txt=getb(b, ln, 0);
-	px=0;
+	px=conf.margin_left*width;
 	tab=font_tabw;
 	for (i=0; txt[i] && px<x; i++)
 		px += txt[i]=='\t'
@@ -1203,7 +1203,7 @@ paintlines(HDC dc, int first, int last) {
 	
 	SetTextColor(dc, conf.fg);
 	for (line=first; line<=last; line++, _y += font_lheight)
-		paintline(dc, 0, _y + (font_lheight-font_aheight)/2, line);
+		paintline(dc, conf.margin_left*width, _y + (font_lheight-font_aheight)/2, line);
 }
 
 iscommentline(int line) {
@@ -1265,7 +1265,7 @@ paint(PAINTSTRUCT *ps) {
 		pen = CreatePen(PS_DOT, 1, conf.fg);
 		SelectObject(ddc, pen);
 		for (i=0; i<n; i++) {
-			x=global.wire[i]*font_em;
+			x=conf.margin_left*width+global.wire[i]*font_em;
 			MoveToEx(ddc, x, ps->rcPaint.top, 0);
 			LineTo(ddc, x, ps->rcPaint.bottom);
 		}
