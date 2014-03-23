@@ -81,7 +81,7 @@ encodeutf8(wchar_t *in, wchar_t *end) {
 
 wchar_t*
 decodeutf8(unsigned char *in, unsigned char *end) {
-	wchar_t *out=malloc((strlen(in)+1)*sizeof(wchar_t));
+	wchar_t *out=malloc((end-in+1)*sizeof(wchar_t));
 	wchar_t *o=out;
 	int len;
 	
