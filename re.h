@@ -117,9 +117,11 @@ re_run(wchar_t *txt, wchar_t *m, unsigned options) {
 				while (*txt && txt++);
 			else if (*m & RE_Q_)
 				*txt && txt++;
-			else if (!*txt)
-				return -1;
-			txt++;
+			else {
+				if (!*txt)
+					return -1;
+				txt++;
+			}
 			break;
 		case RE_BRK_:
 			if (!(*m & RE_STAR_)
