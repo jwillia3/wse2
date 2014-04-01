@@ -51,8 +51,6 @@ static struct	field fields[] = {
 		{L"font_blur_x", Int, &conf.fbx},
 		{L"font_blur_y", Int, &conf.fby},
 		
-		{L"margin-left", Float, &conf.margin_left},
-		
 		{L"ext", String, &lang.ext},
 		{L"comment", String, &lang.comment},
 		{L"comment_color", Int, &lang.commentcol},
@@ -129,7 +127,6 @@ defconfig() {
 	conf.blur = .2;
 	conf.fbx = 0;
 	conf.fby = -1;
-	conf.margin_left = 0;
 	return 1;
 }
 
