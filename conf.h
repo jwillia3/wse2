@@ -23,7 +23,6 @@ struct conf {
 	int		fbx; /* font blur x direction */
 	int		fby; /* font blur y direction */
 	int		italic;
-	double		margin_left;
 } conf;
 struct file {
 	int		tabc;
