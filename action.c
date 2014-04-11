@@ -118,6 +118,33 @@ _actquery(wchar_t *query, int down, int sens) {
 	return find(0, LN, IND, query, down);
 }
 
+static
+isearchsearchline(int ln, int ind, wchar_t *query) {
+	wchar_t	*text = getb(b, ln, 0);
+	wchar_t *at = wcsistr(text + ind, query);
+	if (!at)
+		return 0;
+//	gob(b, ln, at - text + wcslen(query));
+//	_act(EndSelection);
+//	_act(StartSelection);
+	gob(b, ln, at - text);
+	return 1;
+}
+
+actisearch(wchar_t *query) {
+	int		i;
+	
+	if (isearchsearchline(LN, IND, query))
+		return 1;
+	for (i=LN+1; i<=NLINES; i++)
+		if (isearchsearchline(i, 0, query))
+			return 1;
+	for (i=1; i<LN; i++)
+		if (isearchsearchline(i, 0, query))
+			return 1;
+	return isearchsearchline(LN, 0, query);
+}
+
 _actreplace(wchar_t *query, wchar_t *repl, int down, int sens) {
 	wchar_t		*txt,*src;
 	Loc		lo,unused;

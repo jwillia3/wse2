@@ -1,4 +1,6 @@
 /* vim: set noexpandtab:tabstop=8 */
+#define MAX_INCREMENTAL 65536
+
 #define WIN32_LEAN_AND_MEAN
 #define _WIN32_WINNT 0x0501
 #define STRICT
@@ -9,11 +11,15 @@
 #pragma comment(lib,"comdlg32.lib")
 #pragma comment(lib,"uxtheme.lib")
 
+
+#pragma warning(push)
+#pragma warning(disable: 4005)
 #include <Windows.h>
 #include <shellapi.h>
 #include <commdlg.h>
 #include <stdlib.h>
 #include <wchar.h>
+#pragma warning(pop)
 #include "conf.h"
 #include "wse.h"
 #include "action.h"
@@ -41,6 +47,10 @@ HMENU		encodingmenu;
 BOOL		use_console = TRUE;
 BOOL		transparent = FALSE;
 #define		ID_CONSOLE 104
+wchar_t		isearch[MAX_INCREMENTAL];
+int		isearchlength;
+int		isearchcursor;
+BOOL		using_isearch;
 
 OPENFILENAME	ofn = {
 			sizeof ofn,
@@ -862,10 +872,70 @@ autoreplaceall() {
 		fr.Flags & FR_MATCHCASE);
 }
 
+isearch_insert(int c) {
+	wmemmove(isearch + isearchcursor + 1,
+		isearch + isearchcursor,
+		isearchlength - isearchcursor);
+	isearch[isearchcursor++] = c;
+	isearch[++isearchlength] = 0;
+	autoisearch();
+}
+isearch_delete() {
+	wmemmove(isearch + isearchcursor,
+		isearch + isearchcursor + 1,
+		isearchlength - isearchcursor);
+	isearch[--isearchlength] = 0;
+	autoisearch();
+}
+isearch_move(int dir) {
+	if (dir > 0 && dir + isearchcursor <= isearchlength)
+		isearchcursor += dir;
+	if (dir < 0 && dir + isearchcursor >= 0)
+		isearchcursor += dir;
+	invdafter(top);
+}
+
+wmchar_isearch(int c, int ctl, int shift) {
+	if (c >= 0x20 && isearchlength < MAX_INCREMENTAL)
+		isearch_insert(c);
+	else if (c == 8 && isearchcursor > 0) { // backspace
+		isearch_move(-1);
+		isearch_delete();
+	} else if (c == 127) // delete
+		isearch_delete();
+	else if (c == 27) { // escape or enter
+		isearchcursor = 0;
+		isearchlength = 0;
+		using_isearch = 0;
+		invdafter(top);
+	} else if (c == 13) { // enter
+		act(MoveRight);
+		autoisearch();
+	} else if (c == 22) { // ^V
+		wchar_t *text;
+		if (!OpenClipboard(w))
+			return 0;
+		if (text = GetClipboardData(CF_UNICODETEXT))
+			while (*text)
+				isearch_insert(*text++);
+		CloseClipboard();
+	}
+	return 1;
+}
+
+autoisearch() {
+	actisearch(isearch);
+	invdafter(top);
+	return 1;
+}
+
 wmchar(int c) {
 	
 	int	ctl=GetAsyncKeyState(VK_CONTROL) & 0x8000;
 	int	shift=GetAsyncKeyState(VK_SHIFT) & 0x8000;
+	
+	if (using_isearch)
+		return wmchar_isearch(c, ctl, shift);
 	
 	switch (c) {
 	
@@ -888,9 +958,11 @@ wmchar(int c) {
 		return 0;
 	
 	case 6: /* ^F */
-		if (shift)
-			return autoquery();
-		return act(PromptFind);
+		using_isearch = 1;
+		return 1;
+//		if (shift)
+//			return autoquery();
+//		return act(PromptFind);
 	
 	case 7: /* ^G */
 		return act(PromptGo);
@@ -988,11 +1060,26 @@ setsel(int yes) {
 	return act(EndSelection);
 }
 
+wmkey_isearch(int c, int ctl, int shift) {
+	switch (c) {
+	case VK_LEFT:
+		isearch_move(-1);
+		break;
+	case VK_RIGHT:
+		isearch_move(-1);
+		break;
+	}
+	return 1;
+}
+
 wmkey(int c) {
 
 	int	ctl=GetAsyncKeyState(VK_CONTROL) & 0x8000;
 	int	shift=GetAsyncKeyState(VK_SHIFT) & 0x8000;
 	int	ok;
+	
+	if (using_isearch)
+		return wmkey_isearch(c, ctl, shift);
 
 	switch (c) {
 	
@@ -1133,13 +1220,18 @@ paintstatus(HDC dc) {
 	SetDCBrushColor(dc, conf.fg);
 	Rectangle(dc, 0, height-font_lheight, width, height);
 	
-	len=swprintf(buf, 1024, SLN? selmsg: noselmsg,
-		LN, ind2col(LN, IND),
-		NLINES,
-		SLN,
-		ind2col(SLN, SIND),
-		SLN==LN? abs(SIND-IND): abs(SLN-LN)+1,
-		SLN==LN? L"chars": L"lines");
+	if (using_isearch)
+		len=swprintf(buf, 1024, L"%d:%d FIND: %ls",
+			LN, ind2col(LN, IND),
+			isearch);
+	else
+		len=swprintf(buf, 1024, SLN? selmsg: noselmsg,
+			LN, ind2col(LN, IND),
+			NLINES,
+			SLN,
+			ind2col(SLN, SIND),
+			SLN==LN? abs(SIND-IND): abs(SLN-LN)+1,
+			SLN==LN? L"chars": L"lines");
 	blurtext(dc, 0,
 		height-font_lheight+(font_lheight-font_aheight)/2,
 		buf, len, conf.fg, conf.bg);
@@ -1160,6 +1252,17 @@ paintline(HDC dc, int x, int y, int line) {
 		bg=conf.bg;
 	else
 		bg=conf.bg2;
+	
+	if (using_isearch) {
+		wchar_t *i = txt;
+		SetDCBrushColor(dc, conf.isearchbg);
+		for (i = txt; *i && (i = wcsistr(i, isearch)); i += isearchlength)
+			Rectangle(dc,
+				x + ind2px(line, i - txt),
+				y - (font_lheight-font_aheight)/2,
+				x + ind2px(line, i - txt + isearchlength),
+				y - (font_lheight-font_aheight)/2 + font_lheight);
+	}
 	
 	while (j<end) {
 		/* Match a keyword  */

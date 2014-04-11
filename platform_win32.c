@@ -1,7 +1,10 @@
 #define WIN32_LEAN_AND_MEAN
 #define STRICT
 #define UNICODE
+#pragma warning(push)
+#pragma warning(disable: 4005)
 #include <Windows.h>
+#pragma warning(pop)
 #include "wse.h"
 
 void *
@@ -41,4 +44,20 @@ wchar_t*
 platform_bindir(wchar_t *path) {
     GetModuleFileName(0, path, 256);
     return path;
+}
+
+wchar_t *
+wcsistr(wchar_t *big, wchar_t *substring) {
+	wchar_t *i, *j;
+	if (!*substring)
+		return 0;
+	for ( ; *big; big++)
+		for (i=big, j=substring; ; i++, j++)
+			if (!*j)
+				return big;
+			else if (!*i)
+				return 0;
+			else if (towlower(*i) != towlower(*j))
+				break;
+	return 0;
 }

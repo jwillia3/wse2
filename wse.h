@@ -90,10 +90,12 @@ wchar_t		*platform_bindir(wchar_t *path);
 unsigned char*	encodeutf8(wchar_t *in, wchar_t *end);
 int		encodeutf8to(unsigned char *out, wchar_t *in, wchar_t *end);
 wchar_t*	decodeutf8(unsigned char *in, unsigned char *end);
+wchar_t*	wcsistr(wchar_t *big, wchar_t *substring);
 
 int		_act(int action),
 		_actins(int c),
 		_actquery(wchar_t *query, int down, int sens),
+		_actisearch(wchar_t *query),
 		_actreplace(wchar_t *query, wchar_t *repl, int down, int sens),
 		_actreplaceall(wchar_t *query, wchar_t *repl, int down, int sens);
 
