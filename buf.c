@@ -28,6 +28,7 @@ gob(Buf *b, int ln, int ind) {
 
 inslb(Buf *b, int ln, wchar_t *txt, int len) {
 	int	i,sz;
+	Bookmark	*bm;
 	
 	if (ln<1 || NLINES+1 < ln) /* allow overhang */
 		return 0;
@@ -38,6 +39,10 @@ inslb(Buf *b, int ln, wchar_t *txt, int len) {
 		sz = (1+b->max) * sizeof (Line);
 		b->dat = realloc(b->dat, sz);
 	}
+	
+	for (bm = bookmarks; bm; bm = bm->next)
+		if (bm->line > ln)
+			bm->line++;
 	
 	for (i=NLINES; i>ln; i--)
 		b->dat[i] = b->dat[i-1];
@@ -58,9 +63,15 @@ inslb(Buf *b, int ln, wchar_t *txt, int len) {
 
 dellb(Buf *b, int ln) {
 	int	i;
+	Bookmark	*bm, *doomedbm;
 
 	if (ln<1 || NLINES<ln)
 		return 0;
+	
+	deletebookmark(ln);
+	for (bm = bookmarks; bm; bm = bm->next)
+		if (bm->line > ln)
+			bm->line--;	
 	ln--;
 	
 	free(b->dat[ln].dat);
@@ -150,8 +161,53 @@ clearb(Buf *b) {
 	while (n)
 		dellb(b, n--);
 	
+	while (bookmarks)
+		deletebookmark(bookmarks->line);
+	
 	SLN=0;
 	LN=1;
 	IND=0;
+	return 0;
+}
+
+addbookmark(int line) {
+	Bookmark *bm, *next = bookmarks, *prev = 0;
+	
+	for (next = bookmarks; next; prev = next, next = next->next)
+		if (next->line > line)
+			break;
+			
+	bm = malloc(sizeof *bookmarks);
+	bm->line = line;
+	bm->prev = prev;
+	bm->next = next;
+	if (bm->next)
+		bm->next->prev = bm;
+	if (bm->prev)
+		bm->prev->next = bm;
+	else
+		bookmarks = bm;
+	return 1;
+}
+deletebookmark(int line) {
+	Bookmark *bm;
+	for (bm = bookmarks; bm; bm = bm->next)
+		if (bm->line == line) {
+			if (bm->prev)
+				bm->prev->next = bm->next;
+			else
+				bookmarks = bm->next;
+			if (bm->next)
+				bm->next->prev = bm->prev;
+			free(bm);
+			return 1;
+		}
+	return 0;
+}
+isbookmarked(int line) {
+	Bookmark *bm;
+	for (bm = bookmarks; bm; bm = bm->next)
+		if (bm->line == line)
+			return 1;
 	return 0;
 }

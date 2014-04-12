@@ -10,6 +10,7 @@ struct conf {
 	int		bg2;
 	int		selbg;
 	int		isearchbg;
+	int		bookmarkbg;
 	struct textstyle style[8];
 	wchar_t		bgimage[128];
 	

@@ -1151,6 +1151,15 @@ wmkey(int c) {
 			return act(PromptSpawn);
 		else
 			return act(SpawnCmd);
+	
+	case VK_F9:
+		if (shift)
+			return act(PrevBookmark);
+		else if (ctl)
+			return act(ToggleBookmark);
+		else
+			return act(NextBookmark);
+	
 	case VK_F11:
 		return act(ToggleTransparency);
 	case VK_F12:
@@ -1349,13 +1358,18 @@ paint(PAINTSTRUCT *ps) {
 		}
 	}
 	
-	/* Draw comment line's background */
-	SetDCPenColor(ddc, conf.style[lang.commentcol].color);
-	SetDCBrushColor(ddc, conf.style[lang.commentcol].color);
+	/* Draw comment and bookmark line's background */
 	y=line2px(first);
 	for (i=first; i<=last; i++) {
-		if (iscommentline(i))
+		if (iscommentline(i)) {
+			SetDCPenColor(ddc, conf.style[lang.commentcol].color);
+			SetDCBrushColor(ddc, conf.style[lang.commentcol].color);
 			Rectangle(ddc, 0, y, width, y+font_lheight);
+		} else if (isbookmarked(i)) {
+			SetDCPenColor(ddc, conf.bookmarkbg);
+			SetDCBrushColor(ddc, conf.bookmarkbg);
+			Rectangle(ddc, 0, y, width, y+font_lheight);
+		}
 		y += font_lheight;
 	}
 	

@@ -4,6 +4,7 @@ typedef struct Line	Line;
 typedef struct Buf	Buf;
 typedef struct Loc	Loc;
 typedef struct Undo	Undo;
+typedef struct Bookmark	Bookmark;
 
 struct	Loc {
 	int	ln;
@@ -51,6 +52,12 @@ struct	Buf {
 	int	changes;
 };
 
+struct	Bookmark {
+	int		line;
+	Bookmark	*prev;
+	Bookmark	*next;
+};
+
 #define CAR	(b->car)
 #define SEL	(b->sel)
 #define LN	(CAR.ln)
@@ -60,6 +67,7 @@ struct	Buf {
 #define NLINES	(b->nlines)
 
 Buf		*b;
+Bookmark	*bookmarks;
 wchar_t		*filename;
 wchar_t		filepath[512];
 wchar_t		filebase[512];
@@ -80,6 +88,9 @@ int		config(),
 		configfont(),
 		defperfile(),
 		defglobals();
+int		addbookmark(int line),
+		deletebookmark(int line),
+		isbookmarked(int line);
 
 Codec*		setcodec(wchar_t *name);
 void		*platform_openfile(wchar_t *name, int write, int *sz);

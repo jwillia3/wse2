@@ -74,6 +74,12 @@ enum {
 	SpawnCmd,
 	PromptSpawn,
 	
+	AddBookmark,
+	DeleteBookmark,
+	ToggleBookmark,
+	PrevBookmark,
+	NextBookmark,
+	
 	ReloadConfig,
 	PrevConfig,
 	NextConfig,

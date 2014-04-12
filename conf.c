@@ -30,6 +30,7 @@ static struct	field fields[] = {
 		{L"fg_color", Color, &conf.fg},
 		{L"select_color", Color, &conf.selbg},
 		{L"isearch_color", Color, &conf.isearchbg},
+		{L"bookmark_color", Color, &conf.bookmarkbg},
 		{L"bg_image", String, &conf.bgimage},
 		
 		{L"style0", Style, &conf.style[0]},
@@ -115,7 +116,8 @@ defconfig() {
 	conf.bg2 = RGB(245,245,245);
 	conf.fg = RGB(64,64,64);
 	conf.selbg = RGB(240,240,255);
-	conf.isearchbg = RGB(255,255,240);
+	conf.isearchbg = RGB(255,255,0);
+	conf.bookmarkbg = RGB(255,200,255);
 	conf.style[0].color = RGB(255,255,255);
 	wcscpy(conf.bgimage, L"");
 	
