@@ -1,5 +1,4 @@
 /* vim: set noexpandtab:tabstop=8 */
-#define MAX_INCREMENTAL 65536
 
 #define WIN32_LEAN_AND_MEAN
 #define _WIN32_WINNT 0x0501
@@ -47,7 +46,6 @@ HMENU		encodingmenu;
 BOOL		use_console = TRUE;
 BOOL		transparent = FALSE;
 #define		ID_CONSOLE 104
-wchar_t		isearch[MAX_INCREMENTAL];
 int		isearchlength;
 int		isearchcursor;
 BOOL		using_isearch;
@@ -873,18 +871,18 @@ autoreplaceall() {
 }
 
 isearch_insert(int c) {
-	wmemmove(isearch + isearchcursor + 1,
-		isearch + isearchcursor,
+	wmemmove(fr.lpstrFindWhat + isearchcursor + 1,
+		fr.lpstrFindWhat + isearchcursor,
 		isearchlength - isearchcursor);
-	isearch[isearchcursor++] = c;
-	isearch[++isearchlength] = 0;
+	fr.lpstrFindWhat[isearchcursor++] = c;
+	fr.lpstrFindWhat[++isearchlength] = 0;
 	autoisearch();
 }
 isearch_delete() {
-	wmemmove(isearch + isearchcursor,
-		isearch + isearchcursor + 1,
+	wmemmove(fr.lpstrFindWhat + isearchcursor,
+		fr.lpstrFindWhat + isearchcursor + 1,
 		isearchlength - isearchcursor);
-	isearch[--isearchlength] = 0;
+	fr.lpstrFindWhat[--isearchlength] = 0;
 	autoisearch();
 }
 isearch_move(int dir) {
@@ -896,16 +894,14 @@ isearch_move(int dir) {
 }
 
 wmchar_isearch(int c, int ctl, int shift) {
-	if (c >= 0x20 && isearchlength < MAX_INCREMENTAL)
+	if (c >= 0x20 && isearchlength < MAX_PATH)
 		isearch_insert(c);
 	else if (c == 8 && isearchcursor > 0) { // backspace
 		isearch_move(-1);
 		isearch_delete();
 	} else if (c == 127) // delete
 		isearch_delete();
-	else if (c == 27) { // escape or enter
-		isearchcursor = 0;
-		isearchlength = 0;
+	else if (c == 27) { // escape
 		using_isearch = 0;
 		invdafter(top);
 	} else if (c == 13) { // enter
@@ -924,7 +920,7 @@ wmchar_isearch(int c, int ctl, int shift) {
 }
 
 autoisearch() {
-	actisearch(isearch);
+	actisearch(fr.lpstrFindWhat);
 	invdafter(top);
 	return 1;
 }
@@ -958,11 +954,18 @@ wmchar(int c) {
 		return 0;
 	
 	case 6: /* ^F */
+		if (ctl && shift)
+			return act(PromptFind);
+		if (SLN) {
+			wchar_t *tmp = copysel();
+			wcsncpy(fr.lpstrFindWhat,tmp,MAX_PATH);
+			fr.lpstrFindWhat[MAX_PATH] = 0;
+			free(tmp);
+		} else
+			fr.lpstrFindWhat[0] = 0;
+		isearchcursor = isearchlength = wcslen(fr.lpstrFindWhat);
 		using_isearch = 1;
 		return 1;
-//		if (shift)
-//			return autoquery();
-//		return act(PromptFind);
 	
 	case 7: /* ^G */
 		return act(PromptGo);
@@ -1232,7 +1235,7 @@ paintstatus(HDC dc) {
 	if (using_isearch)
 		len=swprintf(buf, 1024, L"%d:%d FIND: %ls",
 			LN, ind2col(LN, IND),
-			isearch);
+			fr.lpstrFindWhat);
 	else
 		len=swprintf(buf, 1024, SLN? selmsg: noselmsg,
 			LN, ind2col(LN, IND),
@@ -1265,7 +1268,8 @@ paintline(HDC dc, int x, int y, int line) {
 	if (using_isearch) {
 		wchar_t *i = txt;
 		SetDCBrushColor(dc, conf.isearchbg);
-		for (i = txt; *i && (i = wcsistr(i, isearch)); i += isearchlength)
+		SetDCPenColor(dc, conf.isearchbg);
+		for (i = txt; *i && (i = wcsistr(i, fr.lpstrFindWhat)); i += isearchlength)
 			Rectangle(dc,
 				x + ind2px(line, i - txt),
 				y - (font_lheight-font_aheight)/2,
