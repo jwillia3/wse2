@@ -920,9 +920,9 @@ wmchar_isearch(int c, int ctl, int shift) {
 }
 
 autoisearch() {
-	actisearch(fr.lpstrFindWhat);
+	int ok = actisearch(fr.lpstrFindWhat);
 	invdafter(top);
-	return 1;
+	return ok;
 }
 
 wmchar(int c) {
@@ -965,6 +965,8 @@ wmchar(int c) {
 			fr.lpstrFindWhat[0] = 0;
 		isearchcursor = isearchlength = wcslen(fr.lpstrFindWhat);
 		using_isearch = 1;
+		act(EndSelection);
+		invdafter(top);
 		return 1;
 	
 	case 7: /* ^G */
@@ -1138,13 +1140,11 @@ wmkey(int c) {
 		return act(ctl? SpawnShell: SpawnEditor);
 		
 	case VK_F3:
-		if (shift) {
-			fr.Flags^=FR_DOWN;
-			ok=autoquery();
-			fr.Flags^=FR_DOWN;
-			return ok;
-		}
-		return autoquery();
+		act(EndSelection);
+		act(MoveRight);
+		if (!autoisearch())
+			act(MoveLeft);
+		return 1;
 	
 	case VK_F5:
 		return act(ReloadFile);
@@ -1780,12 +1780,12 @@ init() {
 	ofn.hwndOwner = w;
 	
 	WM_FIND = RegisterWindowMessage(FINDMSGSTRING);
-	fr.lpstrFindWhat = malloc(MAX_PATH * sizeof (wchar_t));
+	fr.lpstrFindWhat = malloc((MAX_PATH + 1) * sizeof (wchar_t));
 	fr.lpstrFindWhat[0] = 0;
-	fr.lpstrReplaceWith = malloc(MAX_PATH * sizeof (wchar_t));
+	fr.lpstrReplaceWith = malloc((MAX_PATH + 1) * sizeof (wchar_t));
 	fr.lpstrReplaceWith[0] = 0;
 	
-	gofr.lpstrFindWhat = malloc(MAX_PATH * sizeof (wchar_t));
+	gofr.lpstrFindWhat = malloc((MAX_PATH + 1) * sizeof (wchar_t));
 	gofr.lpstrFindWhat[0] = 0;
 
 	dc=GetDC(0);
