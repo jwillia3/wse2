@@ -49,6 +49,7 @@ BOOL		transparent = FALSE;
 int		isearchlength;
 int		isearchcursor;
 BOOL		using_isearch;
+BOOL		editing_isearch;
 
 OPENFILENAME	ofn = {
 			sizeof ofn,
@@ -903,6 +904,10 @@ wmchar_isearch(int c, int ctl, int shift) {
 		isearch_delete();
 	else if (c == 27) { // escape
 		using_isearch = 0;
+		editing_isearch = 0;
+		invdafter(top);
+	} else if (c == '\t') { // tab
+		editing_isearch = !editing_isearch;
 		invdafter(top);
 	} else if (c == 13) { // enter
 		act(MoveRight);
@@ -930,7 +935,7 @@ wmchar(int c) {
 	int	ctl=GetAsyncKeyState(VK_CONTROL) & 0x8000;
 	int	shift=GetAsyncKeyState(VK_SHIFT) & 0x8000;
 	
-	if (using_isearch)
+	if (editing_isearch || (using_isearch && c == '\t'))
 		return wmchar_isearch(c, ctl, shift);
 	
 	switch (c) {
@@ -965,6 +970,7 @@ wmchar(int c) {
 			fr.lpstrFindWhat[0] = 0;
 		isearchcursor = isearchlength = wcslen(fr.lpstrFindWhat);
 		using_isearch = 1;
+		editing_isearch = 1;
 		act(EndSelection);
 		invdafter(top);
 		return 1;
@@ -1071,7 +1077,7 @@ wmkey_isearch(int c, int ctl, int shift) {
 		isearch_move(-1);
 		break;
 	case VK_RIGHT:
-		isearch_move(-1);
+		isearch_move(1);
 		break;
 	}
 	return 1;
@@ -1083,7 +1089,7 @@ wmkey(int c) {
 	int	shift=GetAsyncKeyState(VK_SHIFT) & 0x8000;
 	int	ok;
 	
-	if (using_isearch)
+	if (editing_isearch)
 		return wmkey_isearch(c, ctl, shift);
 
 	switch (c) {
