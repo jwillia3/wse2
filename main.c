@@ -526,6 +526,13 @@ act(int action) {
 		SendMessage(w, WM_CLOSE,0,0);
 		break;
 	
+	case ToggleOverwrite:
+		DestroyCaret();
+		CreateCaret(w, 0, overwrite? font_em: 0, font_lheight);
+		movecaret();
+		ShowCaret(w);
+		break;
+	
 	case SpawnEditor:
 		ZeroMemory(&si, sizeof si);
 		ZeroMemory(&pi, sizeof pi);
@@ -1131,7 +1138,7 @@ wmkey(int c) {
 			return act(CopySelection);
 		else if (shift)
 			return act(PasteClipboard);
-		return 0;
+		return act(ToggleOverwrite);
 		
 	case VK_DELETE:
 		if (ctl) {
@@ -1539,7 +1546,7 @@ WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 		return 0;
 	
 	case WM_SETFOCUS:
-		CreateCaret(hwnd, 0, 0, font_lheight);
+		CreateCaret(hwnd, 0, overwrite? font_em: 0, font_lheight);
 		movecaret();
 		ShowCaret(hwnd);
 		return 0;

@@ -27,6 +27,7 @@ enum {
 	MoveSof,
 	MoveEof,
 	MoveBrace,
+	ToggleOverwrite,
 
 	DeleteChar,
 	BackspaceChar,

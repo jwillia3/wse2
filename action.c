@@ -31,6 +31,10 @@ instabb(int c) {
 			i++;
 		} while ((ind2col(LN, IND)-1) % file.tabc);
 		return i;
+	} else if (overwrite) {
+		if (IND != lenb(b, LN))
+			delb(b);
+		return insb(b,c);
 	} else
 		return insb(b,c);
 }
@@ -758,7 +762,8 @@ _act(int action) {
 		
 	case MoveBrace:
 		return matchbrace();
-	
+	case ToggleOverwrite:
+		return overwrite = !overwrite;
 	case DeleteChar:
 		if (sel)
 			return _act(DeleteSelection);
