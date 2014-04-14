@@ -65,6 +65,7 @@ static struct	field fields[] = {
 		{L"use_tabs", Boolean, &file.usetabs},
 		{L"use_bom", Boolean, &file.usebom},
 		{L"use_crlf", Boolean, &file.usecrlf},
+		{L"margin", Int, &global.margin},
 		{L"wire", Int, global.wire},
 		{L"wire2", Int, global.wire+1},
 		{L"wire3", Int, global.wire+2},
@@ -79,6 +80,7 @@ defglobals() {
 	global.alpha = .9;
 	global.rows = 24;
 	global.cols = 80;
+	global.margin = 1;
 	global.wire[0] = 64;
 	global.wire[1] = 72;
 	global.wire[2] = 80;

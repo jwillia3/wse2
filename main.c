@@ -101,7 +101,7 @@ ind2px(int ln, int ind) {
 		px += txt[i]=='\t'
 			? tab - (px + tab) % tab
 			: charwidth(txt[i]);
-	return px;
+	return px + global.margin * font_em;
 }
 
 static
@@ -111,6 +111,7 @@ px2ind(int ln, int x) {
 
 	txt=getb(b, ln, 0);
 	px=0;
+	x-=global.margin * font_em;
 	tab=font_tabw;
 	for (i=0; txt[i] && px<x; i++)
 		px += txt[i]=='\t'
@@ -1230,9 +1231,11 @@ blend(COLORREF b, COLORREF f, double contrast) {
 
 blurtext(HDC dc, int x, int y, wchar_t *txt, int n, COLORREF bg, COLORREF fg) {
 	SetTextColor(dc, blend(bg,fg,1-conf.blur));
-	TabbedTextOut(dc, x+conf.fbx, y+conf.fby, txt, n, 1, &font_tabw,0);
+	TabbedTextOut(dc, x+conf.fbx, y+conf.fby, txt, n, 1, &font_tabw,
+		global.margin * font_em);
 	SetTextColor(dc, blend(bg,fg,conf.blur));
-	TabbedTextOut(dc, x,y, txt, n, 1, &font_tabw,0);
+	TabbedTextOut(dc, x,y, txt, n, 1, &font_tabw,
+		global.margin * font_em);
 }
 
 paintstatus(HDC dc) {
@@ -1332,7 +1335,9 @@ paintlines(HDC dc, int first, int last) {
 	
 	SetTextColor(dc, conf.fg);
 	for (line=first; line<=last; line++, _y += font_lheight)
-		paintline(dc, 0, _y + (font_lheight-font_aheight)/2, line);
+		paintline(dc,
+			global.margin * font_em,
+			_y + (font_lheight-font_aheight)/2, line);
 }
 
 iscommentline(int line) {
