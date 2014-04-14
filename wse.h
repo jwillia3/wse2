@@ -107,7 +107,7 @@ wchar_t*	wcsistr(wchar_t *big, wchar_t *substring);
 int		_act(int action),
 		_actins(int c),
 		_actquery(wchar_t *query, int down, int sens),
-		_actisearch(wchar_t *query),
+		_actisearch(wchar_t *query, int down),
 		_actreplace(wchar_t *query, wchar_t *repl, int down, int sens),
 		_actreplaceall(wchar_t *query, wchar_t *repl, int down, int sens);
 

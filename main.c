@@ -933,7 +933,7 @@ wmchar_isearch(int c, int ctl, int shift) {
 }
 
 autoisearch() {
-	int ok = actisearch(fr.lpstrFindWhat);
+	int ok = actisearch(fr.lpstrFindWhat, fr.Flags & FR_DOWN);
 	invdafter(top);
 	return ok;
 }
@@ -1155,9 +1155,15 @@ wmkey(int c) {
 		
 	case VK_F3:
 		act(EndSelection);
-		act(MoveRight);
-		if (!autoisearch())
-			act(MoveLeft);
+		if (shift) {
+			fr.Flags ^= FR_DOWN;
+			autoisearch();
+			fr.Flags ^= FR_DOWN;
+		} else {
+			act(MoveRight);
+			if (!autoisearch())
+				act(MoveLeft);
+		}
 		return 1;
 	
 	case VK_F5:
@@ -1287,9 +1293,9 @@ paintline(HDC dc, int x, int y, int line) {
 		SetDCPenColor(dc, conf.isearchbg);
 		for (i = txt; *i && (i = wcsistr(i, fr.lpstrFindWhat)); i += isearchlength)
 			Rectangle(dc,
-				x + ind2px(line, i - txt),
+				ind2px(line, i - txt),
 				y - (font_lheight-font_aheight)/2,
-				x + ind2px(line, i - txt + isearchlength),
+				ind2px(line, i - txt + isearchlength),
 				y - (font_lheight-font_aheight)/2 + font_lheight);
 	}
 	
