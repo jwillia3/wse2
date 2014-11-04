@@ -9,6 +9,7 @@
 #pragma comment(lib,"shell32.lib")
 #pragma comment(lib,"comdlg32.lib")
 #pragma comment(lib,"uxtheme.lib")
+#pragma comment(lib,"asg/asg.lib")
 
 
 #pragma warning(push)
@@ -16,9 +17,11 @@
 #include <Windows.h>
 #include <shellapi.h>
 #include <commdlg.h>
+#include <math.h>
 #include <stdlib.h>
 #include <wchar.h>
 #pragma warning(pop)
+#include "asg/asg.h"
 #include "conf.h"
 #include "wse.h"
 #include "action.h"
@@ -33,8 +36,8 @@ HBITMAP		dbmp;
 HBITMAP		bgbmp;
 HBRUSH		bgbrush;
 HPEN		bgpen;
-HFONT		font[4];
 UINT		WM_FIND;
+void		*BitmapBuffer;
 Loc		click;
 int		width;
 int		height;
@@ -50,6 +53,8 @@ int		isearchlength;
 int		isearchcursor;
 BOOL		using_isearch;
 BOOL		editing_isearch;
+Asg		*gs;
+AsgFont		*asg_font[4];
 
 OPENFILENAME	ofn = {
 			sizeof ofn,
@@ -84,9 +89,7 @@ line2px(int ln) {
 
 static
 charwidth(unsigned c) {
-	int width=0;
-	GetCharWidth32(ddc, c, c, &width);
-	return width;
+	return asg_get_char_width(asg_font[0], c);
 }
 
 static
@@ -673,7 +676,7 @@ act(int action) {
 	case MoveSof:
 	case MoveEof:
 		snap();
-		invd(BOT,BOT);
+		invd(BOT,BOT+1);
 		break;
 	
 	case DeleteChar:
@@ -1221,27 +1224,19 @@ paintsel(HDC dc) {
 	return 1;
 }
 
-COLORREF
-blend(COLORREF b, COLORREF f, double contrast) {
-	int fr=GetRValue(f);
-	int fg=GetGValue(f);
-	int fb=GetBValue(f);
-	int br=GetRValue(b);
-	int bg=GetGValue(b);
-	int bb=GetBValue(b);
-	fr=fr*(1.0-contrast)+br*contrast;
-	fg=fg*(1.0-contrast)+bg*contrast;
-	fb=fb*(1.0-contrast)+bb*contrast;
-	return RGB(fr,fg,fb);
-}
-
-blurtext(HDC dc, int x, int y, wchar_t *txt, int n, COLORREF bg, COLORREF fg) {
-	SetTextColor(dc, blend(bg,fg,1-conf.blur));
-	TabbedTextOut(dc, x+conf.fbx, y+conf.fby, txt, n, 1, &font_tabw,
-		global.margin * font_em);
-	SetTextColor(dc, blend(bg,fg,conf.blur));
-	TabbedTextOut(dc, x,y, txt, n, 1, &font_tabw,
-		global.margin * font_em);
+blurtext(AsgFont *font, int x, int y, wchar_t *txt, int n, COLORREF bg, COLORREF fg) {
+	wchar_t *p;
+	wchar_t *end = txt + n;
+	int margin = global.margin * font_em;
+	
+	fg |= 0xff000000;
+	AsgPoint at = asg_pt(x, y);
+	for (p = txt; p < end; p++) {
+		if (*p == '\t')
+			at.x += font_tabw - fmod(at.x - margin + font_tabw, font_tabw);
+		else
+			at.x += (int)asg_draw_char(gs, font, at, *p, fg);
+	}
 }
 
 paintstatus(HDC dc) {
@@ -1266,7 +1261,7 @@ paintstatus(HDC dc) {
 			ind2col(SLN, SIND),
 			SLN==LN? abs(SIND-IND): abs(SLN-LN)+1,
 			SLN==LN? L"chars": L"lines");
-	blurtext(dc, 0,
+	blurtext(asg_font[0], 0,
 		height-font_lheight+(font_lheight-font_aheight)/2,
 		buf, len, conf.fg, conf.bg);
 }
@@ -1314,13 +1309,11 @@ paintline(HDC dc, int x, int y, int line) {
 			int style=conf.style[lang.kwd_color[k]].style;
 			
 			/* Draw the preceding section */
-			SelectObject(dc, font[0]);
-			blurtext(dc, x, y, i, j-i, bg,conf.fg);
+			blurtext(asg_font[0], x, y, i, j-i, bg,conf.fg);
 			x=ind2px(line, j-txt);
 			
 			/* Then draw the keyword */
-			SelectObject(dc, font[style]);
-			blurtext(dc, x,y, j, sect,
+			blurtext(asg_font[style], x,y, j, sect,
 				bg, conf.style[lang.kwd_color[k]].color);
 			SetTextColor(dc, conf.fg);
 			i=j+=sect;
@@ -1331,9 +1324,8 @@ paintline(HDC dc, int x, int y, int line) {
 		} else /* Skip one breaker */
 			j++;
 	}
-	SelectObject(dc, font[0]);
 	if (j>i)
-		blurtext(dc, x,y, i, j-i, bg, conf.fg);
+		blurtext(asg_font[0], x,y, i, j-i, bg, conf.fg);
 }
 
 paintlines(HDC dc, int first, int last) {
@@ -1358,10 +1350,9 @@ paint(PAINTSTRUCT *ps) {
 	wchar_t	*txt;
 	SIZE	size;
 	int	i,n,y,x,len,first,last;
-
-	SetBkMode(ddc, TRANSPARENT);
-	SelectObject(ddc, font[0]);
 	
+	asg_load_identity(gs);
+
 	first = px2line(ps->rcPaint.top);
 	last = px2line(ps->rcPaint.bottom);
 	
@@ -1370,7 +1361,7 @@ paint(PAINTSTRUCT *ps) {
 	SelectObject(ddc, bgpen);
 	Rectangle(ddc, ps->rcPaint.left-1, ps->rcPaint.top-1,
 		ps->rcPaint.right+1, ps->rcPaint.bottom+1);
-
+	
 	SelectObject(ddc, GetStockObject(DC_BRUSH));
 	SelectObject(ddc, GetStockObject(DC_PEN));
 	
@@ -1419,7 +1410,7 @@ paint(PAINTSTRUCT *ps) {
 	}
 	
 	paintlines(ddc,first,last);
-	
+	paintstatus(ddc);
 	BitBlt(ps->hdc,
 		ps->rcPaint.left,
 		ps->rcPaint.top,
@@ -1430,14 +1421,19 @@ paint(PAINTSTRUCT *ps) {
 		ps->rcPaint.top,
 		SRCCOPY);
 	
+	/* Get another DC to this window to draw
+	 * the status bar, which is probably outside
+	 * of the update region of the PAINTSTRUCT
+	 */
 	{
-		HDC dc=GetDC(w);
-		SelectObject(dc, GetStockObject(DC_BRUSH));
-		SelectObject(dc, GetStockObject(DC_PEN));
-		SetBkMode(dc, TRANSPARENT);
-		SelectObject(dc, font[0]);
-		paintstatus(dc);
-		ReleaseDC(w,dc);
+		HDC dc = GetDC(w);
+		BitBlt(dc,
+			0, height-font_lheight,
+			width, height,
+			ddc,
+			0, height-font_lheight,
+			SRCCOPY);
+		ReleaseDC(w, dc);
 	}
 }
 
@@ -1574,7 +1570,31 @@ WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 		/* Resize double-buffer */
 		DeleteObject(dbmp);
 		dc=GetDC(hwnd);
-		dbmp=CreateCompatibleBitmap(dc, width, height);
+		{
+			BITMAPINFO info = {
+			{ sizeof info.bmiHeader,
+				width + 3 & ~3,
+				-height,
+				1,
+				32,
+				0,
+				(width + 3 & ~3) * height * 4,
+				96,
+				96,
+				-1,
+				-1
+			} };
+			dbmp=CreateDIBSection(
+				NULL,
+				&info,
+				DIB_RGB_COLORS,
+				&BitmapBuffer,
+				NULL,
+				0);
+		}
+		gs->width = width + 3 & ~3;
+		gs->height = height;
+		gs->buf = BitmapBuffer;
 		SelectObject(ddc, dbmp);
 		ReleaseDC(hwnd, dc);
 		return 0;
@@ -1698,58 +1718,66 @@ reinitlang() {
 
 static
 configfont() {
-	HDC		hdc;
-	int		dpi,i;
-	TEXTMETRIC	tm;
-	LOGFONT		lf = {
-			0, 0, 0,0, FW_NORMAL, 0,0,0,
-			DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
-			CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
-			FF_DONTCARE|DEFAULT_PITCH, 0
-			};
-	
-	if (font[0]) {
-		DeleteObject(font[0]);
-		DeleteObject(font[1]);
-		DeleteObject(font[2]);
-		DeleteObject(font[3]);
-	}
+	HDC	hdc;
+	wchar_t	family[MAX_PATH];
+	wchar_t regular[MAX_PATH];
+	wchar_t tmp[MAX_PATH];
+	wchar_t *p;
+	float	dpi;
+	float	sy;
+	float	sx;
 	
 	/* Get device resolution */
 	hdc = GetDC(0);
 	dpi = GetDeviceCaps(hdc, LOGPIXELSY);
-	
-	/* Create font */
-	lf.lfHeight = -conf.fontsz * dpi/72.0;
-	lf.lfWidth = fabs(lf.lfHeight) * conf.fontasp;
-	lf.lfItalic = conf.italic;
-	lf.lfWeight = conf.weight * 1000;
-	lf.lfQuality = conf.smooth
-		? (conf.smooth<=0.5? ANTIALIASED_QUALITY: CLEARTYPE_QUALITY)
-		: NONANTIALIASED_QUALITY;
-	wcscpy(lf.lfFaceName, conf.fontname);
-	font[0] = CreateFontIndirect(&lf); /* Regular */
-	
-	lf.lfItalic ^= 1;
-	font[2] = CreateFontIndirect(&lf); /* Italic */
-	
-	lf.lfItalic ^= 1;
-	lf.lfWeight = lf.lfWeight==900? 400: 900;
-	font[1] = CreateFontIndirect(&lf); /* Bold */
-	
-	lf.lfItalic ^= 1;
-	font[3] = CreateFontIndirect(&lf); /* Bold & Italic */
-	
-	/* Get metrics */
-	SelectObject(hdc, font[0]);
-	GetTextMetrics(hdc, & tm);
 	ReleaseDC(0, hdc);
 	
-	font_aheight = tm.tmHeight;
-	font_lheight = font_aheight * conf.leading
-		+ tm.tmExternalLeading;
-	font_em = tm.tmAveCharWidth;
+	asg_free_font(asg_font[0]);
+	asg_free_font(asg_font[1]);
+	asg_free_font(asg_font[2]);
+	asg_free_font(asg_font[3]);
+	
+	// Try to open font. Fallback to Courier otherwise
+	asg_font[0] = asg_open_font(conf.fontname);
+	if (asg_font[0]) {
+		wcscpy(regular, conf.fontname);
+		wcscpy(family, conf.fontname);
+	} else {
+		wcscpy(regular, L"Courier New");
+		wcscpy(family, regular);
+		asg_font[0] = asg_open_font(family);
+	}
+	
+	// Cut "Regular" & "Medium" off name to get family name
+	if (p = wcsstr(family, L"Medium"))
+		*p = 0;
+	// Make sure it ends in space or dash for appending variant
+	p = &family[wcslen(family) - 1];
+	if (*p != ' ' && *p != '-')
+		wcscat(family, L" ");
+	
+	asg_font[1] = asg_open_font(wcscat(wcscpy(tmp, family), L"Bold"));
+	asg_font[2] = asg_open_font(wcscat(wcscpy(tmp, family), L"Italic"));
+	asg_font[3] = asg_open_font(wcscat(wcscpy(tmp, family), L"Bold Italic"));
+	
+	if (!asg_font[1]) asg_font[1] = asg_open_font(regular);
+	if (!asg_font[2]) asg_font[2] = asg_open_font(regular);
+	if (!asg_font[3]) asg_font[3] = asg_open_font(regular);
+	
+	sy = conf.fontsz * dpi/72.f;
+	sx = sy * conf.fontasp;
+	asg_scale_font(asg_font[0], sy, sx);
+	asg_scale_font(asg_font[1], sy, sx);
+	asg_scale_font(asg_font[2], sy, sx);
+	asg_scale_font(asg_font[3], sy, sx);
+	
+	font_aheight = asg_get_font_ascender(asg_font[0])
+		- asg_get_font_descender(asg_font[0])
+		+ asg_get_font_leading(asg_font[0]);
+	font_lheight = font_aheight * conf.leading;
+	font_em = round(asg_get_char_width(asg_font[0], 'M'));
 	font_tabw = font_em * file.tabc;
+	
 	return 1;
 }
 
@@ -1817,6 +1845,8 @@ init() {
 	dbmp=CreateCompatibleBitmap(dc, 1,1);
 	SelectObject(ddc, dbmp);
 	ReleaseDC(w, dc);
+	
+	gs = asg_new(NULL, 0, 0);
 	
 	SystemParametersInfo(SPI_GETWORKAREA, 0, &rt, 0);
 	w = CreateWindowEx(

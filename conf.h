@@ -19,12 +19,6 @@ struct conf {
 	double		fontsz;
 	double		fontasp;
 	double		leading;
-	double		weight;
-	double		smooth;
-	double		blur;
-	int		fbx; /* font blur x direction */
-	int		fby; /* font blur y direction */
-	int		italic;
 } conf;
 struct file {
 	int		tabc;

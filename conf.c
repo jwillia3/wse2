@@ -45,13 +45,7 @@ static struct	field fields[] = {
 		{L"font_name", String, &conf.fontname},
 		{L"font_size", Float, &conf.fontsz},
 		{L"font_aspect", Float, &conf.fontasp},
-		{L"font_weight", Float, &conf.weight},
-		{L"font_smoothing", Float, &conf.smooth},
-		{L"font_italic", Boolean, &conf.italic},
 		{L"line_height", Float, &conf.leading},
-		{L"font_blur", Float, &conf.blur},
-		{L"font_blur_x", Int, &conf.fbx},
-		{L"font_blur_y", Int, &conf.fby},
 		
 		{L"ext", String, &lang.ext},
 		{L"comment", String, &lang.comment},
@@ -126,13 +120,7 @@ defconfig() {
 	wcscpy(conf.fontname, L"Courier New");
 	conf.fontsz = 12.0;
 	conf.fontasp = 0.0;
-	conf.leading = 1.5;
-	conf.smooth = 1.0;
-	conf.italic = 0;
-	conf.weight = .4;
-	conf.blur = .2;
-	conf.fbx = 0;
-	conf.fby = -1;
+	conf.leading = 1.125;
 	return 1;
 }
 
