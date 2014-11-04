@@ -1229,7 +1229,12 @@ blurtext(AsgFont *font, int x, int y, wchar_t *txt, int n, COLORREF bg, COLORREF
 	wchar_t *end = txt + n;
 	int margin = global.margin * font_em;
 	
-	fg |= 0xff000000;
+	/* Swap R & G because windows RGB macro builds them backwards */
+	fg = 0xff000000 |
+		(fg >> 16 & 255) |
+		fg & 0x00ff00 |
+		(fg & 255) << 16;
+		
 	AsgPoint at = asg_pt(x, y);
 	for (p = txt; p < end; p++) {
 		if (*p == '\t')
@@ -1775,7 +1780,7 @@ configfont() {
 		- asg_get_font_descender(asg_font[0])
 		+ asg_get_font_leading(asg_font[0]);
 	font_lheight = font_aheight * conf.leading;
-	font_em = round(asg_get_char_width(asg_font[0], 'M'));
+	font_em = asg_get_char_width(asg_font[0], 'M');
 	font_tabw = font_em * file.tabc;
 	
 	return 1;
