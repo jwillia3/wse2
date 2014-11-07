@@ -590,24 +590,39 @@ static void decomp_bezier4(
         decomp_bezier4(list, mabcd, mbcd, mcd, d, flatness, n - 1);
     }
 }
-static int sort_bottoms(const void *a, const void *b) {
-    float ay = ((Segment*)a)->b.y;
-    float by = ((Segment*)b)->b.y;
-    return ay < by? -1: ay > by? 1: 0;
+static int sort_tops(const void *ap, const void *bp) {
+    const Segment * __restrict a = ap;
+    const Segment * __restrict b = bp;
+    return  a->a.y < b->a.y? -1:
+            a->a.y > b->a.y? 1:
+            a->a.x < b->a.x? -1:
+            a->a.x > b->a.x? 1:
+            0;
 }
 static void fill_evenodd(const Asg *gs, const Segment *segs, int nsegs, uint32_t color) {
-    int                     max_y = clamp_int(0, segs[nsegs - 1].b.y / gs->subsamples + 1, gs->height - 1);
-    int                     min_y = max_y; // calculated later
+    typedef struct {
+        float y0;
+        float y1;
+        float x;
+        float m;
+    } Edge;
+    int                     max_y = INT_MIN;
+    int                     min_y = INT_MAX; // calculated later
     int                     min_x = 0; // per-line minimum used x
     int                     max_x = gs->width - 1; // per-line maximum used x
-    for (int i = 0; i < nsegs; i++)
+    for (int i = 0; i < nsegs; i++) {
         if (segs[i].a.y < min_y) min_y = segs[i].a.y;
-    min_y = MAX(0, min_y / gs->subsamples);
+        if (segs[i].b.y > max_y) max_y = segs[i].b.y;
+    }
+    min_y = clamp_int(0, min_y / gs->subsamples, gs->height - 1);
+    max_y = clamp_int(0, max_y / gs->subsamples, gs->height - 1);
     
     uint8_t * __restrict    buffer = malloc(gs->width);
-    float * __restrict      edges = calloc(1, nsegs * 2 * sizeof *edges);
+    Edge * __restrict       edges = calloc(1, nsegs * sizeof *edges);
         
     // Rasterise each line
+    int nedges = 0;
+    float max_alpha = (color >> 24) / gs->subsamples;
     for (int scan_y = min_y, min_seg = 0; scan_y <= max_y; scan_y++) {
         // Clear line buffer
         if (min_x <= max_x)
@@ -615,61 +630,72 @@ static void fill_evenodd(const Asg *gs, const Segment *segs, int nsegs, uint32_t
         min_x = gs->width;
         max_x = 0;
         
+        
         for (int s = -gs->subsamples / 2; s < gs->subsamples / 2; s++) {
             float y = gs->subsamples * scan_y + s + .5;
             
-            // Remove unreachable segments
-            while (min_seg < nsegs && segs[min_seg].b.y < y) min_seg++;
+            int old_nedges = nedges;
+            nedges = 0;
+            for (int i = 0; i < old_nedges; i++)
+                if (y <= edges[i].y1) {
+                    if (i != nedges)
+                        edges[nedges] = edges[i];
+                    edges[nedges].x += edges[nedges].m;
+                    nedges++;
+                }
             
-            // Create edges (X values) of path that intersect this line
-            int nedges = 0;
-            for (int i = min_seg; i < nsegs && y < segs[i].b.y; i++)
-                if (segs[i].a.y <= y && segs[i].a.y != segs[i].b.y)
-                    edges[nedges++] = segs[i].a.x + segs[i].m * (y - segs[i].a.y);
+            for ( ; min_seg < nsegs; min_seg++)
+                if (segs[min_seg].a.y <= y) { // starts on or just before this scanline
+                    if (y < segs[min_seg].b.y) { // ends after this scanline
+                        edges[nedges].y0 = segs[min_seg].a.y;
+                        edges[nedges].y1 = segs[min_seg].b.y;
+                        edges[nedges].m = segs[min_seg].m;
+                        edges[nedges].x = segs[min_seg].a.x +
+                            segs[min_seg].m * (y - segs[min_seg].a.y);
+                        nedges++;
+                    } // starts and ends before this scanline
+                } else // starts after this scanline
+                    break;
 
             
             // Sort edges from left to right
             for (int i = 1; i < nedges; i++)
-                for (int j = i; j > 0 && edges[j - 1] > edges[j]; j--) {
-                    float tmp = edges[j];
+                for (int j = i; j > 0 && edges[j - 1].x > edges[j].x; j--) {
+                    Edge tmp = edges[j];
                     edges[j] = edges[j - 1];
                     edges[j - 1] = tmp;
                 }
         
             // Render edges
-            float max_alpha = (color >> 24) / gs->subsamples;
             for (int i = 1; i < nedges; i += 2) {
-                int start = clamp_int(0, edges[i - 1], gs->width - 1);
-                int end = clamp_int(0, edges[i], gs->width - 1);
+                int start = clamp_int(0, edges[i - 1].x, gs->width - 1);
+                int end = clamp_int(0, edges[i].x, gs->width - 1);
                 if (start < min_x) min_x = start;
                 if (end > max_x) max_x = end;
                 
                 if (start == end)
-                    if (start == (int)edges[i-1])
-                        buffer[start] += (edges[i] - edges[i - 1]) * max_alpha;
+                    if (start == (int)edges[i-1].x)
+                        buffer[start] += (edges[i].x - edges[i - 1].x) * max_alpha;
                     else;
                 else {
-                    if (start == (int)edges[i-1])
-                        buffer[start] += (1 - fraction(edges[i-1])) * max_alpha;
+                    if (start == (int)edges[i-1].x)
+                        buffer[start] += (1 - fraction(edges[i-1].x)) * max_alpha;
                     for (int i = start + 1; i < end; i++)
                         buffer[i] += max_alpha;
-                    if (end == (int)edges[i])
-                        buffer[end] += fraction(edges[i]) * max_alpha;
+                    if (end == (int)edges[i].x)
+                        buffer[end] += fraction(edges[i].x) * max_alpha;
                 }
             }
         }
         
         // Copy buffer to screen
-        if (gs->width & 3 == 0) {
-            if (min_x & 3) {
-                for (int i = min_x & 3; i < min_x; i++) buffer[i] = 0;
+        if ((gs->width & 3) == 0) {
+            if (min_x & 3)
                 min_x &= ~3;
-            }
-            if (max_x & 3) {
-                for (int i = max_x+1; i < (max_x + 3 & ~3); i++) buffer[i] = 0;
-                max_x = clamp_int(0, max_x + 3 & ~3, gs->width);
-            } else
-                max_x = clamp_int(0, max_x + 4, gs->width);
+            if (max_x & 3)
+                max_x = clamp_int(0, max_x + 3 & ~3, gs->width - 1);
+            else
+                max_x = clamp_int(0, max_x + 4, gs->width - 1);
                 
             uint32_t * __restrict   screen = gs->buf + scan_y * gs->width;
             __m128i fg = _mm_set_epi32(color, color, color, color);
@@ -757,7 +783,7 @@ void asg_fill_path(
     // Sort line segments by their tops
     const Segment *const __restrict segs = list.segs;
     const int nsegs = list.n;
-    qsort(list.segs, nsegs, sizeof *segs, sort_bottoms);
+    qsort(list.segs, nsegs, sizeof *segs, sort_tops);
     
     if (path->fill_rule == ASG_EVENODD_WINDING)
         fill_evenodd(gs, segs, nsegs, color);
@@ -862,7 +888,7 @@ collection_item:
     font->descender = descender;
     font->leading = leading
         ? leading
-        : (font->em - (font->ascender - font->descender)) + font->em * .2f;
+        : (font->em - (font->ascender - font->descender)) + font->em * .1f;
     
     // 'maxp' table
     uint16_t nglyphs;
@@ -980,7 +1006,6 @@ void glyph_path(AsgPath *path, const AsgOTF *font, const AsgMatrix *ctm, unsigne
     int16_t ncontours;
     unpack(&data, "Sssss", &ncontours);
     
-    // TODO Multiple contours
     if (ncontours < 0) {
         uint16_t flags, glyph;
         int16_t arg1, arg2;
