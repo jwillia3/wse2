@@ -577,9 +577,7 @@ static void decomp_bezier4(
     float d2 = dist(b.x - c.x, b.y - c.y);
     float d3 = dist(c.x - d.x, c.y - d.y);
     float d4 = dist(a.x - d.x, a.y - d.y);
-    if (d1 + d2 + d3 < flatness * d4)
-        add_seg(list, a, d);
-    else {
+    if (d1 + d2 + d3 >= flatness * d4) {
         AsgPoint mab = mid(a, b);
         AsgPoint mbc = mid(b, c);
         AsgPoint mcd = mid(c, d);
@@ -588,7 +586,8 @@ static void decomp_bezier4(
         AsgPoint mabcd = mid(mabc, mbcd);
         decomp_bezier4(list, a, mab, mabc, mabcd, flatness, n - 1);
         decomp_bezier4(list, mabcd, mbcd, mcd, d, flatness, n - 1);
-    }
+    } else
+        add_seg(list, a, d);
 }
 static int sort_tops(const void *ap, const void *bp) {
     const Segment * __restrict a = ap;
@@ -637,13 +636,12 @@ static void fill_evenodd(const Asg *gs, const Segment *segs, int nsegs, uint32_t
             int old_nedges = nedges;
             nedges = 0;
             for (int i = 0; i < old_nedges; i++)
-                if (y <= edges[i].y1) {
+                if (y < edges[i].y1) {
                     if (i != nedges)
                         edges[nedges] = edges[i];
                     edges[nedges].x += edges[nedges].m;
                     nedges++;
                 }
-            
             for ( ; min_seg < nsegs; min_seg++)
                 if (segs[min_seg].a.y <= y) { // starts on or just before this scanline
                     if (y < segs[min_seg].b.y) { // ends after this scanline
@@ -656,7 +654,6 @@ static void fill_evenodd(const Asg *gs, const Segment *segs, int nsegs, uint32_t
                     } // starts and ends before this scanline
                 } else // starts after this scanline
                     break;
-
             
             // Sort edges from left to right
             for (int i = 1; i < nedges; i++)
@@ -687,15 +684,15 @@ static void fill_evenodd(const Asg *gs, const Segment *segs, int nsegs, uint32_t
                 }
             }
         }
-        
+
         // Copy buffer to screen
         if ((gs->width & 3) == 0) {
             if (min_x & 3)
                 min_x &= ~3;
             if (max_x & 3)
-                max_x = clamp_int(0, max_x + 3 & ~3, gs->width - 1);
+                max_x = clamp_int(0, max_x + 3 & ~3, gs->width);
             else
-                max_x = clamp_int(0, max_x + 4, gs->width - 1);
+                max_x = clamp_int(0, max_x + 4, gs->width);
                 
             uint32_t * __restrict   screen = gs->buf + scan_y * gs->width;
             __m128i fg = _mm_set_epi32(color, color, color, color);
