@@ -148,6 +148,7 @@ directive(wchar_t *s) {
 			*e=0;
 			s=e+1;
 		}
+		s[wcslen(s)+1]=0;
 		
 		langset[nlangs++]=lang;
 		deflang();

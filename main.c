@@ -9,7 +9,6 @@
 #pragma comment(lib,"shell32.lib")
 #pragma comment(lib,"comdlg32.lib")
 #pragma comment(lib,"uxtheme.lib")
-#pragma comment(lib,"asg/asg.lib")
 
 
 #pragma warning(push)
