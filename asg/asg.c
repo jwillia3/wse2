@@ -691,9 +691,9 @@ static void fill_evenodd(const Asg *gs, const Segment *segs, int nsegs, uint32_t
             if (min_x & 3)
                 min_x &= ~3;
             if (max_x & 3)
-                max_x = clamp_int(0, max_x + 3 & ~3, gs->width);
+                max_x = clamp_int(0, max_x + 3 & ~3, gs->width - 1);
             else
-                max_x = clamp_int(0, max_x + 4, gs->width);
+                max_x = clamp_int(0, max_x + 4, gs->width - 1);
                 
             uint32_t * __restrict   screen = gs->buf + scan_y * gs->width;
             __m128i fg = _mm_set_epi32(color, color, color, color);
@@ -1048,7 +1048,8 @@ collection_item:
                 int offset  = be16(offsetp[i]);
                 if (offset)
                     for (int c = start; c <= end; c++) {
-                        int g = be16(offsetp[offset/2 + (c - start) + i]);
+                        int16_t index = offset/2 + (c - start) + i; // TODO: why must this be 16-bit maths (faults on monofur)
+                        int g = be16(offsetp[index]);
                         font->cmap[c] = g? g + delta: 0;
                     }
                 else
