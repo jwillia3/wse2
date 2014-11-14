@@ -54,7 +54,7 @@ int		isearchcursor;
 BOOL		using_isearch;
 BOOL		editing_isearch;
 Asg		*gs;
-AsgFont		*asg_font[4];
+AsgFont		*font[4];
 
 OPENFILENAME	ofn = {
 			sizeof ofn,
@@ -89,7 +89,7 @@ line2px(int ln) {
 
 static
 charwidth(unsigned c) {
-	return asg_get_char_width(asg_font[0], c);
+	return asg_get_char_width(font[0], c);
 }
 
 static
@@ -1240,7 +1240,7 @@ blurtext(AsgFont *font, int x, int y, wchar_t *txt, int n, COLORREF bg, COLORREF
 		if (*p == '\t')
 			at.x += font_tabw - fmod(at.x - margin + font_tabw, font_tabw);
 		else
-			at.x += (int)asg_draw_char(gs, font, at, *p, fg);
+			at.x += (int)asg_fill_char(gs, font, at, *p, fg);
 	}
 }
 
@@ -1266,7 +1266,7 @@ paintstatus(HDC dc) {
 			ind2col(SLN, SIND),
 			SLN==LN? abs(SIND-IND): abs(SLN-LN)+1,
 			SLN==LN? L"chars": L"lines");
-	blurtext(asg_font[0], 0,
+	blurtext(font[0], 0,
 		height-font_lheight+(font_lheight-font_aheight)/2,
 		buf, len, conf.fg, conf.bg);
 }
@@ -1314,11 +1314,11 @@ paintline(HDC dc, int x, int y, int line) {
 			int style=conf.style[lang.kwd_color[k]].style;
 			
 			/* Draw the preceding section */
-			blurtext(asg_font[0], x, y, i, j-i, bg,conf.fg);
+			blurtext(font[0], x, y, i, j-i, bg,conf.fg);
 			x=ind2px(line, j-txt);
 			
 			/* Then draw the keyword */
-			blurtext(asg_font[style], x,y, j, sect,
+			blurtext(font[style], x,y, j, sect,
 				bg, conf.style[lang.kwd_color[k]].color);
 			SetTextColor(dc, conf.fg);
 			i=j+=sect;
@@ -1330,7 +1330,7 @@ paintline(HDC dc, int x, int y, int line) {
 			j++;
 	}
 	if (j>i)
-		blurtext(asg_font[0], x,y, i, j-i, bg, conf.fg);
+		blurtext(font[0], x,y, i, j-i, bg, conf.fg);
 }
 
 paintlines(HDC dc, int first, int last) {
@@ -1724,8 +1724,6 @@ reinitlang() {
 static
 configfont() {
 	HDC	hdc;
-	wchar_t	family[MAX_PATH];
-	wchar_t regular[MAX_PATH];
 	wchar_t tmp[MAX_PATH];
 	wchar_t *p;
 	float	dpi;
@@ -1737,50 +1735,41 @@ configfont() {
 	dpi = GetDeviceCaps(hdc, LOGPIXELSY);
 	ReleaseDC(0, hdc);
 	
-	asg_free_font(asg_font[0]);
-	asg_free_font(asg_font[1]);
-	asg_free_font(asg_font[2]);
-	asg_free_font(asg_font[3]);
+	asg_free_font(font[0]);
+	asg_free_font(font[1]);
+	asg_free_font(font[2]);
+	asg_free_font(font[3]);
 	
 	// Try to open font. Fallback to Courier otherwise
-	asg_font[0] = asg_open_font(conf.fontname);
-	if (asg_font[0]) {
-		wcscpy(regular, conf.fontname);
-		wcscpy(family, conf.fontname);
-	} else {
-		wcscpy(regular, L"Courier New");
-		wcscpy(family, regular);
-		asg_font[0] = asg_open_font(family);
-	}
+	font[0] = asg_open_font(conf.fontname);
+	if (!font[0])
+		font[0] = asg_open_font(L"Courier New");
 	
-	// Cut "Regular" & "Medium" off name to get family name
-	if (p = wcsstr(family, L"Medium"))
-		*p = 0;
-	// Make sure it ends in space or dash for appending variant
-	p = &family[wcslen(family) - 1];
-	if (*p != ' ' && *p != '-')
-		wcscat(family, L" ");
+	AsgFontWeight weight = asg_get_font_weight(font[0]);
+	AsgFontStretch stretch = asg_get_font_stretch(font[0]);
+	const wchar_t *family = asg_get_font_family(font[0]);
+	bool italic = asg_is_font_italic(font[0]);
 	
-	asg_font[1] = asg_open_font(wcscat(wcscpy(tmp, family), L"Bold"));
-	asg_font[2] = asg_open_font(wcscat(wcscpy(tmp, family), L"Italic"));
-	asg_font[3] = asg_open_font(wcscat(wcscpy(tmp, family), L"Bold Italic"));
+	font[1] = asg_open_font_variant(family, (weight + 300) % 900, italic, stretch);
+	font[2] = asg_open_font_variant(family, weight, !italic, stretch);
+	font[3] = asg_open_font_variant(family, (weight + 300) % 900, !italic, stretch);
 	
-	if (!asg_font[1]) asg_font[1] = asg_open_font(regular);
-	if (!asg_font[2]) asg_font[2] = asg_open_font(regular);
-	if (!asg_font[3]) asg_font[3] = asg_open_font(regular);
+	if (!font[1]) font[1] = asg_open_font(asg_get_font_name(font[0]));
+	if (!font[2]) font[2] = asg_open_font(asg_get_font_name(font[0]));
+	if (!font[3]) font[3] = asg_open_font(asg_get_font_name(font[0]));
 	
 	sy = conf.fontsz * dpi/72.f;
 	sx = sy * conf.fontasp;
-	asg_scale_font(asg_font[0], sy, sx);
-	asg_scale_font(asg_font[1], sy, sx);
-	asg_scale_font(asg_font[2], sy, sx);
-	asg_scale_font(asg_font[3], sy, sx);
+	asg_scale_font(font[0], sy, sx);
+	asg_scale_font(font[1], sy, sx);
+	asg_scale_font(font[2], sy, sx);
+	asg_scale_font(font[3], sy, sx);
 	
-	font_aheight = asg_get_font_ascender(asg_font[0])
-		- asg_get_font_descender(asg_font[0])
-		+ asg_get_font_leading(asg_font[0]);
+	font_aheight = asg_get_font_ascender(font[0])
+		- asg_get_font_descender(font[0])
+		+ asg_get_font_leading(font[0]);
 	font_lheight = font_aheight * conf.leading;
-	font_em = asg_get_char_width(asg_font[0], 'M');
+	font_em = asg_get_char_width(font[0], 'M');
 	font_tabw = font_em * file.tabc;
 	
 	return 1;

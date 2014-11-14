@@ -1,6 +1,7 @@
 // TODO: Handle OpenType
 // TODO: Handle transformed coordinates in immediate mode drawing
-// TODO: Get family names for matching weights and variants
+// TODO: provide interface for paths
+// TODO: scan font directory directly instead of relying on font names
 #define BEZIER_RECURSION_LIMIT 10
 #define _USE_MATH_DEFINES
 #include <assert.h>
@@ -102,7 +103,7 @@ void asg_matrix_rotate(AsgMatrix *mat, float rad) {
     mat->e = old.e * m - old.f * n;
     mat->f = old.e * n + old.f * m;
 }
-void asg_matrix_apply(AsgMatrix * __restrict a, const AsgMatrix * __restrict b) {
+void asg_matrix_multiply(AsgMatrix * __restrict a, const AsgMatrix * __restrict b) {
     AsgMatrix old = *a;
     
     a->a = old.a * b->a + old.b * b->c;
@@ -125,8 +126,8 @@ void asg_scale(Asg *gs, float x, float y) {
 void asg_rotate(Asg *gs, float rad) {
     asg_matrix_rotate(&gs->ctm, rad);
 }
-void asg_apply_matrix(Asg *asg, const AsgMatrix *mat) {
-    asg_matrix_apply(&asg->ctm, mat);
+void asg_multiply_matrix(Asg *asg, const AsgMatrix * __restrict mat) {
+    asg_matrix_multiply(&asg->ctm, mat);
 }
 AsgPoint asg_transform_point(const AsgMatrix *ctm, AsgPoint p) {
     AsgPoint out = {
@@ -613,8 +614,8 @@ static void fill_evenodd(const Asg *gs, const Segment *segs, int nsegs, uint32_t
         if (segs[i].a.y < min_y) min_y = segs[i].a.y;
         if (segs[i].b.y > max_y) max_y = segs[i].b.y;
     }
-    min_y = clamp_int(0, min_y / gs->subsamples, gs->height - 1);
-    max_y = clamp_int(0, max_y / gs->subsamples, gs->height - 1);
+    min_y = clamp_int(0, min_y / gs->subsamples + 1, gs->height - 1);
+    max_y = clamp_int(0, max_y / gs->subsamples + 1, gs->height - 1);
     
     uint8_t * __restrict    buffer = malloc(gs->width);
     Edge * __restrict       edges = calloc(1, nsegs * sizeof *edges);
@@ -814,7 +815,63 @@ static void unpack(const void **datap, const char *fmt, ...) {
     *datap = data;
 }
 
-AsgOTF *asg_otf_load(const void *file, int font_index) {
+#define trailing(n) ((input[n] & 0xC0) == 0x80)
+#define overlong(n) do { if (o[-1] < n) o[-1] = 0xfffd; } while(0)
+uint16_t *asg_utf8_to_utf16(const uint8_t *input, int len, int *lenp) {
+    if (len < 0) len = strlen(input);
+    uint16_t *output = malloc((len + 1) * sizeof *output);
+    uint16_t *o = output;
+    const uint8_t *end = input + len;
+    
+    while (input < end)
+        if (*input < 0x80)
+            *o++ = *input++;
+        else if (~*input & 0x20 && input + 1 < end && trailing(1)) { // two byte
+            *o++ =     (input[0] & 0x1f) << 6
+                    |(input[1] & 0x3f);
+            input += 2;
+            overlong(0x80);
+        } else if (~*input & 0x10 && input + 2 < end && trailing(1) && trailing(2)) { // three byte
+            *o++ =     (input[0] & 0x0f) << 12
+                    |(input[1] & 0x3f) << 6
+                    |(input[2] & 0x3f);
+            input += 3;
+            overlong(0x800);
+        } else {
+            // Discard malformed or non-BMP characters
+            do
+                input++;
+            while ((*input & 0xc0) == 0x80);
+            *o++ = 0xfffd; /* replacement char */
+        }
+    *o = 0;
+    len = o - output;
+    if (lenp) *lenp = len;
+    return realloc(output, (len + 1) * sizeof *output);
+}
+uint8_t *asg_utf16_to_utf8(const uint16_t *input, int len, int *lenp) {
+    if (len < 0) len = wcslen(input);
+    uint8_t *o, *output = malloc(len * 3 + 1);
+    for (o = output; len-->0; input++) {
+        unsigned c = *input;
+        if (c < 0x80)
+            *o++ = c;
+        else if (be16(*input) < 0x800) {
+            *o++ = ((c >> 6) & 0x1f) | 0xc0;
+            *o++ = ((c >> 0) & 0x3f) | 0x80;
+        } else {
+            *o++ = ((c >> 12) & 0x0f) | 0xe0;
+            *o++ = ((c >>  6) & 0x3f) | 0x80;
+            *o++ = ((c >>  0) & 0x3f) | 0x80;
+        }
+    }
+    *o = 0;
+    len = o - output;
+    if (lenp) *lenp = len;
+    return realloc(output, len + 1);
+}
+
+AsgOTF *asg_load_otf(const void *file, int font_index) {
 
     // Check that this is an OTF
     uint32_t ver;
@@ -846,6 +903,7 @@ collection_item:
     const void *glyf = NULL;
     const void *loca = NULL;
     const void *os2  = NULL;
+    const void *name  = NULL;
     for (unsigned i = 0; i < ntab; i++) {
         uint32_t tag, offset;
         unpack(&header, "LlLl", &tag, &offset);
@@ -858,6 +916,7 @@ collection_item:
         case 'glyf': glyf = address; break;
         case 'loca': loca = address; break;
         case 'cmap': cmap = address; break;
+        case 'name': name  = address; break;
         case 'OS/2': os2  = address; break;
         }
     }
@@ -880,17 +939,72 @@ collection_item:
     
     // 'os/2' table
     int16_t ascender, descender, leading;
-    unpack(&os2, "ssssssssssssssssbbbbbbbbbbllllbbbbsssSSS", &ascender, &descender, &leading);
+    int16_t subsx, subsy, subx, suby;
+    int16_t supsx, supsy, supx, supy;
+    int16_t x_height, cap_height;
+    uint16_t style, weight, stretch;
+    unpack(&os2, "ssSSsSSSSSSSSsssBBBBBBBBBBllllbbbbSssSSSssllSSsss",
+        &weight,
+        &stretch,
+        &subsx, &subsy, &subx, &suby,
+        &supsx, &supsy, &supx, &supy,
+        &font->panose[0],&font->panose[1],&font->panose[2],&font->panose[3],&font->panose[4],
+        &font->panose[5],&font->panose[6],&font->panose[7],&font->panose[8],&font->panose[9],
+        &style,
+        &ascender, &descender, &leading,
+        &x_height, &cap_height);
     font->ascender = ascender;
     font->descender = descender;
     font->leading = leading
         ? leading
         : (font->em - (font->ascender - font->descender)) + font->em * .1f;
-    
+    font->x_height = x_height;
+    font->cap_height = cap_height;
+    font->subscript_box = asg_rect(asg_pt(subx,suby), asg_pt(subx+subsx, suby+subsy));
+    font->superscript_box = asg_rect(asg_pt(supx,supy), asg_pt(supx+supsx, supy+supsy));
+    font->weight = weight;
+    font->stretch = stretch;
+    font->is_italic = style & 10; // includes italics and oblique
+        
     // 'maxp' table
     uint16_t nglyphs;
     unpack(&maxp, "lSsssssssssssss", &nglyphs);
     font->nglyphs = nglyphs;
+    
+    // 'name' table
+    uint16_t nnames, name_string_offset;
+    unpack(&name, "sSS", &nnames, &name_string_offset);
+    const char *name_strings = (char*)name - 6 + name_string_offset;
+    
+    for (int i = 0; i < nnames; i++) {
+        uint16_t platform, encoding, lang, id, len, off;
+        unpack(&name, "SSSSSS", &platform, &encoding, &lang, &id, &len, &off);
+        
+        // Only accept Unicode
+        if (platform == 0 || (platform == 3 && encoding == 1 && lang == 0x0409)) {
+            len /= 2; // length was in bytes
+            const uint16_t *source = (uint16_t*)(name_strings + off);
+            if (id == 1 || id == 2 || id == 4 || id == 16) {
+                uint16_t *output = malloc((len * 2 + 1) * sizeof *output);
+                for (int i = 0; i < len; i++)
+                    output[i] = be16(source[i]);
+                output[len] = 0;
+                if (id == 1)
+                    font->family = output;
+                else if (id == 2)
+                    font->style_name = output;
+                else if (id == 4)
+                    font->name = output;
+                else if (id == 16) { // Preferred font family
+                    free((void*)font->family);
+                    font->family = output;
+                }
+            }
+        }
+    }
+    if (!font->family) font->family = wcsdup(L"");
+    if (!font->style_name) font->style_name = wcsdup(L"");
+    if (!font->name) font->name = wcsdup(L"");
     
     // cmap table
     uint16_t nencodings;
@@ -950,13 +1064,17 @@ collection_item:
     font->scale_x = font->scale_y = 1;
     return font;
 }
-void asg_otf_free(AsgOTF *font) {
+
+void asg_free_otf(AsgOTF *font) {
     if (font) {
+        free((void*)font->family);
+        free((void*)font->style_name);
+        free((void*)font->name);
         free((void*)font->file);
         free(font);
     }
 }
-void asg_otf_scale(AsgOTF *font, float height, float width) {
+void asg_scale_otf(AsgOTF *font, float height, float width) {
     float s = font->ascender - font->descender;
     if (width <= 0)
         width = height;
@@ -964,22 +1082,58 @@ void asg_otf_scale(AsgOTF *font, float height, float width) {
     font->scale_y = height / font->em;
 }
 
-float asg_otf_get_ascender(const AsgOTF *font) {
+float asg_get_otf_ascender(const AsgOTF *font) {
     return font->ascender * font->scale_y;
 }
-float asg_otf_get_descender(const AsgOTF *font) {
+float asg_get_otf_descender(const AsgOTF *font) {
     return font->descender * font->scale_y;
 }
-float asg_otf_get_leading(const AsgOTF *font) {
+float asg_get_otf_leading(const AsgOTF *font) {
     return font->leading * font->scale_y;
 }
+float asg_get_otf_em(const AsgOTF *font) {
+    return font->em * font->scale_y;
+}
+float asg_get_otf_x_height(const AsgOTF *font) {
+    return font->x_height * font->scale_y;
+}
+float asg_get_otf_cap_height(const AsgOTF *font) {
+    return font->cap_height * font->scale_y;
+}
+AsgFontWeight asg_get_otf_weight(const AsgOTF *font) {
+    return font->weight;
+}
+AsgFontStretch asg_get_otf_stretch(const AsgOTF *font) {
+    return font->stretch;
+}
+AsgRect asg_get_otf_subscript(const AsgOTF *font) {
+    return font->superscript_box;
+}
+AsgRect asg_get_otf_superscript(const AsgOTF *font) {
+    return font->superscript_box;
+}
+bool asg_is_otf_monospaced(const AsgOTF *font) {
+    return font->panose[3] == 9; // PANOSE porportion = 9 (monospaced)
+}
+bool asg_is_otf_italic(const AsgOTF *font) {
+    return font->is_italic;
+}
+const wchar_t *asg_get_otf_family(const AsgOTF *font) {
+    return font->family;
+}
+const wchar_t *asg_get_otf_name(const AsgOTF *font) {
+    return font->name;
+}
+const wchar_t *asg_get_otf_style_name(const AsgOTF *font) {
+    return font->style_name;
+}
 
-float asg_otf_get_glyph_lsb(const AsgOTF *font, unsigned g) {
+float asg_get_otf_glyph_lsb(const AsgOTF *font, unsigned g) {
     return  g < font->nhmtx?    be16(font->hmtx[g * 2 + 1]) * font->scale_x:
             g < font->nglyphs?  be16(font->hmtx[(font->nhmtx - 1) * 2 + 1]) * font->scale_x:
             0;
 }
-float asg_otf_get_glyph_width(const AsgOTF *font, unsigned g) {
+float asg_get_otf_glyph_width(const AsgOTF *font, unsigned g) {
     return  g < font->nhmtx?    be16(font->hmtx[g * 2]) * font->scale_x:
             g < font->nglyphs?  be16(font->hmtx[(font->nhmtx - 1) * 2]) * font->scale_x:
             0;
@@ -1037,7 +1191,7 @@ void glyph_path(AsgPath *path, const AsgOTF *font, const AsgMatrix *ctm, unsigne
                 // TODO: handle a, b scales
             
             asg_matrix_scale(&new_ctm, sx, sy);
-            asg_matrix_apply(&new_ctm, ctm);
+            asg_matrix_multiply(&new_ctm, ctm);
             glyph_path(path, font, &new_ctm, glyph);
         } while (flags & 32);
     } else {
@@ -1127,7 +1281,7 @@ void glyph_path(AsgPath *path, const AsgOTF *font, const AsgMatrix *ctm, unsigne
             asg_close_subpath(path);
     }
 }
-AsgPath *asg_otf_get_glyph_path(
+AsgPath *asg_get_otf_glyph_path(
     const AsgOTF *font,
     const AsgMatrix *ctm,
     unsigned g)
@@ -1136,11 +1290,11 @@ AsgPath *asg_otf_get_glyph_path(
     AsgMatrix new_ctm = {1,0,0, 1,0,0};
     asg_matrix_translate(&new_ctm, 0, -font->ascender);
     asg_matrix_scale(&new_ctm, font->scale_x, -font->scale_y);
-    asg_matrix_apply(&new_ctm, ctm);
+    asg_matrix_multiply(&new_ctm, ctm);
     glyph_path(path, font, &new_ctm, g);
     return path;
 }
-float asg_otf_draw_glyph(
+float asg_otf_fill_glyph(
     Asg *gs,
     const AsgOTF *font,
     AsgPoint at,
@@ -1149,39 +1303,37 @@ float asg_otf_draw_glyph(
 {
     AsgMatrix ctm = gs->ctm;
     asg_matrix_translate(&ctm, at.x, at.y);
-    AsgPath *path = asg_otf_get_glyph_path(font, &ctm, g);
+    AsgPath *path = asg_get_otf_glyph_path(font, &ctm, g);
     if (path) {
         asg_fill_path(gs, path, color);
         asg_free_path(path);
     }
-    return asg_otf_get_glyph_width(font, g);
+    return asg_get_otf_glyph_width(font, g);
 }
 
-int asg_otf_get_glyph(const AsgOTF *font, unsigned c) {
+int asg_get_otf_glyph(const AsgOTF *font, unsigned c) {
     return font->cmap[c & 0xffff];
 }
-float asg_otf_get_char_lsb(const AsgOTF *font, unsigned c) {
-    return asg_otf_get_glyph_lsb(font, asg_otf_get_glyph(font, c));
+float asg_get_otf_char_lsb(const AsgOTF *font, unsigned c) {
+    return asg_get_otf_glyph_lsb(font, asg_get_otf_glyph(font, c));
 }
-float asg_otf_get_char_width(const AsgOTF *font, unsigned c) {
-    return asg_otf_get_glyph_width(font, asg_otf_get_glyph(font, c));
+float asg_get_otf_char_width(const AsgOTF *font, unsigned c) {
+    return asg_get_otf_glyph_width(font, asg_get_otf_glyph(font, c));
 }
-AsgPath *asg_otf_get_char_path(const AsgOTF *font, const AsgMatrix *ctm, unsigned c) {
-    return asg_otf_get_glyph_path(font, ctm, asg_otf_get_glyph(font, c));
+AsgPath *asg_get_otf_char_path(const AsgOTF *font, const AsgMatrix *ctm, unsigned c) {
+    return asg_get_otf_glyph_path(font, ctm, asg_get_otf_glyph(font, c));
 }
-float asg_otf_draw_char(
+float asg_otf_fill_char(
     Asg *gs,
     const AsgOTF *font,
     AsgPoint at,
     unsigned c,
     uint32_t color)
 {
-    return asg_otf_draw_glyph(gs, font, at, asg_otf_get_glyph(font, c), color);
+    return asg_otf_fill_glyph(gs, font, at, asg_get_otf_glyph(font, c), color);
 }
 
-#define trailing(n) ((utf[n] & 0xC0) == 0x80)
-#define overlong(n) do { if (c < n) c = 0xfffd; } while(0)
-float asg_otf_draw_chars(
+float asg_otf_fill_string_utf8(
     Asg *gs,
     const AsgOTF *font,
     AsgPoint at,
@@ -1189,51 +1341,23 @@ float asg_otf_draw_chars(
     int len,
     uint32_t color)
 {
-    if (len < 0) len = strlen(chars);
-    const uint8_t *utf = chars;
-    const uint8_t *end = chars + len;
-    float org = at.x;
-    
-    while (utf < end) {
-        unsigned c;
-        
-        if (*utf < 0x80)
-            c = *utf++;
-        else if (~*utf & 0x20 && utf + 1 < end && trailing(1)) { // two byte
-            c =     (utf[0] & 0x1f) << 6
-                    |(utf[1] & 0x3f);
-            utf += 2;
-            overlong(0x80);
-        } else if (~*utf & 0x10 && utf + 2 < end && trailing(1) && trailing(2)) { // three byte
-            c =     (utf[0] & 0x0f) << 12
-                    |(utf[1] & 0x3f) << 6
-                    |(utf[2] & 0x3f);
-            utf += 3;
-            overlong(0x800);
-        } else {
-            // Discard malformed or non-BMP characters
-            do
-                utf++;
-            while ((*utf & 0xc0) == 0x80);
-            c = 0xfffd; /* replacement char */
-        }
-        
-        at.x += asg_otf_draw_char(gs, font, at, c, color);
-    }
-    return at.x - org;
+    wchar_t *wchars = asg_utf8_to_utf16(chars, len, &len);
+    float width = asg_otf_fill_string(gs, font, at, wchars, len, color);
+    free(wchars);
+    return width;
 }
-float asg_otf_draw_wchars(
+float asg_otf_fill_string(
     Asg *gs,
     const AsgOTF *font,
     AsgPoint at,
-    const wchar_t chars[],
+    const uint16_t chars[],
     int len,
     uint32_t color)
 {
     float org = at.x;
     if (len < 0) len = wcslen(chars);
     for (int i = 0; i < len; i++)
-        at.x += asg_otf_draw_char(gs, font, at, chars[i], color);
+        at.x += asg_otf_fill_char(gs, font, at, chars[i], color);
     return at.x - org;
 }
 
@@ -1243,34 +1367,109 @@ wchar_t **platform_list_fonts(int *countp);
 AsgFont *asg_open_font(const wchar_t *name) {
     return platform_open_font(name);
 }
+AsgFont *asg_open_font_variant(const wchar_t *family, AsgFontWeight weight, bool italic, AsgFontStretch stretch) {
+    static const wchar_t *weights[] = {
+        L" Thin",
+        L" ExtraLight",
+        L" Light",
+        L"",
+        L" Medium",
+        L" Semibold",
+        L" Bold",
+        L" ExtraBold",
+        L" Black"
+    };
+    static const wchar_t *stretches[] = {
+        L" Ultra Condensed",
+        L" Extra Condensed",
+        L" Condensed",
+        L" Semi Condensed",
+        L"",
+        L" Semi Expanded",
+        L" Expanded",
+        L" Extra Expanded",
+        L" Ultra Expanded",
+    };
+    if (weight < 100) weight = 400;
+    if (stretch < 1) stretch = 0;
+    if (weight < 900 && stretch < 900) {
+        size_t size = (wcslen(family) + 32 + 1);
+        wchar_t *name = malloc(size * sizeof *name);
+        swprintf(name, size, L"%ls%ls%ls%ls",
+            family,
+            stretches[stretch-1],
+            weights[weight/100-1],
+            italic? L" Italic": L"");
+        AsgFont *variant = asg_open_font(name);
+        free(name);
+        return variant;
+    }
+    return NULL;
+}
 wchar_t **asg_list_fonts(int *countp) {
     return platform_list_fonts(countp);
 }
 
 AsgFont *asg_load_font(const void *file, int font_index) {
-    return (void*)asg_otf_load((void*)file, font_index);
+    return (void*)asg_load_otf((void*)file, font_index);
 }
 void asg_free_font(AsgFont *font) {
-    asg_otf_free((void*)font);
+    asg_free_otf((void*)font);
 }
 void asg_scale_font(AsgFont *font, float height, float width) {
-    asg_otf_scale((void*)font, height, width);
+    asg_scale_otf((void*)font, height, width);
 }
 float asg_get_font_ascender(const AsgFont *font) {
-    return asg_otf_get_ascender((void*)font);
+    return asg_get_otf_ascender((void*)font);
 }
 float asg_get_font_descender(const AsgFont *font) {
-    return asg_otf_get_descender((void*)font);
+    return asg_get_otf_descender((void*)font);
 }
 float asg_get_font_leading(const AsgFont *font) {
-    return asg_otf_get_leading((void*)font);
+    return asg_get_otf_leading((void*)font);
+}
+float asg_get_font_em(const AsgFont *font) {
+    return asg_get_otf_em((void*)font);
+}
+float asg_get_font_x_height(const AsgFont *font) {
+    return asg_get_otf_x_height((void*)font);
+}
+float asg_get_font_cap_height(const AsgFont *font) {
+    return asg_get_otf_cap_height((void*)font);
+}
+AsgFontWeight asg_get_font_weight(const AsgFont *font) {
+    return asg_get_otf_weight((void*)font);
+}
+AsgFontStretch asg_get_font_stretch(const AsgFont *font) {
+    return asg_get_otf_stretch((void*)font);
+}
+AsgRect asg_get_font_subscript(const AsgFont *font) {
+    return asg_get_otf_subscript((void*)font);
+}
+AsgRect asg_get_font_superscript(const AsgFont *font) {
+    return asg_get_otf_superscript((void*)font);
+}
+bool asg_is_font_monospaced(const AsgFont *font) {
+    return asg_is_otf_monospaced((void*)font);
+}
+bool asg_is_font_italic(const AsgFont *font) {
+    return asg_is_otf_italic((void*)font);
+}
+const wchar_t *asg_get_font_family(const AsgFont *font) {
+    return asg_get_otf_family((void*)font);
+}
+const wchar_t *asg_get_font_name(const AsgFont *font) {
+    return asg_get_otf_name((void*)font);
+}
+const wchar_t *asg_get_font_style_name(const AsgFont *font) {
+    return asg_get_otf_style_name((void*)font);
 }
 
 float asg_get_char_lsb(const AsgFont *font, unsigned c) {
-    return asg_otf_get_char_lsb((void*)font, c);
+    return asg_get_otf_char_lsb((void*)font, c);
 }
 float asg_get_char_width(const AsgFont *font, unsigned c) {
-    return asg_otf_get_char_width((void*)font, c);
+    return asg_get_otf_char_width((void*)font, c);
 }
 float asg_get_chars_width(const AsgFont *font, const char chars[], int len) {
     float width = 0;
@@ -1284,26 +1483,26 @@ float asg_get_wchars_width(const AsgFont *font, const wchar_t chars[], int len) 
     for (int i = 0; i < len; i++) width += asg_get_char_width(font, chars[i]);
     return width;
 }
-float asg_draw_char(
+float asg_fill_char(
     Asg *gs,
     const AsgFont *font,
     AsgPoint at,
     unsigned c,
     uint32_t color)
 {
-    return asg_otf_draw_char(gs, (void*)font, at, c, color);
+    return asg_otf_fill_char(gs, (void*)font, at, c, color);
 }
-float asg_draw_chars(
+float asg_fill_string_utf8(
     Asg *gs,
     const AsgFont *font,
     AsgPoint at,
-    const char chars[],
+    const uint8_t chars[],
     int len,
     uint32_t color)
 {
-    return asg_otf_draw_chars(gs, (void*)font, at, chars, len, color);
+    return asg_otf_fill_string_utf8(gs, (void*)font, at, chars, len, color);
 }
-float asg_draw_wchars(
+float asg_fill_string(
     Asg *gs,
     const AsgFont *font,
     AsgPoint at,
@@ -1311,31 +1510,31 @@ float asg_draw_wchars(
     int len,
     uint32_t color)
 {
-    return asg_otf_draw_wchars(gs, (void*)font, at, chars, len, color);
+    return asg_otf_fill_string(gs, (void*)font, at, chars, len, color);
 }
 AsgPath *asg_get_char_path(const AsgFont *font, const AsgMatrix *ctm, unsigned c) {
-    return asg_otf_get_char_path((void*)font, ctm, c);
+    return asg_get_otf_char_path((void*)font, ctm, c);
 }
 int asg_get_glyph(const AsgFont *font, unsigned c) {
-    return asg_otf_get_glyph((void*)font, c);
+    return asg_get_otf_glyph((void*)font, c);
 }
 float asg_get_glyph_lsb(const AsgFont *font, unsigned g) {
-    return asg_otf_get_glyph_lsb((void*)font, g);
+    return asg_get_otf_glyph_lsb((void*)font, g);
 }
 float asg_get_glyph_width(const AsgFont *font, unsigned g) {
-    return asg_otf_get_glyph_width((void*)font, g);
+    return asg_get_otf_glyph_width((void*)font, g);
 }
-float asg_draw_glyph(
+float asg_fill_glyph(
     Asg *gs,
     const AsgFont *font,
     AsgPoint at,
     unsigned g,
     uint32_t color)
 {
-    return asg_otf_draw_glyph(gs, (void*)font, at, g, color);
+    return asg_otf_fill_glyph(gs, (void*)font, at, g, color);
 }
 AsgPath *asg_get_glyph_path(const AsgFont *font, const AsgMatrix *ctm, unsigned g) {
-    return asg_otf_get_glyph_path((void*)font, ctm, g);
+    return asg_get_otf_glyph_path((void*)font, ctm, g);
 }
 
 AsgPath *asg_get_svg_path(const char *svg, const AsgMatrix *initial_ctm) {
