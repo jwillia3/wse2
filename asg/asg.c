@@ -1,7 +1,7 @@
 // TODO: Handle OpenType
 // TODO: Handle transformed coordinates in immediate mode drawing
 // TODO: provide interface for paths
-// TODO: scan font directory directly instead of relying on font names
+// TODO: decode Mac encodings for CJK names
 #define BEZIER_RECURSION_LIMIT 10
 #define _USE_MATH_DEFINES
 #include <assert.h>
@@ -14,6 +14,10 @@
 #include <string.h>
 #include <wchar.h>
 #include "asg.h"
+#include "platform.h"
+
+static AsgFontFamily    *Families;
+static int              NFamilies;
 
 #define MIN(X,Y) ((X) < (Y)? (X): (Y))
 #define MAX(X,Y) ((X) > (Y)? (X): (Y))
@@ -871,11 +875,96 @@ uint8_t *asg_utf16_to_utf8(const uint16_t *input, int len, int *lenp) {
     return realloc(output, len + 1);
 }
 
-AsgOTF *asg_load_otf(const void *file, int font_index) {
+static void scan_fonts_per_file(const wchar_t *filename, void *data) {
+    int nfonts = 1;
+    for (int index = 0; index < nfonts; index++) {
+        AsgFont *font = asg_load_font(data, index, true);
+        nfonts = asg_get_font_font_count(font);
+        if (!font) continue;
+        
+        
+        const wchar_t *family = asg_get_font_family(font);
+        int i, dir;
+        
+        for (i = 0; i < NFamilies; i++) {
+            dir = wcsicmp(family, Families[i].name);
+            if (dir <= 0)
+                break;
+        }
+        
+        if (dir < 0 || i == NFamilies) {
+            Families = realloc(Families, (NFamilies + 1) * sizeof *Families);
+            for (int j = NFamilies; j > i; j--)
+                Families[j] = Families[j - 1];
+            
+            memset(&Families[i], 0, sizeof *Families);
+            Families[i].name = wcsdup(family);
+            NFamilies++;
+        }
+        
+        int weight = asg_get_font_weight(font) / 100;
+        if (weight >= 0 && weight < 10) {
+            const wchar_t **slot = asg_is_font_italic(font)
+                ? &Families[i].italic[weight]
+                : &Families[i].roman[weight];
+            
+            if (*slot)
+                free((void*)*slot);
+            *slot = wcsdup(filename);
+            if (asg_is_font_italic(font))
+                Families[i].italic_index[weight] = index;
+            else
+                Families[i].roman_index[weight] = index;
+        }
+
+        asg_free_font(font);
+    }
+}
+
+void asg_free_font_family(AsgFontFamily *family) {
+    if (family) {
+        free((void*)family->name);
+        for (int i = 0; i < 10; i++) {
+            free((void*)family->roman[i]);
+            free((void*)family->italic[i]);
+        }
+    }
+}
+static AsgFontFamily copy_font_family(AsgFontFamily *src) {
+    AsgFontFamily out;
+    
+    out.name = wcsdup(src->name);
+    for (int i = 0; i < 10; i++) {
+        out.roman[i] = src->roman[i];
+        out.italic[i] = src->italic[i];
+        out.roman_index[i] = src->roman_index[i];
+        out.italic_index[i] = src->italic_index[i];
+    }
+    return out;
+}
+
+AsgFontFamily *asg_scan_fonts(const wchar_t *dir, int *countp) {
+//    for (int i = 0; i < NFamilies; i++)
+//        asg_free_font_family(&Families[i]);
+    Families = NULL;
+    NFamilies = 0;
+    platform_scan_directory(dir, scan_fonts_per_file);
+    
+    // Copy families
+    AsgFontFamily *families = malloc(NFamilies * sizeof *families);
+    for (int i = 0; i < NFamilies; i++) 
+        families[i] = copy_font_family(&Families[i]);
+    
+    if (countp) *countp = NFamilies;
+    return families;
+}
+
+AsgOTF *asg_load_otf(const void *file, int font_index, bool scan_only) {
 
     // Check that this is an OTF
     uint32_t ver;
     uint16_t ntab;
+    uint32_t nfonts = 1;
     const void *header = file;
 collection_item:
     unpack(&header, "LSsss", &ver, &ntab);
@@ -883,7 +972,6 @@ collection_item:
     if (ver == 0x00010000) ;
     else if (ver == 'ttcf') { // TrueType Collection
         header = file;
-        uint32_t nfonts;
         unpack(&header, "lLL", &ver, &nfonts);
         if (ver != 0x00010000 && ver != 0x00020000)
             return NULL;
@@ -964,7 +1052,7 @@ collection_item:
     font->superscript_box = asg_rect(asg_pt(supx,supy), asg_pt(supx+supsx, supy+supsy));
     font->weight = weight;
     font->stretch = stretch;
-    font->is_italic = style & 10; // includes italics and oblique
+    font->is_italic = style & 0x101; // includes italics and oblique
         
     // 'maxp' table
     uint16_t nglyphs;
@@ -980,12 +1068,12 @@ collection_item:
         uint16_t platform, encoding, lang, id, len, off;
         unpack(&name, "SSSSSS", &platform, &encoding, &lang, &id, &len, &off);
         
-        // Only accept Unicode
-        if (platform == 0 || (platform == 3 && encoding == 1 && lang == 0x0409)) {
-            len /= 2; // length was in bytes
-            const uint16_t *source = (uint16_t*)(name_strings + off);
+        // Unicode
+        if (platform == 0 || (platform == 3 && (encoding == 0 || encoding == 1) && lang == 0x0409)) {
             if (id == 1 || id == 2 || id == 4 || id == 16) {
-                uint16_t *output = malloc((len * 2 + 1) * sizeof *output);
+                const uint16_t *source = (uint16_t*)(name_strings + off);
+                uint16_t *output = malloc((len/2 + 1) * sizeof *output);
+                len /= 2; // length was in bytes
                 for (int i = 0; i < len; i++)
                     output[i] = be16(source[i]);
                 output[len] = 0;
@@ -1001,69 +1089,93 @@ collection_item:
                 }
             }
         }
+        // Mac
+        else if (platform == 1 && encoding == 0)
+            if (id == 1 || id == 2 || id == 4 || id == 16) {
+                const uint8_t *source = name_strings + off;
+                uint16_t *output = malloc((len + 1) * sizeof *output);
+                for (int i = 0; i < len; i++)
+                    output[i] = source[i];
+                output[len] = 0;
+                
+                if (id == 1)
+                    font->family = output;
+                else if (id == 2)
+                    font->style_name = output;
+                else if (id == 4)
+                    font->name = output;
+                else if (id == 16) { // Preferred font family
+                    free((void*)font->family);
+                    font->family = output;
+                }
+            }
     }
     if (!font->family) font->family = wcsdup(L"");
     if (!font->style_name) font->style_name = wcsdup(L"");
     if (!font->name) font->name = wcsdup(L"");
     
     // cmap table
-    uint16_t nencodings;
-    const void *encodings = cmap;
-    const void *encoding_table = NULL;
-    unpack(&encodings, "sS", &nencodings);
-    for (int i = 0; i < nencodings; i++) {
-        uint16_t platform, encoding;
-        uint32_t offset;
-        unpack(&encodings, "SSL", &platform, &encoding, &offset);
-        
-        if ((platform == 3 || platform == 0) && encoding == 1) // Windows UCS (preferred)
-            encoding_table = (char*)cmap + offset;
-        else if (!encoding_table && platform == 1 && encoding == 0) // Symbol
-            encoding_table = (char*)cmap + offset;
-    }
-    
-    if (encoding_table == NULL);
-    switch (encoding_table? be16(*(uint16_t*)encoding_table): -1) {
-    case 0: {
-            uint16_t len;
-            unpack(&encoding_table, "sssSsss", &len);
-            len -= 6;
-            for (int i = 0; i < len; i++)
-                font->cmap[i] = ((uint8_t*)encoding_table)[i];
-            break;
-        }
-    case 4: {
-            uint16_t nseg;
-            unpack(&encoding_table, "sssSsss", &nseg);
-            nseg /= 2;
+    if (!scan_only) {
+        uint16_t nencodings;
+        const void *encodings = cmap;
+        const void *encoding_table = NULL;
+        unpack(&encodings, "sS", &nencodings);
+        for (int i = 0; i < nencodings; i++) {
+            uint16_t platform, encoding;
+            uint32_t offset;
+            unpack(&encodings, "SSL", &platform, &encoding, &offset);
             
-            const uint16_t *endp    = encoding_table;
-            const uint16_t *startp  = endp + nseg + 1;
-            const uint16_t *deltap  = startp + nseg;
-            const uint16_t *offsetp = deltap + nseg;
-            for (int i = 0; i < nseg; i++) {
-                int end     = be16(endp[i]);
-                int start   = be16(startp[i]);
-                int delta   = be16(deltap[i]);
-                int offset  = be16(offsetp[i]);
-                if (offset)
-                    for (int c = start; c <= end; c++) {
-                        int16_t index = offset/2 + (c - start) + i; // TODO: why must this be 16-bit maths (faults on monofur)
-                        int g = be16(offsetp[index]);
-                        font->cmap[c] = g? g + delta: 0;
-                    }
-                else
-                    for (int c = start; c <= end; c++)
-                        font->cmap[c] = c + delta;
-            }
+            if ((platform == 3 || platform == 0) && encoding == 1) // Windows UCS (preferred)
+                encoding_table = (char*)cmap + offset;
+            else if (!encoding_table && platform == 1 && encoding == 0) // Symbol
+                encoding_table = (char*)cmap + offset;
         }
-        break;
+        
+        if (encoding_table)
+            switch (be16(*(uint16_t*)encoding_table)) {
+            case 0: {
+                    unpack(&encoding_table, "sssssss");
+                    for (int i = 0; i < 256; i++)
+                        font->cmap[i] = ((uint8_t*)encoding_table)[i];
+                    break;
+                }
+            case 4: {
+                    uint16_t nseg;
+                    unpack(&encoding_table, "sssSsss", &nseg);
+                    nseg /= 2;
+                    
+                    const uint16_t *endp    = encoding_table;
+                    const uint16_t *startp  = endp + nseg + 1;
+                    const uint16_t *deltap  = startp + nseg;
+                    const uint16_t *offsetp = deltap + nseg;
+                    for (int i = 0; i < nseg; i++) {
+                        int end     = be16(endp[i]);
+                        int start   = be16(startp[i]);
+                        int delta   = be16(deltap[i]);
+                        int offset  = be16(offsetp[i]);
+                        if (offset)
+                            for (int c = start; c <= end; c++) {
+                                int16_t index = offset/2 + (c - start) + i; // TODO: why must this be 16-bit maths (faults on monofur)
+                                int g = be16(offsetp[index]);
+                                font->cmap[c] = g? g + delta: 0;
+                            }
+                        else
+                            for (int c = start; c <= end; c++)
+                                font->cmap[c] = c + delta;
+                    }
+                }
+                break;
+            }
     }
     
     
-    font->file = file;
+    font->base.file = file;
     font->scale_x = font->scale_y = 1;
+    font->nfonts = nfonts;
     return font;
+}
+int asg_get_otf_font_count(AsgOTF*font) {
+    return font? font->nfonts: 0;
 }
 
 void asg_free_otf(AsgOTF *font) {
@@ -1071,7 +1183,6 @@ void asg_free_otf(AsgOTF *font) {
         free((void*)font->family);
         free((void*)font->style_name);
         free((void*)font->name);
-        free((void*)font->file);
         free(font);
     }
 }
@@ -1362,48 +1473,32 @@ float asg_otf_fill_string(
     return at.x - org;
 }
 
-void *platform_open_font(const wchar_t *name);
-wchar_t **platform_list_fonts(int *countp);
-
-AsgFont *asg_open_font(const wchar_t *name) {
-    return platform_open_font(name);
+AsgFont *asg_open_font_file(const wchar_t *filename, int font_index, bool scan_only) {
+    return platform_open_font_file(filename, font_index, scan_only);
 }
 AsgFont *asg_open_font_variant(const wchar_t *family, AsgFontWeight weight, bool italic, AsgFontStretch stretch) {
-    static const wchar_t *weights[] = {
-        L" Thin",
-        L" ExtraLight",
-        L" Light",
-        L"",
-        L" Medium",
-        L" Semibold",
-        L" Bold",
-        L" ExtraBold",
-        L" Black"
-    };
-    static const wchar_t *stretches[] = {
-        L" Ultra Condensed",
-        L" Extra Condensed",
-        L" Condensed",
-        L" Semi Condensed",
-        L"",
-        L" Semi Expanded",
-        L" Expanded",
-        L" Extra Expanded",
-        L" Ultra Expanded",
-    };
     if (weight < 100) weight = 400;
     if (stretch < 1) stretch = 0;
     if (weight < 900 && stretch < 900) {
-        size_t size = (wcslen(family) + 32 + 1);
-        wchar_t *name = malloc(size * sizeof *name);
-        swprintf(name, size, L"%ls%ls%ls%ls",
-            family,
-            stretches[stretch-1],
-            weights[weight/100-1],
-            italic? L" Italic": L"");
-        AsgFont *variant = asg_open_font(name);
-        free(name);
-        return variant;
+        if (Families == NULL)
+            asg_scan_fonts(NULL, NULL);
+        
+        int f;
+        for (f = 0; f < NFamilies; f++)
+            if (!wcsicmp(Families[f].name, family))
+                break;
+        
+        if (f != NFamilies) {
+            uint8_t *index = italic? Families[f].italic_index: Families[f].roman_index;
+            const wchar_t **filename = italic? Families[f].italic: Families[f].roman;
+            
+            if (filename[weight/100])
+                return asg_open_font_file(filename[weight/100], index[weight/100], false);
+            if (weight/100+1 <= 9 && filename[weight/100+1])
+                return asg_open_font_file(filename[weight/100+1], index[weight/100+1], false);
+            if (weight/100-1 >= 0 && filename[weight/100-1])
+                return asg_open_font_file(filename[weight/100-1], index[weight/100-1], false);
+        }
     }
     return NULL;
 }
@@ -1411,11 +1506,18 @@ wchar_t **asg_list_fonts(int *countp) {
     return platform_list_fonts(countp);
 }
 
-AsgFont *asg_load_font(const void *file, int font_index) {
-    return (void*)asg_load_otf((void*)file, font_index);
+AsgFont *asg_load_font(const void *file, int font_index, bool scan_only) {
+    return (void*)asg_load_otf((void*)file, font_index, scan_only);
+}
+int asg_get_font_font_count(AsgFont *font) {
+    return asg_get_otf_font_count((void*)font);
 }
 void asg_free_font(AsgFont *font) {
-    asg_free_otf((void*)font);
+    if (font) {
+        if (font->host_free)
+            font->host_free(font);
+        asg_free_otf((void*)font);
+    }
 }
 void asg_scale_font(AsgFont *font, float height, float width) {
     asg_scale_otf((void*)font, height, width);

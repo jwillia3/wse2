@@ -24,6 +24,8 @@ struct field {
 	void	*ptr;
 };
 
+static wchar_t	font_spec[4096];
+
 static struct	field fields[] = {
 		{L"bg_color", Color, &conf.bg},
 		{L"bg_color2", Color, &conf.bg2},
@@ -42,11 +44,8 @@ static struct	field fields[] = {
 		{L"style6", Style, &conf.style[6]},
 		{L"style7", Style, &conf.style[7]},
 		
-		{L"font_name", String, &conf.fontname},
-		{L"font_size", Float, &conf.fontsz},
-		{L"font_aspect", Float, &conf.fontasp},
-		{L"line_height", Float, &conf.leading},
-		
+		{L"font", String, font_spec},
+				
 		{L"ext", String, &lang.ext},
 		{L"comment", String, &lang.comment},
 		{L"comment_color", Int, &lang.commentcol},
@@ -118,10 +117,50 @@ defconfig() {
 	wcscpy(conf.bgimage, L"");
 	
 	wcscpy(conf.fontname, L"Courier New");
+	conf.fontweight = 0;
+	conf.fontitalic = 0;
 	conf.fontsz = 12.0;
 	conf.fontasp = 0.0;
 	conf.leading = 1.125;
+	*font_spec = 0;
 	return 1;
+}
+
+static
+configfont(wchar_t *spec) {
+	wchar_t *part = wcstok(spec, L" \t,/");
+	*conf.fontname = 0;
+	
+	while (part) {
+		wchar_t *end;
+		float value = wcstod(part, &end);
+		
+		if (!wcscmp(end, L"pt"))
+			conf.fontsz = value;
+		else if (!wcscmp(end, L"w"))
+			conf.fontweight = value;
+		else if (!wcscmp(end, L"em"))
+			conf.leading = value;
+		else if (*part == ':')
+			conf.fontasp = wcstod(part+1, NULL);
+		else if (!wcsicmp(part, L"italic")) /* italic style */
+			conf.fontitalic = 1;
+		else if (!wcsicmp(part, L"bold")) /* bold weight */
+			conf.fontweight = 700;
+		else { /* part of font name */
+			if (*conf.fontname)
+				wcscat(conf.fontname, L" ");
+			wcscat(conf.fontname, part);
+		}
+		
+		part = wcstok(NULL, L" \t,/");
+	}
+	
+	if (!*conf.fontname)
+		wcscpy(conf.fontname, L"Courier new");
+//	if (!conf.leading)
+//		conf.leading = 1.125;
+
 }
 
 static
@@ -133,6 +172,7 @@ directive(wchar_t *s) {
 		s++;
 	
 	if (!*s) {
+		configfont(font_spec);
 		confset[nconfs++]=conf;
 		defconfig();
 	}

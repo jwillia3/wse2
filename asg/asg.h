@@ -59,16 +59,33 @@ typedef struct {
     AsgFillRule     fill_rule;
 } AsgPath;
 
+typedef struct AsgFont {
+    const void  *file;
+    void        *host;
+    void        (*host_free)(struct AsgFont*);
+} AsgFont;
+
 typedef struct {
+    const wchar_t   *name;
+    const wchar_t   *roman[10];
+    const wchar_t   *italic[10];
+    uint8_t         roman_index[10];
+    uint8_t         italic_index[10];
+} AsgFontFamily;
+
+typedef struct {
+    AsgFont     base;
+    
     float       scale_x;
     float       scale_y;
     
     int         nglyphs;
     int         nhmtx;
     int         long_loca;
+    int         nfonts;
     
     // Table pointers
-    const void  *file;
+    
     const void  *glyf;
     const void  *loca;
     const uint16_t *hmtx;
@@ -91,11 +108,9 @@ typedef struct {
     const wchar_t *family;
     const wchar_t *style_name;
     const wchar_t *name;
-    
+        
     uint16_t    cmap[65536];
 } AsgOTF;
-
-typedef struct { AsgOTF otf; } AsgFont;
 
 const static AsgMatrix AsgIdentityMatrix = { 1, 0, 0, 1, 0, 0 };
 
@@ -201,10 +216,13 @@ void asg_fill_path(
 
 
 // FONTS & TEXT
-    AsgFont *asg_open_font(const wchar_t *name);
+    AsgFont *asg_open_font_file(const wchar_t *filename, int font_index, bool scan_only);
     AsgFont *asg_open_font_variant(const wchar_t *family, AsgFontWeight weight, bool italic, AsgFontStretch stretch);
+    AsgFontFamily *asg_scan_fonts(const wchar_t *dir, int *countp);
+    void asg_free_font_family(AsgFontFamily *family);
+    int asg_get_font_font_count(AsgFont *font);
     wchar_t **asg_list_fonts(int *countp);
-    AsgFont *asg_load_font(const void *file, int font_index);
+    AsgFont *asg_load_font(const void *file, int font_index, bool scan_only);
     void asg_free_font(AsgFont *font);
     void asg_scale_font(AsgFont *font, float height, float width);
     float asg_get_font_ascender(const AsgFont *font);
@@ -272,7 +290,8 @@ void asg_fill_path(
     uint8_t *asg_utf16_to_utf8(const uint16_t *input, int len, int *lenp);
 
 // OPENTYPE FORMAT (OTF) / TRUE TYPE FORMAT (TTF) FONTS
-    AsgOTF *asg_load_otf(const void *file, int font_index);
+    AsgOTF *asg_load_otf(const void *file, int font_index, bool scan_only);
+    int asg_get_otf_font_count(AsgOTF*font);
     void asg_free_otf(AsgOTF *font);
     void asg_scale_otf(AsgOTF *font, float height, float width);
     float asg_get_otf_ascender(const AsgOTF *font);

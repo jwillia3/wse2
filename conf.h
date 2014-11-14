@@ -18,6 +18,8 @@ struct conf {
 	wchar_t		fontname[128];
 	double		fontsz;
 	double		fontasp;
+	int		fontweight;
+	int		fontitalic;
 	double		leading;
 } conf;
 struct file {

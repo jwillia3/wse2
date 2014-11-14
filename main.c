@@ -1739,10 +1739,9 @@ configfont() {
 	asg_free_font(font[2]);
 	asg_free_font(font[3]);
 	
-	// Try to open font. Fallback to Courier otherwise
-	font[0] = asg_open_font(conf.fontname);
+	font[0] = asg_open_font_variant(conf.fontname, conf.fontweight, conf.fontitalic, 0);
 	if (!font[0])
-		font[0] = asg_open_font(L"Courier New");
+		font[0] = asg_open_font_variant(L"Courier New", 400, false, 0);
 	
 	AsgFontWeight weight = asg_get_font_weight(font[0]);
 	AsgFontStretch stretch = asg_get_font_stretch(font[0]);
@@ -1753,9 +1752,9 @@ configfont() {
 	font[2] = asg_open_font_variant(family, weight, !italic, stretch);
 	font[3] = asg_open_font_variant(family, (weight + 300) % 900, !italic, stretch);
 	
-	if (!font[1]) font[1] = asg_open_font(asg_get_font_name(font[0]));
-	if (!font[2]) font[2] = asg_open_font(asg_get_font_name(font[0]));
-	if (!font[3]) font[3] = asg_open_font(asg_get_font_name(font[0]));
+	if (!font[1]) font[1] = asg_open_font_variant(family, weight, italic, stretch);
+	if (!font[2]) font[2] = asg_open_font_variant(family, weight, italic, stretch);
+	if (!font[3]) font[3] = asg_open_font_variant(family, weight, italic, stretch);
 	
 	sy = conf.fontsz * dpi/72.f;
 	sx = sy * conf.fontasp;
