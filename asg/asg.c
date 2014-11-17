@@ -1,4 +1,3 @@
-// TODO: Handle OpenType
 // TODO: Handle transformed coordinates in immediate mode drawing
 // TODO: provide interface for paths
 // TODO: decode Mac encodings for CJK names
@@ -96,6 +95,14 @@ void asg_matrix_scale(AsgMatrix *mat, float x, float y) {
     mat->d *= y;
     mat->f *= y;
 }
+void asg_matrix_shear(AsgMatrix *mat, float x, float y) {
+    mat->a = mat->a + mat->b * y;
+    mat->c = mat->c + mat->d * y;
+    mat->e = mat->e + mat->f * y;
+    mat->b = mat->a * x + mat->b;
+    mat->d = mat->c * x + mat->d;
+    mat->f = mat->e * x + mat->f;
+}
 void asg_matrix_rotate(AsgMatrix *mat, float rad) {
     AsgMatrix old = *mat;
     float m = cos(rad);
@@ -126,6 +133,9 @@ void asg_translate(Asg *gs, float x, float y) {
 }
 void asg_scale(Asg *gs, float x, float y) {
     asg_matrix_scale(&gs->ctm, x, y);
+}
+void asg_shear(Asg *gs, float x, float y) {
+    asg_matrix_shear(&gs->ctm, x, y);
 }
 void asg_rotate(Asg *gs, float rad) {
     asg_matrix_rotate(&gs->ctm, rad);
@@ -961,28 +971,7 @@ AsgFontFamily *asg_scan_fonts(const wchar_t *dir, int *countp) {
 
 AsgOTF *asg_load_otf(const void *file, int font_index, bool scan_only) {
 
-    // Check that this is an OTF
-    uint32_t ver;
-    uint16_t ntab;
     uint32_t nfonts = 1;
-    const void *header = file;
-collection_item:
-    unpack(&header, "LSsss", &ver, &ntab);
-    
-    if (ver == 0x00010000) ;
-    else if (ver == 'ttcf') { // TrueType Collection
-        header = file;
-        unpack(&header, "lLL", &ver, &nfonts);
-        if (ver != 0x00010000 && ver != 0x00020000)
-            return NULL;
-        if (font_index >= nfonts)
-            return NULL;
-        header = (const char*)file + be32(((uint32_t*)header)[font_index]);
-        goto collection_item;
-    } else
-        return NULL;
-    
-    // Find the tables we need
     const void *head = NULL;
     const void *hhea = NULL;
     const void *maxp = NULL;
@@ -992,20 +981,46 @@ collection_item:
     const void *loca = NULL;
     const void *os2  = NULL;
     const void *name  = NULL;
-    for (unsigned i = 0; i < ntab; i++) {
-        uint32_t tag, offset;
-        unpack(&header, "LlLl", &tag, &offset);
-        const void *address = (char*)file + offset;
-        switch (tag) {
-        case 'head': head = address; break;
-        case 'hhea': hhea = address; break;
-        case 'maxp': maxp = address; break;
-        case 'hmtx': hmtx = address; break;
-        case 'glyf': glyf = address; break;
-        case 'loca': loca = address; break;
-        case 'cmap': cmap = address; break;
-        case 'name': name  = address; break;
-        case 'OS/2': os2  = address; break;
+    const void *gsub  = NULL;
+    
+    // Check that this is an OTF
+    {
+        uint16_t ntab;
+        uint32_t ver;
+        const void *header = file;
+collection_item:
+        unpack(&header, "LSsss", &ver, &ntab);
+        
+        if (ver == 0x00010000) ;
+        else if (ver == 'ttcf') { // TrueType Collection
+            header = file;
+            unpack(&header, "lLL", &ver, &nfonts);
+            if (ver != 0x00010000 && ver != 0x00020000)
+                return NULL;
+            if (font_index >= nfonts)
+                return NULL;
+            header = (const char*)file + be32(((uint32_t*)header)[font_index]);
+            goto collection_item;
+        } else
+            return NULL;
+        
+        // Find the tables we need
+        for (unsigned i = 0; i < ntab; i++) {
+            uint32_t tag, offset;
+            unpack(&header, "LlLl", &tag, &offset);
+            const void *address = (char*)file + offset;
+            switch (tag) {
+            case 'head': head = address; break;
+            case 'hhea': hhea = address; break;
+            case 'maxp': maxp = address; break;
+            case 'hmtx': hmtx = address; break;
+            case 'glyf': glyf = address; break;
+            case 'loca': loca = address; break;
+            case 'cmap': cmap = address; break;
+            case 'name': name  = address; break;
+            case 'OS/2': os2  = address; break;
+            case 'GSUB': gsub = address; break;
+            }
         }
     }
     
@@ -1013,106 +1028,119 @@ collection_item:
     font->hmtx = hmtx;
     font->glyf = glyf;
     font->loca = loca;
+    font->gsub = gsub;
+    font->lang = 'eng ';
+    font->script = 'latn';
     
     // 'head' table
-    uint16_t em, long_loca;
-    unpack(&head, "llllsSllllsssssssSs", &em, &long_loca);
-    font->em = em;
-    font->long_loca = long_loca;
+    {
+        uint16_t em, long_loca;
+        unpack(&head, "llllsSllllsssssssSs", &em, &long_loca);
+        font->em = em;
+        font->long_loca = long_loca;
+    }
     
     // 'hhea' table
-    uint16_t nhmtx;
-    unpack(&hhea, "lsssssssssssssssS", &nhmtx);
-    font->nhmtx = nhmtx;
+    {
+        uint16_t nhmtx;
+        unpack(&hhea, "lsssssssssssssssS", &nhmtx);
+        font->nhmtx = nhmtx;
+    }
     
     // 'os/2' table
-    int16_t ascender, descender, leading;
-    int16_t subsx, subsy, subx, suby;
-    int16_t supsx, supsy, supx, supy;
-    int16_t x_height, cap_height;
-    uint16_t style, weight, stretch;
-    unpack(&os2, "ssSSsSSSSSSSSsssBBBBBBBBBBllllbbbbSssSSSssllSSsss",
-        &weight,
-        &stretch,
-        &subsx, &subsy, &subx, &suby,
-        &supsx, &supsy, &supx, &supy,
-        &font->panose[0],&font->panose[1],&font->panose[2],&font->panose[3],&font->panose[4],
-        &font->panose[5],&font->panose[6],&font->panose[7],&font->panose[8],&font->panose[9],
-        &style,
-        &ascender, &descender, &leading,
-        &x_height, &cap_height);
-    font->ascender = ascender;
-    font->descender = descender;
-    font->leading = leading
-        ? leading
-        : (font->em - (font->ascender - font->descender)) + font->em * .1f;
-    font->x_height = x_height;
-    font->cap_height = cap_height;
-    font->subscript_box = asg_rect(asg_pt(subx,suby), asg_pt(subx+subsx, suby+subsy));
-    font->superscript_box = asg_rect(asg_pt(supx,supy), asg_pt(supx+supsx, supy+supsy));
-    font->weight = weight;
-    font->stretch = stretch;
-    font->is_italic = style & 0x101; // includes italics and oblique
+    {
+        int16_t ascender, descender, leading;
+        int16_t subsx, subsy, subx, suby;
+        int16_t supsx, supsy, supx, supy;
+        int16_t x_height, cap_height;
+        uint16_t style, weight, stretch;
+        unpack(&os2, "ssSSsSSSSSSSSsssBBBBBBBBBBllllbbbbSssSSSssllSSsss",
+            &weight,
+            &stretch,
+            &subsx, &subsy, &subx, &suby,
+            &supsx, &supsy, &supx, &supy,
+            &font->panose[0],&font->panose[1],&font->panose[2],&font->panose[3],&font->panose[4],
+            &font->panose[5],&font->panose[6],&font->panose[7],&font->panose[8],&font->panose[9],
+            &style,
+            &ascender, &descender, &leading,
+            &x_height, &cap_height);
+        font->ascender = ascender;
+        font->descender = descender;
+        font->leading = leading
+            ? leading
+            : (font->em - (font->ascender - font->descender)) + font->em * .1f;
+        font->x_height = x_height;
+        font->cap_height = cap_height;
+        font->subscript_box = asg_rect(asg_pt(subx,suby), asg_pt(subx+subsx, suby+subsy));
+        font->superscript_box = asg_rect(asg_pt(supx,supy), asg_pt(supx+supsx, supy+supsy));
+        font->weight = weight;
+        font->stretch = stretch;
+        font->is_italic = style & 0x101; // includes italics and oblique
+    }
         
     // 'maxp' table
-    uint16_t nglyphs;
-    unpack(&maxp, "lSsssssssssssss", &nglyphs);
-    font->nglyphs = nglyphs;
+    {
+        uint16_t nglyphs;
+        unpack(&maxp, "lSsssssssssssss", &nglyphs);
+        font->nglyphs = nglyphs;
+    }
     
     // 'name' table
-    uint16_t nnames, name_string_offset;
-    unpack(&name, "sSS", &nnames, &name_string_offset);
-    const char *name_strings = (char*)name - 6 + name_string_offset;
-    
-    for (int i = 0; i < nnames; i++) {
-        uint16_t platform, encoding, lang, id, len, off;
-        unpack(&name, "SSSSSS", &platform, &encoding, &lang, &id, &len, &off);
+    {
+        uint16_t nnames, name_string_offset;
+        unpack(&name, "sSS", &nnames, &name_string_offset);
+        const char *name_strings = (char*)name - 6 + name_string_offset;
         
-        // Unicode
-        if (platform == 0 || (platform == 3 && (encoding == 0 || encoding == 1) && lang == 0x0409)) {
-            if (id == 1 || id == 2 || id == 4 || id == 16) {
-                const uint16_t *source = (uint16_t*)(name_strings + off);
-                uint16_t *output = malloc((len/2 + 1) * sizeof *output);
-                len /= 2; // length was in bytes
-                for (int i = 0; i < len; i++)
-                    output[i] = be16(source[i]);
-                output[len] = 0;
-                if (id == 1)
-                    font->family = output;
-                else if (id == 2)
-                    font->style_name = output;
-                else if (id == 4)
-                    font->name = output;
-                else if (id == 16) { // Preferred font family
-                    free((void*)font->family);
-                    font->family = output;
+        for (int i = 0; i < nnames; i++) {
+            uint16_t platform, encoding, lang, id, len, off;
+            unpack(&name, "SSSSSS", &platform, &encoding, &lang, &id, &len, &off);
+            
+            // Unicode
+            if (platform == 0 || (platform == 3 && (encoding == 0 || encoding == 1) && lang == 0x0409)) {
+                if (id == 1 || id == 2 || id == 4 || id == 16) {
+                    const uint16_t *source = (uint16_t*)(name_strings + off);
+                    uint16_t *output = malloc((len/2 + 1) * sizeof *output);
+                    len /= 2; // length was in bytes
+                    for (int i = 0; i < len; i++)
+                        output[i] = be16(source[i]);
+                    output[len] = 0;
+                    if (id == 1)
+                        font->family = output;
+                    else if (id == 2)
+                        font->style_name = output;
+                    else if (id == 4)
+                        font->name = output;
+                    else if (id == 16) { // Preferred font family
+                        free((void*)font->family);
+                        font->family = output;
+                    }
                 }
             }
+            // Mac
+            else if (platform == 1 && encoding == 0)
+                if (id == 1 || id == 2 || id == 4 || id == 16) {
+                    const uint8_t *source = name_strings + off;
+                    uint16_t *output = malloc((len + 1) * sizeof *output);
+                    for (int i = 0; i < len; i++)
+                        output[i] = source[i];
+                    output[len] = 0;
+                    
+                    if (id == 1)
+                        font->family = output;
+                    else if (id == 2)
+                        font->style_name = output;
+                    else if (id == 4)
+                        font->name = output;
+                    else if (id == 16) { // Preferred font family
+                        free((void*)font->family);
+                        font->family = output;
+                    }
+                }
         }
-        // Mac
-        else if (platform == 1 && encoding == 0)
-            if (id == 1 || id == 2 || id == 4 || id == 16) {
-                const uint8_t *source = name_strings + off;
-                uint16_t *output = malloc((len + 1) * sizeof *output);
-                for (int i = 0; i < len; i++)
-                    output[i] = source[i];
-                output[len] = 0;
-                
-                if (id == 1)
-                    font->family = output;
-                else if (id == 2)
-                    font->style_name = output;
-                else if (id == 4)
-                    font->name = output;
-                else if (id == 16) { // Preferred font family
-                    free((void*)font->family);
-                    font->family = output;
-                }
-            }
+        if (!font->family) font->family = wcsdup(L"");
+        if (!font->style_name) font->style_name = wcsdup(L"");
+        if (!font->name) font->name = wcsdup(L"");
     }
-    if (!font->family) font->family = wcsdup(L"");
-    if (!font->style_name) font->style_name = wcsdup(L"");
-    if (!font->name) font->name = wcsdup(L"");
     
     // cmap table
     if (!scan_only) {
@@ -1168,7 +1196,6 @@ collection_item:
             }
     }
     
-    
     font->base.file = file;
     font->scale_x = font->scale_y = 1;
     font->nfonts = nfonts;
@@ -1183,6 +1210,8 @@ void asg_free_otf(AsgOTF *font) {
         free((void*)font->family);
         free((void*)font->style_name);
         free((void*)font->name);
+        free(font->features);
+        free(font->subst);
         free(font);
     }
 }
@@ -1239,6 +1268,218 @@ const wchar_t *asg_get_otf_name(const AsgOTF *font) {
 const wchar_t *asg_get_otf_style_name(const AsgOTF *font) {
     return font->style_name;
 }
+static char *lookup_otf_features(
+    AsgOTF *font,
+    const uint8_t *table,
+    uint32_t script,
+    uint32_t lang,
+    const char *feature_tags,
+    void subtable_handler(AsgOTF *font, uint32_t tag, const uint8_t *subtable, int lookup_type))
+{
+    if (!table)
+        return NULL;
+    
+    const uint8_t *script_list;
+    const uint8_t *feature_list;
+    const uint8_t *lookup_list;
+    
+    // GSUB/GPOS header
+    {
+        const uint8_t *header = table;
+        uint16_t script_off, feature_off, lookup_off;
+        unpack(&header, "lSSS", &script_off, &feature_off, &lookup_off);
+        
+        script_list = table + script_off;
+        feature_list = table + feature_off;
+        lookup_list = table + lookup_off;
+    }
+    
+    // ScriptList -> ScriptRecord
+    const char *script_table = NULL;
+    {
+        uint16_t nscripts;
+        const uint8_t *header = script_list;
+        unpack(&header, "S", &nscripts);
+        for (int i = 0; i < nscripts; i++) {
+            uint32_t tag;
+            uint16_t offset;
+            unpack(&header, "LS", &tag, &offset);
+            if (tag == 'DFLT')
+                script_table = script_list + offset;
+            else if (tag == script && !script_table) {
+                script_table = script_list + offset;
+                break;
+            }
+        }
+    }
+    
+    // Script -> LangSys
+    const char *langsys = NULL;
+    if (script_table) {
+        uint16_t def_lang, nlangs;
+        const uint8_t *header = script_table;
+        unpack(&header, "SS", &def_lang, &nlangs);
+        if (def_lang)
+            langsys = script_table + def_lang;
+        for (int i = 0; i < nlangs; i++) {
+            uint32_t tag;
+            uint16_t offset;
+            unpack(&header, "LS", &tag, &offset);
+            if (tag == lang) {
+                langsys = script_table + offset;
+                break;
+            }
+        }
+    }
+    
+    // LangSys -> Feature List
+    char *all_features = NULL;
+    if (langsys) {
+        const uint8_t *header = langsys;
+        uint16_t nfeatures;
+        unpack(&header, "ssS", &nfeatures);
+        
+        if (!*feature_tags) {
+            all_features = malloc(nfeatures * 4 + 1);
+            all_features[nfeatures * 4] = 0;
+        }
+        
+        for (int i = 0; i < nfeatures; i++) {
+            uint32_t tag;
+            const uint8_t *feature;
+            {
+                uint16_t index;
+                unpack(&header, "S", &index);
+                
+                feature = feature_list + 2 + index * 6;
+                uint16_t offset;
+                unpack(&feature, "LS", &tag, &offset);
+                feature = feature_list + offset;
+            }
+            
+            if (!*feature_tags) {
+                all_features[i * 4 + 0] = ((uint8_t*)&tag)[3];
+                all_features[i * 4 + 1] = ((uint8_t*)&tag)[2];
+                all_features[i * 4 + 2] = ((uint8_t*)&tag)[1];
+                all_features[i * 4 + 3] = ((uint8_t*)&tag)[0];
+            }
+            
+            for (int i = 0; feature_tags[i]; i += 4)
+                if (feature_tags[i] == ',' || feature_tags[i] == ' ')
+                    i -= 3;
+                else if (tag == be32(*(uint32_t*)(feature_tags + i))) {
+                    uint16_t nlookups;
+                    unpack(&feature, "sS", &nlookups);
+                    
+                    for (int i = 0; i < nlookups; i++) {
+                        uint16_t index;
+                        unpack(&feature, "S", &index);
+                        
+                        // Lookup table -> GSUB/GPOS specific subtable
+                        const uint8_t *lookup = lookup_list + be16(*(uint16_t*)(lookup_list + 2 + index * 2));
+                        const uint8_t *lookup_base = lookup;
+                        uint16_t lookup_type, nsubtables;
+                        unpack(&lookup, "SsS", &lookup_type, &nsubtables);
+                        
+                        for (int i = 0; i < nsubtables; i++) {
+                            uint16_t subtable_offset;
+                            unpack(&lookup, "S", &subtable_offset);
+                            const uint8_t *subtable = lookup_base + subtable_offset;
+                            if (subtable_handler != NULL)
+                                subtable_handler(font, tag, subtable, lookup_type);
+                        }
+                    }
+                    break;
+                }
+        }
+    }
+    return all_features;
+}
+static void gsub_handler(AsgOTF *font, uint32_t tag, const uint8_t *subtable_base, int lookup_type) {
+    const uint8_t *subtable = subtable_base;
+    uint16_t subst_format, coverage_offset;
+
+redo_subtable:
+    unpack(&subtable, "SS", &subst_format, &coverage_offset);
+    
+    // Get glyph coverage
+    const uint8_t *coverage = subtable_base + coverage_offset;
+    uint16_t coverage_format, count;
+    if (lookup_type == 7) {
+        subtable = subtable_base;
+        uint32_t offset;
+        unpack(&subtable, "sSL", &lookup_type, &offset);
+        subtable = subtable_base += offset;
+        goto redo_subtable;
+    } else if (lookup_type != 5 && lookup_type != 6 && lookup_type != 8)
+        unpack(&coverage, "SS", &coverage_format, &count);
+    
+    if (lookup_type == 1) { // Single Substitution
+        if (subst_format == 1) { 
+            uint16_t delta;
+            unpack(&subtable, "S", &delta);
+            
+            if (coverage_format == 1)
+                for (int i = 0; i < count; i++) {
+                    uint16_t input;
+                    unpack(&coverage, "S", &input);
+                    uint16_t output = input + delta;
+                    asg_substitute_otf_glyph(font, input, output);
+                }
+            else if (coverage_format == 2)
+                for (int i = 0; i < count; i++) {
+                    uint16_t start, end, start_index;
+                    unpack(&coverage, "SSS", &start, &end, &start_index);
+                    for (int glyph = start; glyph <= end; glyph++) {
+                        uint16_t input = glyph;
+                        uint16_t output = input + delta;
+                        asg_substitute_otf_glyph(font, input, output);
+                    }
+                }
+        }
+        else if (subst_format == 2) {
+            uint16_t nglyphs;
+            unpack(&subtable, "S", &nglyphs);
+    
+            if (coverage_format == 1)
+                for (int i = 0; i < count; i++) {
+                    uint16_t input;
+                    uint16_t output;
+                    unpack(&coverage, "S", &input);
+                    unpack(&subtable, "S", &output);
+                    asg_substitute_otf_glyph(font, input, output);
+                }
+            else if (coverage_format == 2)
+                for (int i = 0; i < count; i++) {
+                    uint16_t start, end, start_index;
+                    unpack(&coverage, "SSS", &start, &end, &start_index);
+                    for (int glyph = start; glyph <= end; glyph++) {
+                        uint16_t output;
+                        uint16_t input = glyph;
+                        unpack(&subtable, "S", &output);
+                        asg_substitute_otf_glyph(font, input, output);
+                    }
+                }
+        }
+    }
+}
+char *asg_get_otf_features(const AsgOTF *font) {
+    return lookup_otf_features((AsgOTF*)font, font->gsub, 'latn', 'eng ', "", NULL);
+}
+
+void asg_set_otf_features(AsgOTF *font, const uint8_t *features) {
+    free(font->features);
+    free(font->subst);
+    font->nsubst = 0;
+    font->features = (void*)strdup(features);
+    lookup_otf_features(font, font->gsub, font->script, font->lang, features, gsub_handler);
+}
+void asg_substitute_otf_glyph(AsgOTF *font, uint16_t in, uint16_t out) {
+    font->subst = realloc(font->subst, (font->nsubst + 1) * 2 * sizeof *font->subst);
+    font->subst[font->nsubst][0] = in;
+    font->subst[font->nsubst][1] = out;
+    font->nsubst++;
+}
 
 float asg_get_otf_glyph_lsb(const AsgOTF *font, unsigned g) {
     return  g < font->nhmtx?    be16(font->hmtx[g * 2 + 1]) * font->scale_x:
@@ -1251,7 +1492,9 @@ float asg_get_otf_glyph_width(const AsgOTF *font, unsigned g) {
             0;
 }
 
-void glyph_path(AsgPath *path, const AsgOTF *font, const AsgMatrix *ctm, unsigned g) {
+static void glyph_path(AsgPath *path, const AsgOTF *font, const AsgMatrix *ctm, unsigned g) {
+    if (g >= font->nglyphs)
+        g = 0;
     const void          *data;
     {
         const uint32_t      *loca32 = font->loca;
@@ -1293,14 +1536,14 @@ void glyph_path(AsgPath *path, const AsgOTF *font, const AsgMatrix *ctm, unsigne
             }
             
             int16_t sx = 1, sy = 1;
+            int16_t shearx=0, sheary=0;
             if (flags & 8) { // scale
                 unpack(&data, "S", &sx);
                 sy = sx;
             } else if (flags & 64) // x & y scale
                 unpack(&data, "SS", &sx, &sy);
             else if (flags & 128) // 2x2 matrix
-                unpack(&data, "SS", &sx, &sy);
-                // TODO: handle a, b scales
+                unpack(&data, "SSSS", &sx, &shearx, &sheary, &sy);
             
             asg_matrix_scale(&new_ctm, sx, sy);
             asg_matrix_multiply(&new_ctm, ctm);
@@ -1413,6 +1656,11 @@ float asg_otf_fill_glyph(
     unsigned g,
     uint32_t color)
 {
+    float width = asg_get_otf_glyph_width(font, g);
+    float em = asg_get_otf_em(font);
+    if (!within_int(-em, at.x, gs->width+em) || !within_int(-em, at.y, gs->height+em))
+        return width;
+    
     AsgMatrix ctm = gs->ctm;
     asg_matrix_translate(&ctm, at.x, at.y);
     AsgPath *path = asg_get_otf_glyph_path(font, &ctm, g);
@@ -1420,11 +1668,15 @@ float asg_otf_fill_glyph(
         asg_fill_path(gs, path, color);
         asg_free_path(path);
     }
-    return asg_get_otf_glyph_width(font, g);
+    return width;
 }
 
-int asg_get_otf_glyph(const AsgOTF *font, unsigned c) {
-    return font->cmap[c & 0xffff];
+unsigned asg_get_otf_glyph(const AsgOTF *font, unsigned c) {
+    unsigned g = font->cmap[c & 0xffff];
+    for (int i = 0; i < font->nsubst; i++)
+        if (g == font->subst[i][0])
+            g = font->subst[i][1];
+    return g;
 }
 float asg_get_otf_char_lsb(const AsgOTF *font, unsigned c) {
     return asg_get_otf_glyph_lsb(font, asg_get_otf_glyph(font, c));
@@ -1469,7 +1721,7 @@ float asg_otf_fill_string(
     float org = at.x;
     if (len < 0) len = wcslen(chars);
     for (int i = 0; i < len; i++)
-        at.x += asg_otf_fill_char(gs, font, at, chars[i], color);
+        at.x += asg_otf_fill_glyph(gs, font, at, asg_get_otf_glyph(font, chars[i]), color);
     return at.x - org;
 }
 
@@ -1502,8 +1754,12 @@ AsgFont *asg_open_font_variant(const wchar_t *family, AsgFontWeight weight, bool
     }
     return NULL;
 }
-wchar_t **asg_list_fonts(int *countp) {
-    return platform_list_fonts(countp);
+
+void asg_set_font_features(AsgFont *font, const uint8_t *features) {
+    asg_set_otf_features((void*)font, features);
+}
+void asg_substitute_glyph(AsgFont *font, uint16_t in, uint16_t out) {
+    asg_substitute_otf_glyph((void*)font, in, out);
 }
 
 AsgFont *asg_load_font(const void *file, int font_index, bool scan_only) {
@@ -1567,6 +1823,9 @@ const wchar_t *asg_get_font_name(const AsgFont *font) {
 const wchar_t *asg_get_font_style_name(const AsgFont *font) {
     return asg_get_otf_style_name((void*)font);
 }
+char *asg_get_font_features(const AsgFont *font) {
+    return asg_get_otf_features((void*)font);
+}
 
 float asg_get_char_lsb(const AsgFont *font, unsigned c) {
     return asg_get_otf_char_lsb((void*)font, c);
@@ -1618,7 +1877,7 @@ float asg_fill_string(
 AsgPath *asg_get_char_path(const AsgFont *font, const AsgMatrix *ctm, unsigned c) {
     return asg_get_otf_char_path((void*)font, ctm, c);
 }
-int asg_get_glyph(const AsgFont *font, unsigned c) {
+unsigned asg_get_glyph(const AsgFont *font, unsigned c) {
     return asg_get_otf_glyph((void*)font, c);
 }
 float asg_get_glyph_lsb(const AsgFont *font, unsigned g) {

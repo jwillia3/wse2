@@ -122,6 +122,7 @@ defconfig() {
 	conf.fontsz = 12.0;
 	conf.fontasp = 0.0;
 	conf.leading = 1.125;
+	*conf.fontfeatures = 0;
 	*font_spec = 0;
 	return 1;
 }
@@ -130,6 +131,7 @@ static
 configfont(wchar_t *spec) {
 	wchar_t *part = wcstok(spec, L" \t,/");
 	*conf.fontname = 0;
+	*conf.fontfeatures = 0;
 	
 	while (part) {
 		wchar_t *end;
@@ -147,6 +149,8 @@ configfont(wchar_t *spec) {
 			conf.fontitalic = 1;
 		else if (!wcsicmp(part, L"bold")) /* bold weight */
 			conf.fontweight = 700;
+		else if (*part == '+' && wcslen(part) == 5)
+			wcscat(conf.fontfeatures, part+1);
 		else { /* part of font name */
 			if (*conf.fontname)
 				wcscat(conf.fontname, L" ");

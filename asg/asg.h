@@ -89,6 +89,14 @@ typedef struct {
     const void  *glyf;
     const void  *loca;
     const uint16_t *hmtx;
+    const uint8_t *gsub;
+    
+    
+    uint8_t     (*features)[4];
+    uint32_t    script;
+    uint32_t    lang;
+    uint16_t    (*subst)[2];
+    int         nsubst;
     
     // Metrics
     float       em;
@@ -127,6 +135,7 @@ void asg_free(Asg *gs);
 void asg_load_identity(Asg *gs);
 void asg_translate(Asg *gs, float x, float y);
 void asg_scale(Asg *gs, float x, float y);
+void asg_shear(Asg *gs, float x, float y);
 void asg_rotate(Asg *gs, float rad);
 AsgPoint asg_transform_point(const AsgMatrix *ctm, AsgPoint p);
 void asg_multiply_matrix(Asg *gs, const AsgMatrix * __restrict mat);
@@ -135,6 +144,7 @@ void asg_multiply_matrix(Asg *gs, const AsgMatrix * __restrict mat);
 void asg_matrix_identity(AsgMatrix *mat);
 void asg_matrix_translate(AsgMatrix *mat, float x, float y);
 void asg_matrix_scale(AsgMatrix *mat, float x, float y);
+void asg_matrix_shear(AsgMatrix *mat, float x, float y);
 void asg_matrix_rotate(AsgMatrix *mat, float rad);
 void asg_matrix_multiply(AsgMatrix * __restrict a, const AsgMatrix * __restrict b);
 
@@ -238,7 +248,9 @@ void asg_fill_path(
     const wchar_t *asg_get_font_family(const AsgFont *font);
     const wchar_t *asg_get_font_name(const AsgFont *font);
     const wchar_t *asg_get_font_style_name(const AsgFont *font);
-
+    char *asg_get_font_features(const AsgFont *font);
+    void asg_set_font_features(AsgFont *font, const uint8_t *features);
+    
     // CHARACTER BASED
         float asg_get_char_lsb(const AsgFont *font, unsigned c);
         float asg_get_char_width(const AsgFont *font, unsigned c);
@@ -269,7 +281,7 @@ void asg_fill_path(
             const AsgMatrix *ctm,
             unsigned c);
     // GLYPH BASED
-        int asg_get_glyph(const AsgFont *font, unsigned c);
+        unsigned asg_get_glyph(const AsgFont *font, unsigned c);
         float asg_get_glyph_lsb(const AsgFont *font, unsigned g);
         float asg_get_glyph_width(const AsgFont *font, unsigned g);
         float asg_fill_glyph(
@@ -338,7 +350,8 @@ void asg_fill_path(
         unsigned c);
 
     // GLYPH-BASED
-    int asg_get_otf_glyph(const AsgOTF *font, unsigned c);
+    unsigned asg_get_otf_glyph(const AsgOTF *font, unsigned c);
+    void asg_substitute_otf_glyph(AsgOTF *font, uint16_t in, uint16_t out);
     float asg_get_otf_glyph_lsb(const AsgOTF *font, unsigned g);
     float asg_get_otf_glyph_width(const AsgOTF *font, unsigned g);
     float asg_otf_draw_glyph(

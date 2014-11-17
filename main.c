@@ -1728,6 +1728,8 @@ configfont() {
 	float	dpi;
 	float	sy;
 	float	sx;
+	int	i;
+	char	features[128];
 	
 	/* Get device resolution */
 	hdc = GetDC(0);
@@ -1755,6 +1757,15 @@ configfont() {
 	if (!font[1]) font[1] = asg_open_font_variant(family, weight, italic, stretch);
 	if (!font[2]) font[2] = asg_open_font_variant(family, weight, italic, stretch);
 	if (!font[3]) font[3] = asg_open_font_variant(family, weight, italic, stretch);
+	
+	
+	for (i = 0; conf.fontfeatures[i]; i++)
+		features[i] = conf.fontfeatures[i];
+	features[i] = 0;
+	printf("%s\n", features);
+	
+	for (i = 0; i < 4; i++)
+		asg_set_font_features(font[i], features);
 	
 	sy = conf.fontsz * dpi/72.f;
 	sx = sy * conf.fontasp;

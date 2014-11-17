@@ -16,6 +16,7 @@ struct conf {
 		
 	/* Font specifications */
 	wchar_t		fontname[128];
+	wchar_t		fontfeatures[128];
 	double		fontsz;
 	double		fontasp;
 	int		fontweight;
