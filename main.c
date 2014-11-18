@@ -44,6 +44,7 @@ int		font_aheight;	/* Ascender height */
 int		font_lheight;	/* Line height */
 int		font_em;	/* Width of 'M' */
 int		font_tabw;	/* Tab width */
+int		total_margin;
 HMENU		encodingmenu;
 BOOL		use_console = TRUE;
 BOOL		transparent = FALSE;
@@ -103,7 +104,7 @@ ind2px(int ln, int ind) {
 		px += txt[i]=='\t'
 			? tab - (px + tab) % tab
 			: charwidth(txt[i]);
-	return px + global.margin * font_em;
+	return px + total_margin;
 }
 
 static
@@ -113,7 +114,7 @@ px2ind(int ln, int x) {
 
 	txt=getb(b, ln, 0);
 	px=0;
-	x-=global.margin * font_em;
+	x-=total_margin;
 	tab=font_tabw;
 	for (i=0; txt[i] && px<x; i++)
 		px += txt[i]=='\t'
@@ -1223,23 +1224,28 @@ paintsel(HDC dc) {
 	return 1;
 }
 
-blurtext(AsgFont *font, int x, int y, wchar_t *txt, int n, COLORREF bg, COLORREF fg) {
+blurtext(int fontno, int x, int y, wchar_t *txt, int n, COLORREF bg, COLORREF fg) {
 	wchar_t *p;
 	wchar_t *end = txt + n;
-	int margin = global.margin * font_em;
+	int margin = total_margin;
+	int faux_bold = (fontno & 1) && asg_get_font_weight(font[fontno]) < 600;
+	AsgMatrix ctm;
 	
 	/* Swap R & G because windows RGB macro builds them backwards */
 	fg = 0xff000000 |
 		(fg >> 16 & 255) |
 		fg & 0x00ff00 |
 		(fg & 255) << 16;
-		
+	
 	AsgPoint at = asg_pt(x, y);
 	for (p = txt; p < end; p++) {
 		if (*p == '\t')
 			at.x += font_tabw - fmod(at.x - margin + font_tabw, font_tabw);
-		else
-			at.x += (int)asg_fill_char(gs, font, at, *p, fg);
+		else {
+			if (faux_bold)
+				asg_fill_char(gs, font[fontno], asg_pt(at.x + 1, at.y), *p, fg);
+			at.x += (int)asg_fill_char(gs, font[fontno], at, *p, fg);
+		}
 	}
 }
 
@@ -1265,7 +1271,7 @@ paintstatus(HDC dc) {
 			ind2col(SLN, SIND),
 			SLN==LN? abs(SIND-IND): abs(SLN-LN)+1,
 			SLN==LN? L"chars": L"lines");
-	blurtext(font[0], 0,
+	blurtext(0, 0,
 		height-font_lheight+(font_lheight-font_aheight)/2,
 		buf, len, conf.fg, conf.bg);
 }
@@ -1313,11 +1319,11 @@ paintline(HDC dc, int x, int y, int line) {
 			int style=conf.style[lang.kwd_color[k]].style;
 			
 			/* Draw the preceding section */
-			blurtext(font[0], x, y, i, j-i, bg,conf.fg);
+			blurtext(0, x, y, i, j-i, bg,conf.fg);
 			x=ind2px(line, j-txt);
 			
 			/* Then draw the keyword */
-			blurtext(font[style], x,y, j, sect,
+			blurtext(style, x,y, j, sect,
 				bg, conf.style[lang.kwd_color[k]].color);
 			SetTextColor(dc, conf.fg);
 			i=j+=sect;
@@ -1329,7 +1335,7 @@ paintline(HDC dc, int x, int y, int line) {
 			j++;
 	}
 	if (j>i)
-		blurtext(font[0], x,y, i, j-i, bg, conf.fg);
+		blurtext(0, x,y, i, j-i, bg, conf.fg);
 }
 
 paintlines(HDC dc, int first, int last) {
@@ -1338,7 +1344,7 @@ paintlines(HDC dc, int first, int last) {
 	SetTextColor(dc, conf.fg);
 	for (line=first; line<=last; line++, _y += font_lheight)
 		paintline(dc,
-			global.margin * font_em,
+			total_margin,
 			_y + (font_lheight-font_aheight)/2, line);
 }
 
@@ -1403,9 +1409,10 @@ paint(PAINTSTRUCT *ps) {
 		HPEN pen;
 		int i, n=sizeof global.wire/sizeof *global.wire;
 		pen = CreatePen(PS_DOT, 1, conf.fg);
+		SetBkMode(ddc, TRANSPARENT);
 		SelectObject(ddc, pen);
 		for (i=0; i<n; i++) {
-			x=global.wire[i]*font_em;
+			x=total_margin + global.wire[i] * font_em;
 			MoveToEx(ddc, x, ps->rcPaint.top, 0);
 			LineTo(ddc, x, ps->rcPaint.bottom);
 		}
@@ -1599,6 +1606,9 @@ WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 		gs->width = width + 3 & ~3;
 		gs->height = height;
 		gs->buf = BitmapBuffer;
+		total_margin = conf.fixed_margin * font_em
+			+ conf.margin_percent / 100.0 * (width - conf.fixed_margin * font_em);
+		movecaret();
 		SelectObject(ddc, dbmp);
 		ReleaseDC(hwnd, dc);
 		return 0;
@@ -1750,9 +1760,9 @@ configfont() {
 	const wchar_t *family = asg_get_font_family(font[0]);
 	bool italic = asg_is_font_italic(font[0]);
 	
-	font[1] = asg_open_font_variant(family, (weight + 300) % 900, italic, stretch);
+	font[1] = asg_open_font_variant(family, min(weight + 300, 900), italic, stretch);
 	font[2] = asg_open_font_variant(family, weight, !italic, stretch);
-	font[3] = asg_open_font_variant(family, (weight + 300) % 900, !italic, stretch);
+	font[3] = asg_open_font_variant(family, min(weight + 300, 900), !italic, stretch);
 	
 	if (!font[1]) font[1] = asg_open_font_variant(family, weight, italic, stretch);
 	if (!font[2]) font[2] = asg_open_font_variant(family, weight, italic, stretch);
@@ -1762,7 +1772,6 @@ configfont() {
 	for (i = 0; conf.fontfeatures[i]; i++)
 		features[i] = conf.fontfeatures[i];
 	features[i] = 0;
-	printf("%s\n", features);
 	
 	for (i = 0; i < 4; i++)
 		asg_set_font_features(font[i], features);
@@ -1780,6 +1789,9 @@ configfont() {
 	font_lheight = font_aheight * conf.leading;
 	font_em = asg_get_char_width(font[0], 'M');
 	font_tabw = font_em * file.tabc;
+	
+	total_margin = conf.fixed_margin * font_em
+		+ conf.margin_percent / 100.0 * (width - conf.fixed_margin * font_em);
 	
 	return 1;
 }

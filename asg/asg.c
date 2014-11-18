@@ -1471,11 +1471,13 @@ void asg_set_otf_features(AsgOTF *font, const uint8_t *features) {
     free(font->features);
     free(font->subst);
     font->nsubst = 0;
+    font->subst = NULL;
     font->features = (void*)strdup(features);
-    lookup_otf_features(font, font->gsub, font->script, font->lang, features, gsub_handler);
+    if (*features)
+        lookup_otf_features(font, font->gsub, font->script, font->lang, features, gsub_handler);
 }
 void asg_substitute_otf_glyph(AsgOTF *font, uint16_t in, uint16_t out) {
-    font->subst = realloc(font->subst, (font->nsubst + 1) * 2 * sizeof *font->subst);
+    font->subst = realloc(font->subst, (font->nsubst + 1) * sizeof *font->subst);
     font->subst[font->nsubst][0] = in;
     font->subst[font->nsubst][1] = out;
     font->nsubst++;

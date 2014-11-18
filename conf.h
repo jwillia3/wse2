@@ -13,6 +13,8 @@ struct conf {
 	int		bookmarkbg;
 	struct textstyle style[8];
 	wchar_t		bgimage[128];
+	int		fixed_margin;
+	double		margin_percent;
 		
 	/* Font specifications */
 	wchar_t		fontname[128];
@@ -32,7 +34,6 @@ struct file {
 struct {
 	int		rows;
 	int		cols;
-	int		margin;
 	int		wire[4];
 	double		alpha;
 	wchar_t		shell[128];

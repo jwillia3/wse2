@@ -22,12 +22,14 @@ struct field {
 	wchar_t	*name;
 	int	type;
 	void	*ptr;
+	void	(*exec)(void *);
 };
 
 static wchar_t	font_spec[4096];
 
+void nice_colours_bg(void *colourp);
 static struct	field fields[] = {
-		{L"bg_color", Color, &conf.bg},
+		{L"bg_color", Color, &conf.bg, nice_colours_bg},
 		{L"bg_color2", Color, &conf.bg2},
 		{L"fg_color", Color, &conf.fg},
 		{L"select_color", Color, &conf.selbg},
@@ -43,6 +45,8 @@ static struct	field fields[] = {
 		{L"style5", Style, &conf.style[5]},
 		{L"style6", Style, &conf.style[6]},
 		{L"style7", Style, &conf.style[7]},
+		{L"fixed_margin", Int, &conf.fixed_margin},
+		{L"margin%", Float, &conf.margin_percent},
 		
 		{L"font", String, font_spec},
 				
@@ -58,8 +62,8 @@ static struct	field fields[] = {
 		{L"use_tabs", Boolean, &file.usetabs},
 		{L"use_bom", Boolean, &file.usebom},
 		{L"use_crlf", Boolean, &file.usecrlf},
-		{L"margin", Int, &global.margin},
-		{L"wire", Int, global.wire},
+		
+		{L"wire1", Int, global.wire},
 		{L"wire2", Int, global.wire+1},
 		{L"wire3", Int, global.wire+2},
 		{L"wire4", Int, global.wire+3},
@@ -73,7 +77,6 @@ defglobals() {
 	global.alpha = .9;
 	global.rows = 24;
 	global.cols = 80;
-	global.margin = 1;
 	global.wire[0] = 64;
 	global.wire[1] = 72;
 	global.wire[2] = 80;
@@ -124,6 +127,8 @@ defconfig() {
 	conf.leading = 1.125;
 	*conf.fontfeatures = 0;
 	*font_spec = 0;
+	conf.fixed_margin = 1;
+	conf.margin_percent = 0;
 	return 1;
 }
 
@@ -162,8 +167,6 @@ configfont(wchar_t *spec) {
 	
 	if (!*conf.fontname)
 		wcscpy(conf.fontname, L"Courier new");
-//	if (!conf.leading)
-//		conf.leading = 1.125;
 
 }
 
@@ -200,49 +203,91 @@ directive(wchar_t *s) {
 	return 1;
 }
 
+static unsigned
+hsy_to_rgb(double h, double s, double y) {
+	float x, r1,g1,b1, m;
+	unsigned char r, g, b;
+	h /= 60.0;
+	x = s * (1 - fabs(fmod(h, 2) - 1));
+	if (0 <= h && h <= 1)	r1 = s, g1 = x, b1 = 0;
+	else if (h <= 2)	r1 = x, g1 = s, b1 = 0;
+	else if (h <= 3) 	r1 = 0, g1 = s, b1 = x;
+	else if (h <= 4) 	r1 = 0, g1 = x, b1 = s;
+	else if (h <= 5) 	r1 = x, g1 = 0, b1 = s;
+	else if (h <= 6) 	r1 = s, g1 = 0, b1 = x;
+	else	 		r1 = 0, g1 = 0, b1 = 0;
+	m = y - (.3*r1 + .59*g1 + .11*b1);
+	r = 255 * (r1 + m);
+	g = 255 * (g1 + m);
+	b = 255 * (b1 + m);
+	if (r < 0) r = 0; else if (r > 255) r = 255;
+	if (g < 0) g = 0; else if (g > 255) g = 255;
+	if (b < 0) b = 0; else if (b > 255) b = 255;
+	return ((unsigned)b<<16)+
+		((unsigned)g<<8)+
+		((unsigned)r);
+}
+static unsigned
+hsv_to_rgb(double h, double s, double v) {
+	double r,g,b, f, p,q,t;
+	h /= 60.0;
+	f = h - floor(h);
+	p = v * (1.0 - s);
+	q = v * (1.0 - s * f);
+	t = v * (1.0 - s * (1.0 - f));
+	if (h < 1.0) r=v, g=t, b=p;
+	else if (h < 2.0) r=q, g=v, b=p;
+	else if (h < 3.0) r=p, g=v, b=t;
+	else if (h < 4.0) r=p, g=q, b=v;
+	else if (h < 5.0) r=t, g=p, b=v;
+	else r=v, g=p, b=q;
+	return ((unsigned)(b*255)<<16)+
+		((unsigned)(g*255)<<8)+
+		((unsigned)(r*255));
+}
+
+static
+rgb_to_hsv(unsigned rgb, double *h, double *s, double *v) {
+	double r = (rgb & 255) / 255.0;
+	double g = (rgb >> 8 & 255) / 255.0;
+	double b = (rgb >> 16 & 255) / 255.0;
+	
+	double maxc = max(r, max(g, b));
+	double minc = min(r, min(g, b));
+	double c = maxc - minc;
+	
+	*h =60 * (c == 0? 0.0:
+		maxc == r? fmod((g - b) / c, 6.0):
+		maxc == g? (b - r) / c + 2.0:
+		(r-g)/c + 4.0);
+	*v = maxc;
+	*s = maxc? c / *v: 0.0;
+}
+
+void nice_colours_bg(void *colourp) {
+	unsigned	colour = *(unsigned*)colourp;
+	int		i;
+	double		h,s,v;
+	
+	rgb_to_hsv(colour, &h, &s, &v);
+	conf.bg2 = colour;
+	conf.fg = hsv_to_rgb(h, s, v >= .5? v - .5: v + .5);
+	conf.style[0].color = colour;
+	for (i = 1; i < 8; i++)
+		conf.style[i].color = conf.fg;
+	conf.selbg = hsv_to_rgb(h, s, v >= .5? v - .1: v + .2);
+}
+
 static
 getcolor(wchar_t *arg) {
 	double		h, s, v; /* hue,chroma,luma */
 	double		y; /* luma (Y'601) */
 	int		r,g,b;
-	if (3 == swscanf(arg, L"hsy %lf %lf %lf", &h,&s,&y)) {
-		float x, r1,g1,b1, m;
-		h /= 60.0;
-		x = s * (1 - fabs(fmod(h, 2) - 1));
-		if (0 <= h && h <= 1)	r1 = s, g1 = x, b1 = 0;
-		else if (h <= 2)	r1 = x, g1 = s, b1 = 0;
-		else if (h <= 3) 	r1 = 0, g1 = s, b1 = x;
-		else if (h <= 4) 	r1 = 0, g1 = x, b1 = s;
-		else if (h <= 5) 	r1 = x, g1 = 0, b1 = s;
-		else if (h <= 6) 	r1 = s, g1 = 0, b1 = x;
-		else	 		r1 = 0, g1 = 0, b1 = 0;
-		m = y - (.3*r1 + .59*g1 + .11*b1);
-		r = 255 * (r1 + m);
-		g = 255 * (g1 + m);
-		b = 255 * (b1 + m);
-		if (r < 0) r = 0; else if (r > 255) r = 255;
-		if (g < 0) g = 0; else if (g > 255) g = 255;
-		if (b < 0) b = 0; else if (b > 255) b = 255;
-		return ((unsigned)b<<16)+
-			((unsigned)g<<8)+
-			((unsigned)r);
-	} else if (3 == swscanf(arg, L"hsl %lf %lf %lf", &h,&s,&v)) {
-		double r,g,b, f, p,q,t;
-		h /= 60.0;
-		f = h - floor(h);
-		p = v * (1.0 - s);
-		q = v * (1.0 - s * f);
-		t = v * (1.0 - s * (1.0 - f));
-		if (h < 1.0) r=v, g=t, b=p;
-		else if (h < 2.0) r=q, g=v, b=p;
-		else if (h < 3.0) r=p, g=v, b=t;
-		else if (h < 4.0) r=p, g=q, b=v;
-		else if (h < 5.0) r=t, g=p, b=v;
-		else r=v, g=p, b=q;
-		return ((unsigned)(b*255)<<16)+
-			((unsigned)(g*255)<<8)+
-			((unsigned)(r*255));
-	} else if (3 == swscanf(arg, L"%d %d %d", &r,&g,&b)
+	if (3 == swscanf(arg, L"hsy %lf %lf %lf", &h,&s,&y))
+		return hsy_to_rgb(h,s,y);
+	else if (3 == swscanf(arg, L"hsl %lf %lf %lf", &h,&s,&v))
+		return hsv_to_rgb(h,s,v);
+	else if (3 == swscanf(arg, L"%d %d %d", &r,&g,&b)
 	  || 3 == swscanf(arg, L"rgb %d %d %d", &r,&g,&b)) {
 		return (b<<16)+(g<<8)+r;
 	}
@@ -291,6 +336,8 @@ configline(int ln, wchar_t *s) {
 
 	case Color:
 		*(int*)cf->ptr = getcolor(arg);
+		if (cf->exec)
+			cf->exec(cf->ptr);
 		return 1;
 	
 	case Style:
