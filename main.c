@@ -1223,7 +1223,7 @@ paintsel(HDC dc) {
 	return 1;
 }
 
-blurtext(int fontno, int x, int y, wchar_t *txt, int n, COLORREF bg, COLORREF fg) {
+blurtext(int fontno, int x, int y, wchar_t *txt, int n, COLORREF fg) {
 	wchar_t *p;
 	wchar_t *end = txt + n;
 	int margin = total_margin;
@@ -1272,7 +1272,7 @@ paintstatus(HDC dc) {
 			SLN==LN? L"chars": L"lines");
 	blurtext(0, 0,
 		height-font_lheight+(font_lheight-font_aheight)/2,
-		buf, len, conf.fg, conf.bg);
+		buf, len, conf.bg);
 }
 
 #include "re.h"
@@ -1282,14 +1282,6 @@ paintline(HDC dc, int x, int y, int line) {
 	void	*txt = getb(b,line,&len);
 	unsigned short *i = txt, *j = txt, *end = i + len;
 	SIZE	size;
-	COLORREF bg;
-	
-	if (iscommentline(line))
-		bg=conf.style[lang.commentcol].color;
-	else if (line%2==0)
-		bg=conf.bg;
-	else
-		bg=conf.bg2;
 	
 	if (using_isearch) {
 		wchar_t *i = txt;
@@ -1318,12 +1310,12 @@ paintline(HDC dc, int x, int y, int line) {
 			int style=conf.style[lang.kwd_color[k]].style;
 			
 			/* Draw the preceding section */
-			blurtext(0, x, y, i, j-i, bg,conf.fg);
+			blurtext(0, x, y, i, j-i, conf.fg);
 			x=ind2px(line, j-txt);
 			
 			/* Then draw the keyword */
 			blurtext(style, x,y, j, sect,
-				bg, conf.style[lang.kwd_color[k]].color);
+				conf.style[lang.kwd_color[k]].color);
 			SetTextColor(dc, conf.fg);
 			i=j+=sect;
 			x=ind2px(line,j-txt);
@@ -1334,7 +1326,7 @@ paintline(HDC dc, int x, int y, int line) {
 			j++;
 	}
 	if (j>i)
-		blurtext(0, x,y, i, j-i, bg, conf.fg);
+		blurtext(0, x,y, i, j-i, conf.fg);
 }
 
 paintlines(HDC dc, int first, int last) {
@@ -1345,14 +1337,6 @@ paintlines(HDC dc, int first, int last) {
 		paintline(dc,
 			total_margin,
 			_y + (font_lheight-font_aheight)/2, line);
-}
-
-iscommentline(int line) {
-	wchar_t	*txt;
-	int 	clen,len;
-	txt = getb(b, line, &len);
-	clen=wcslen(lang.comment);
-	return clen && !wcsncmp(txt, lang.comment, clen);
 }
 
 paint(PAINTSTRUCT *ps) {
@@ -1386,14 +1370,10 @@ paint(PAINTSTRUCT *ps) {
 		}
 	}
 	
-	/* Draw comment and bookmark line's background */
+	/* Draw bookmark line's background */
 	y=line2px(first);
 	for (i=first; i<=last; i++) {
-		if (iscommentline(i)) {
-			SetDCPenColor(ddc, conf.style[lang.commentcol].color);
-			SetDCBrushColor(ddc, conf.style[lang.commentcol].color);
-			Rectangle(ddc, 0, y, width, y+font_lheight);
-		} else if (isbookmarked(i)) {
+		if (isbookmarked(i)) {
 			SetDCPenColor(ddc, conf.bookmarkbg);
 			SetDCBrushColor(ddc, conf.bookmarkbg);
 			Rectangle(ddc, 0, y, width, y+font_lheight);

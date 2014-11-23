@@ -49,7 +49,7 @@ struct lang {
 	wchar_t		kwd_color[KWD_MAX];
 	unsigned	kwd_opt[KWD_MAX];
 	wchar_t		cmdwrapper[128];
-	int		nkwd, commentcol;
+	int		nkwd;
 } lang;
 
 wchar_t		*configfile;

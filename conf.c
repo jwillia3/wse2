@@ -37,14 +37,14 @@ static struct	field fields[] = {
 		{L"bookmark_color", Color, &conf.bookmarkbg},
 		{L"bg_image", String, &conf.bgimage},
 		
-		{L"style0", Style, &conf.style[0]},
-		{L"style1", Style, &conf.style[1]},
-		{L"style2", Style, &conf.style[2]},
-		{L"style3", Style, &conf.style[3]},
-		{L"style4", Style, &conf.style[4]},
-		{L"style5", Style, &conf.style[5]},
-		{L"style6", Style, &conf.style[6]},
-		{L"style7", Style, &conf.style[7]},
+		{L"style1", Style, &conf.style[0]},
+		{L"style2", Style, &conf.style[1]},
+		{L"style3", Style, &conf.style[2]},
+		{L"style4", Style, &conf.style[3]},
+		{L"style5", Style, &conf.style[4]},
+		{L"style6", Style, &conf.style[5]},
+		{L"style7", Style, &conf.style[6]},
+		{L"style8", Style, &conf.style[7]},
 		{L"fixed_margin", Int, &conf.fixed_margin},
 		{L"margin%", Float, &conf.margin_percent},
 		
@@ -52,7 +52,6 @@ static struct	field fields[] = {
 				
 		{L"ext", String, &lang.ext},
 		{L"comment", String, &lang.comment},
-		{L"comment_color", Int, &lang.commentcol},
 		{L"break", String, &lang.brk},
 		{L"brace", String, &lang.brace},
 		{L"kwd", Keyword, 0},
@@ -104,7 +103,6 @@ deflang() {
 	memset(lang.kwd_opt,0,sizeof lang.kwd_opt);
 	wcscpy(lang.cmdwrapper, L"cmd /c %ls & pause >nul");
 	lang.nkwd=0;
-	lang.commentcol=0;
 }
 
 static
@@ -116,7 +114,6 @@ defconfig() {
 	conf.selbg = RGB(240,240,255);
 	conf.isearchbg = RGB(255,255,0);
 	conf.bookmarkbg = RGB(255,200,255);
-	conf.style[0].color = RGB(255,255,255);
 	wcscpy(conf.bgimage, L"");
 	
 	wcscpy(conf.fontname, L"Courier New");
@@ -272,8 +269,7 @@ void nice_colours_bg(void *colourp) {
 	rgb_to_hsv(colour, &h, &s, &v);
 	conf.bg2 = colour;
 	conf.fg = hsv_to_rgb(h, s, v >= .5? v - .5: v + .5);
-	conf.style[0].color = colour;
-	for (i = 1; i < 8; i++)
+	for (i = 0; i < 8; i++)
 		conf.style[i].color = conf.fg;
 	conf.selbg = hsv_to_rgb(h, s, v >= .5? v - .1: v + .2);
 }
@@ -367,7 +363,7 @@ configline(int ln, wchar_t *s) {
 		return 1;
 	
 	case Keyword:
-		lang.kwd_color[lang.nkwd] = wcstoul(arg,&arg,0);
+		lang.kwd_color[lang.nkwd] = wcstoul(arg,&arg,0) - 1;
 		while (iswspace(*arg))
 			arg++;
 		wcscpy(lang.kwd_re[lang.nkwd], arg);
