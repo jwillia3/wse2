@@ -275,7 +275,7 @@ void nice_colours_bg(void *colourp) {
 }
 
 static
-getcolor(wchar_t *arg) {
+getcolor(wchar_t *arg, unsigned colour) {
 	double		h, s, v; /* hue,chroma,luma */
 	double		y; /* luma (Y'601) */
 	int		r,g,b;
@@ -287,7 +287,7 @@ getcolor(wchar_t *arg) {
 	  || 3 == swscanf(arg, L"rgb %d %d %d", &r,&g,&b)) {
 		return (b<<16)+(g<<8)+r;
 	}
-	return 0;
+	return colour;
 }
 
 static
@@ -331,7 +331,7 @@ configline(int ln, wchar_t *s) {
 		return 1;
 
 	case Color:
-		*(int*)cf->ptr = getcolor(arg);
+		*(unsigned*)cf->ptr = getcolor(arg, *(unsigned*)cf->ptr);
 		if (cf->exec)
 			cf->exec(cf->ptr);
 		return 1;
@@ -351,7 +351,7 @@ configline(int ln, wchar_t *s) {
 			else
 				break;
 		}
-		style->color = getcolor(arg);
+		style->color = getcolor(arg, style->color);
 		return 1;
 	
 	case Float:
