@@ -32,8 +32,8 @@ struct file {
 	int		usecrlf;
 } file;
 struct {
-	int		rows;
-	int		cols;
+	int		initwidth;
+	int		initheight;
 	int		wire[4];
 	double		alpha;
 	wchar_t		shell[128];

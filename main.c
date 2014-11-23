@@ -1868,10 +1868,10 @@ init() {
 		WS_EX_ACCEPTFILES|WS_EX_LAYERED,
 		L"Window", L"",
 		WS_OVERLAPPEDWINDOW|WS_VISIBLE,
-		max(0, (rt.right-rt.left)/2 - global.cols*font_em/2),
-		max(0, (rt.bottom-rt.top)/2 - (global.rows+1)*font_lheight/2),
-		global.cols * font_em,
-		(global.rows+1) * font_lheight,
+		max(0, (rt.right-rt.left)/2 - global.initwidth/2),
+		max(0, (rt.bottom-rt.top)/2 - global.initheight/2),
+		global.initwidth,
+		global.initheight,
 		NULL, menu, GetModuleHandle(0), NULL);
 	SetLayeredWindowAttributes(w, 0, 255, LWA_ALPHA);
 	reinitconfig();
