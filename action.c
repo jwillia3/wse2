@@ -128,36 +128,33 @@ isearchsearchline(int ln, int ind, int end, wchar_t *query) {
 	wchar_t *at = wcsistr(text + ind, query);
 	if (!at || at - text >= end)
 		return 0;
-//	gob(b, ln, at - text + wcslen(query));
-//	_act(EndSelection);
-//	_act(StartSelection);
 	gob(b, ln, at - text);
 	return 1;
 }
 
-actisearch(wchar_t *query, int down) {
+actisearch(wchar_t *query, int down, int skip) {
 	int		i;
 	
 	if (down) {
-		if (isearchsearchline(LN, IND, lenb(b, LN), query))
+		if (isearchsearchline(LN, IND+skip, lenb(b, LN), query))
 			return 1;
 		for (i=LN+1; i<=NLINES; i++)
-			if (isearchsearchline(i, 0, lenb(b, LN), query))
+			if (isearchsearchline(i, 0, lenb(b, i), query))
 				return 1;
 		for (i=1; i<LN; i++)
-			if (isearchsearchline(i, 0, lenb(b, LN), query))
+			if (isearchsearchline(i, 0, lenb(b, i), query))
 				return 1;
 		return isearchsearchline(LN, 0, lenb(b, LN), query);
 	} else {
-		if (isearchsearchline(LN, 0, IND, query))
+		if (isearchsearchline(LN, 0, IND-skip, query))
 			return 1;
 		for (i=LN-1; i>=1; i--)
-			if (isearchsearchline(i, 0, lenb(b, LN), query))
+			if (isearchsearchline(i, 0, lenb(b, i), query))
 				return 1;
 		for (i=NLINES; i>LN; i--)
-			if (isearchsearchline(i, 0, lenb(b, LN), query))
+			if (isearchsearchline(i, 0, lenb(b, i), query))
 				return 1;
-		return isearchsearchline(LN, 0, lenb(b, LN), query);
+		return isearchsearchline(LN, 0, lenb(b, i), query);
 	}
 }
 

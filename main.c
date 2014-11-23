@@ -888,14 +888,14 @@ isearch_insert(int c) {
 		isearchlength - isearchcursor);
 	fr.lpstrFindWhat[isearchcursor++] = c;
 	fr.lpstrFindWhat[++isearchlength] = 0;
-	autoisearch();
+	autoisearch(0);
 }
 isearch_delete() {
 	wmemmove(fr.lpstrFindWhat + isearchcursor,
 		fr.lpstrFindWhat + isearchcursor + 1,
 		isearchlength - isearchcursor);
 	fr.lpstrFindWhat[--isearchlength] = 0;
-	autoisearch();
+	autoisearch(0);
 }
 isearch_move(int dir) {
 	if (dir > 0 && dir + isearchcursor <= isearchlength)
@@ -920,10 +920,9 @@ wmchar_isearch(int c, int ctl, int shift) {
 	} else if (c == '\t') { // tab
 		editing_isearch = !editing_isearch;
 		invdafter(top);
-	} else if (c == 13) { // enter
-		act(MoveRight);
-		autoisearch();
-	} else if (c == 22) { // ^V
+	} else if (c == 13) // enter
+		autoisearch(1);
+	else if (c == 22) { // ^V
 		wchar_t *text;
 		if (!OpenClipboard(w))
 			return 0;
@@ -935,8 +934,8 @@ wmchar_isearch(int c, int ctl, int shift) {
 	return 1;
 }
 
-autoisearch() {
-	int ok = actisearch(fr.lpstrFindWhat, fr.Flags & FR_DOWN);
+autoisearch(int skip) {
+	int ok = actisearch(fr.lpstrFindWhat, fr.Flags & FR_DOWN, skip);
 	invdafter(top);
 	return ok;
 }
@@ -1090,6 +1089,9 @@ wmkey_isearch(int c, int ctl, int shift) {
 	case VK_RIGHT:
 		isearch_move(1);
 		break;
+	case VK_F3:
+		wmchar_isearch(13, ctl, shift);
+		break;
 	}
 	return 1;
 }
@@ -1160,13 +1162,10 @@ wmkey(int c) {
 		act(EndSelection);
 		if (shift) {
 			fr.Flags ^= FR_DOWN;
-			autoisearch();
+			autoisearch(-1);
 			fr.Flags ^= FR_DOWN;
-		} else {
-			act(MoveRight);
-			if (!autoisearch())
-				act(MoveLeft);
-		}
+		} else
+			autoisearch(1);
 		return 1;
 	
 	case VK_F5:
