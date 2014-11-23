@@ -1585,8 +1585,10 @@ WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 		gs->width = width + 3 & ~3;
 		gs->height = height;
 		gs->buf = BitmapBuffer;
-		total_margin = conf.fixed_margin * font_em
-			+ conf.margin_percent / 100.0 * (width - conf.fixed_margin * font_em);
+		total_margin = conf.fixed_margin +
+			(conf.center && global.initwidth < width?
+				(width - global.initwidth) / 2:
+				0);
 		movecaret();
 		SelectObject(ddc, dbmp);
 		ReleaseDC(hwnd, dc);
@@ -1769,8 +1771,10 @@ configfont() {
 	font_em = asg_get_char_width(font[0], 'M');
 	font_tabw = font_em * file.tabc;
 	
-	total_margin = conf.fixed_margin * font_em
-		+ conf.margin_percent / 100.0 * (width - conf.fixed_margin * font_em);
+	total_margin = conf.fixed_margin +
+			(conf.center && global.initwidth < width?
+				(width - global.initwidth) / 2:
+				0);
 	
 	return 1;
 }

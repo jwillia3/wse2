@@ -46,7 +46,7 @@ static struct	field fields[] = {
 		{L"style7", Style, &conf.style[6]},
 		{L"style8", Style, &conf.style[7]},
 		{L"fixed_margin", Int, &conf.fixed_margin},
-		{L"margin%", Float, &conf.margin_percent},
+		{L"center", Boolean, &conf.center},
 		
 		{L"font", String, font_spec},
 				
@@ -125,7 +125,7 @@ defconfig() {
 	*conf.fontfeatures = 0;
 	*font_spec = 0;
 	conf.fixed_margin = 1;
-	conf.margin_percent = 0;
+	conf.center = 1;
 	return 1;
 }
 
