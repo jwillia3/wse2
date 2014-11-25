@@ -1733,7 +1733,7 @@ AsgFont *asg_open_font_file(const wchar_t *filename, int font_index, bool scan_o
 AsgFont *asg_open_font_variant(const wchar_t *family, AsgFontWeight weight, bool italic, AsgFontStretch stretch) {
     if (weight < 100) weight = 400;
     if (stretch < 1) stretch = 0;
-    if (weight < 900 && stretch < 900) {
+    if (weight <= 900 && stretch <= 9) {
         if (Families == NULL)
             asg_scan_fonts(NULL, NULL);
         
