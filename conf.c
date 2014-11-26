@@ -28,13 +28,14 @@ struct field {
 static wchar_t	font_spec[4096];
 
 void nice_colours_bg(void *colourp);
+void nice_colours_fg(void *colourp);
 static struct	field fields[] = {
-		{L"bg_color", Color, &conf.bg, nice_colours_bg},
-		{L"bg_color2", Color, &conf.bg2},
-		{L"fg_color", Color, &conf.fg},
-		{L"select_color", Color, &conf.selbg},
-		{L"isearch_color", Color, &conf.isearchbg},
-		{L"bookmark_color", Color, &conf.bookmarkbg},
+		{L"bg", Color, &conf.bg, nice_colours_bg},
+		{L"bg2", Color, &conf.bg2},
+		{L"fg", Color, &conf.fg, nice_colours_fg},
+		{L"select", Color, &conf.selbg},
+		{L"isearch", Color, &conf.isearchbg},
+		{L"bookmark", Color, &conf.bookmarkbg},
 		{L"bg_image", String, &conf.bgimage},
 		
 		{L"style1", Style, &conf.style[0]},
@@ -201,32 +202,11 @@ directive(wchar_t *s) {
 }
 
 static unsigned
-hsy_to_rgb(double h, double s, double y) {
-	float x, r1,g1,b1, m;
-	unsigned char r, g, b;
-	h /= 60.0;
-	x = s * (1 - fabs(fmod(h, 2) - 1));
-	if (0 <= h && h <= 1)	r1 = s, g1 = x, b1 = 0;
-	else if (h <= 2)	r1 = x, g1 = s, b1 = 0;
-	else if (h <= 3) 	r1 = 0, g1 = s, b1 = x;
-	else if (h <= 4) 	r1 = 0, g1 = x, b1 = s;
-	else if (h <= 5) 	r1 = x, g1 = 0, b1 = s;
-	else if (h <= 6) 	r1 = s, g1 = 0, b1 = x;
-	else	 		r1 = 0, g1 = 0, b1 = 0;
-	m = y - (.3*r1 + .59*g1 + .11*b1);
-	r = 255 * (r1 + m);
-	g = 255 * (g1 + m);
-	b = 255 * (b1 + m);
-	if (r < 0) r = 0; else if (r > 255) r = 255;
-	if (g < 0) g = 0; else if (g > 255) g = 255;
-	if (b < 0) b = 0; else if (b > 255) b = 255;
-	return ((unsigned)b<<16)+
-		((unsigned)g<<8)+
-		((unsigned)r);
-}
-static unsigned
 hsv_to_rgb(double h, double s, double v) {
 	double r,g,b, f, p,q,t;
+	while (h < 0)
+		h += 360;
+	h = fmod(h, 360);
 	h /= 60.0;
 	f = h - floor(h);
 	p = v * (1.0 - s);
@@ -261,30 +241,46 @@ rgb_to_hsv(unsigned rgb, double *h, double *s, double *v) {
 	*s = maxc? c / *v: 0.0;
 }
 
+void nice_colours_fg(unsigned *colour) {
+	int i;
+	
+	conf.fg = *colour;
+	for (i = 0; i < 8; i++)
+		conf.style[i].color = conf.fg;
+}
 void nice_colours_bg(void *colourp) {
 	unsigned	colour = *(unsigned*)colourp;
-	int		i;
 	double		h,s,v;
 	
 	rgb_to_hsv(colour, &h, &s, &v);
 	conf.bg2 = colour;
 	conf.fg = hsv_to_rgb(h, s, v >= .5? v - .5: v + .5);
-	for (i = 0; i < 8; i++)
-		conf.style[i].color = conf.fg;
+	nice_colours_fg(&conf.fg);
 	conf.selbg = hsv_to_rgb(h, s, v >= .5? v - .1: v + .2);
 }
 
 static
 getcolor(wchar_t *arg, unsigned colour) {
+	wchar_t		name[128];
 	double		h, s, v; /* hue,chroma,luma */
 	double		y; /* luma (Y'601) */
 	int		r,g,b;
-	if (3 == swscanf(arg, L"hsy %lf %lf %lf", &h,&s,&y))
-		return hsy_to_rgb(h,s,y);
-	else if (3 == swscanf(arg, L"hsl %lf %lf %lf", &h,&s,&v))
+	
+	if (4 == swscanf(arg, L"%ls + %lf %lf %lf", name, &h,&s,&v)
+	 || 4 == swscanf(arg, L"%ls + hsl %lf %lf %lf", &h,&s,&v)) {
+		double oh, os, ov;
+		struct field *f;
+		rgb_to_hsv(colour, &oh, &os, &ov);
+		for (f = fields; f->name; f++)
+			if (f->type == Color && !wcscmp(f->name, name)) {
+				rgb_to_hsv(*(unsigned*)f->ptr, &oh, &os, &ov);
+				break;
+			}
+		return hsv_to_rgb(fmod(oh+h,360), max(0,min(os+s,1)), max(0,min(v+ov,1)));
+	} else if (3 == swscanf(arg, L"%lf %lf %lf", &h,&s,&v)
+	 || 3 == swscanf(arg, L"hsl %lf %lf %lf", &h,&s,&v))
 		return hsv_to_rgb(h,s,v);
-	else if (3 == swscanf(arg, L"%d %d %d", &r,&g,&b)
-	  || 3 == swscanf(arg, L"rgb %d %d %d", &r,&g,&b)) {
+	else if (swscanf(arg, L"rgb %d %d %d", &r,&g,&b)) {
 		return (b<<16)+(g<<8)+r;
 	}
 	return colour;
