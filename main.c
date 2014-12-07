@@ -20,7 +20,7 @@
 #include <stdlib.h>
 #include <wchar.h>
 #pragma warning(pop)
-#include "../asg/asg.h"
+#include <ags/ags.h>
 #include "conf.h"
 #include "wse.h"
 #include "action.h"
@@ -53,8 +53,8 @@ int		isearchlength;
 int		isearchcursor;
 BOOL		using_isearch;
 BOOL		editing_isearch;
-Asg		*gs;
-AsgFont		*font[4];
+Ags		*gs;
+AgsFont		*font[4];
 
 OPENFILENAME	ofn = {
 			sizeof ofn,
@@ -89,7 +89,7 @@ line2px(int ln) {
 
 static
 charwidth(unsigned c) {
-	return asg_get_char_width(font[0], c);
+	return ags_get_char_width(font[0], c);
 }
 
 static
@@ -1227,8 +1227,8 @@ blurtext(int fontno, int x, int y, wchar_t *txt, int n, COLORREF fg) {
 	wchar_t *p;
 	wchar_t *end = txt + n;
 	int margin = total_margin;
-	int faux_bold = (fontno & 1) && asg_get_font_weight(font[fontno]) < 600;
-	AsgMatrix ctm;
+	int faux_bold = (fontno & 1) && ags_get_font_weight(font[fontno]) < 600;
+	AgsMatrix ctm;
 	
 	/* Swap R & G because windows RGB macro builds them backwards */
 	fg = 0xff000000 |
@@ -1236,14 +1236,14 @@ blurtext(int fontno, int x, int y, wchar_t *txt, int n, COLORREF fg) {
 		fg & 0x00ff00 |
 		(fg & 255) << 16;
 	
-	AsgPoint at = asg_pt(x, y);
+	AgsPoint at = ags_pt(x, y);
 	for (p = txt; p < end; p++) {
 		if (*p == '\t')
 			at.x += font_tabw - fmod(at.x - margin + font_tabw, font_tabw);
 		else {
 			if (faux_bold)
-				asg_fill_char(gs, font[fontno], asg_pt(at.x + 1, at.y), *p, fg);
-			at.x += (int)asg_fill_char(gs, font[fontno], at, *p, fg);
+				ags_fill_char(gs, font[fontno], ags_pt(at.x + 1, at.y), *p, fg);
+			at.x += (int)ags_fill_char(gs, font[fontno], at, *p, fg);
 		}
 	}
 }
@@ -1344,7 +1344,7 @@ paint(PAINTSTRUCT *ps) {
 	SIZE	size;
 	int	i,n,y,x,len,first,last;
 	
-	asg_load_identity(gs);
+	ags_load_identity(gs);
 
 	first = px2line(ps->rcPaint.top);
 	last = px2line(ps->rcPaint.bottom);
@@ -1727,27 +1727,27 @@ configfont() {
 	dpi = GetDeviceCaps(hdc, LOGPIXELSY);
 	ReleaseDC(0, hdc);
 	
-	asg_free_font(font[0]);
-	asg_free_font(font[1]);
-	asg_free_font(font[2]);
-	asg_free_font(font[3]);
+	ags_free_font(font[0]);
+	ags_free_font(font[1]);
+	ags_free_font(font[2]);
+	ags_free_font(font[3]);
 	
-	font[0] = asg_open_font_variant(conf.fontname, conf.fontweight, conf.fontitalic, 0);
+	font[0] = ags_open_font_variant(conf.fontname, conf.fontweight, conf.fontitalic, 0);
 	if (!font[0])
-		font[0] = asg_open_font_variant(L"Courier New", 400, false, 0);
+		font[0] = ags_open_font_variant(L"Courier New", 400, false, 0);
 	
-	AsgFontWeight weight = asg_get_font_weight(font[0]);
-	AsgFontStretch stretch = asg_get_font_stretch(font[0]);
-	const wchar_t *family = asg_get_font_family(font[0]);
-	bool italic = asg_is_font_italic(font[0]);
+	AgsFontWeight weight = ags_get_font_weight(font[0]);
+	AgsFontStretch stretch = ags_get_font_stretch(font[0]);
+	const wchar_t *family = ags_get_font_family(font[0]);
+	bool italic = ags_is_font_italic(font[0]);
 	
-	font[1] = asg_open_font_variant(family, min(weight + 300, 900), italic, stretch);
-	font[2] = asg_open_font_variant(family, weight, !italic, stretch);
-	font[3] = asg_open_font_variant(family, min(weight + 300, 900), !italic, stretch);
+	font[1] = ags_open_font_variant(family, min(weight + 300, 900), italic, stretch);
+	font[2] = ags_open_font_variant(family, weight, !italic, stretch);
+	font[3] = ags_open_font_variant(family, min(weight + 300, 900), !italic, stretch);
 	
-	if (!font[1]) font[1] = asg_open_font_variant(family, weight, italic, stretch);
-	if (!font[2]) font[2] = asg_open_font_variant(family, weight, italic, stretch);
-	if (!font[3]) font[3] = asg_open_font_variant(family, weight, italic, stretch);
+	if (!font[1]) font[1] = ags_open_font_variant(family, weight, italic, stretch);
+	if (!font[2]) font[2] = ags_open_font_variant(family, weight, italic, stretch);
+	if (!font[3]) font[3] = ags_open_font_variant(family, weight, italic, stretch);
 	
 	
 	for (i = 0; conf.fontfeatures[i]; i++)
@@ -1755,20 +1755,20 @@ configfont() {
 	features[i] = 0;
 	
 	for (i = 0; i < 4; i++)
-		asg_set_font_features(font[i], features);
+		ags_set_font_features(font[i], features);
 	
 	sy = conf.fontsz * dpi/72.f;
 	sx = sy * conf.fontasp;
-	asg_scale_font(font[0], sy, sx);
-	asg_scale_font(font[1], sy, sx);
-	asg_scale_font(font[2], sy, sx);
-	asg_scale_font(font[3], sy, sx);
+	ags_scale_font(font[0], sy, sx);
+	ags_scale_font(font[1], sy, sx);
+	ags_scale_font(font[2], sy, sx);
+	ags_scale_font(font[3], sy, sx);
 	
-	font_aheight = asg_get_font_ascender(font[0])
-		- asg_get_font_descender(font[0])
-		+ asg_get_font_leading(font[0]);
+	font_aheight = ags_get_font_ascender(font[0])
+		- ags_get_font_descender(font[0])
+		+ ags_get_font_leading(font[0]);
 	font_lheight = font_aheight * conf.leading;
-	font_em = asg_get_char_width(font[0], 'M');
+	font_em = ags_get_char_width(font[0], 'M');
 	font_tabw = font_em * file.tabc;
 	
 	total_margin = conf.fixed_margin +
@@ -1844,7 +1844,7 @@ init() {
 	SelectObject(ddc, dbmp);
 	ReleaseDC(w, dc);
 	
-	gs = asg_new(NULL, 0, 0);
+	gs = ags_new(NULL, 0, 0);
 	
 	SystemParametersInfo(SPI_GETWORKAREA, 0, &rt, 0);
 	w = CreateWindowEx(
