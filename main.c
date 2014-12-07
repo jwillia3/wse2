@@ -20,7 +20,7 @@
 #include <stdlib.h>
 #include <wchar.h>
 #pragma warning(pop)
-#include "asg/asg.h"
+#include "../asg/asg.h"
 #include "conf.h"
 #include "wse.h"
 #include "action.h"
@@ -1974,6 +1974,4 @@ WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show) {
  * Creates a console when compiled for conosle.
  * Ignored otherwise.
  */
-main() {
-	return WinMain(0,0,0,0);
-}
+// main() { return WinMain(0,0,0,0); }
