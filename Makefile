@@ -1,5 +1,5 @@
-wse.exe:    *.c *.h ../ags/ags.lib
-	cl -Zi -Ox -I ..  -Fewse.exe -nologo *.c wse.res ../ags/ags.lib
+wse.exe:    *.c *.h pg/pg.lib
+	cl -Zi -Ox -I .  -Fewse.exe -nologo *.c wse.res pg/pg.lib
 	mt  -nologo -manifest wse.exe.manifest -outputresource:"wse.exe;1"
-../ags/ags.lib:
-	cd ../ags && make
+pg/pg.lib: pg/*.c pg/*.h
+	cd pg && make
