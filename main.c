@@ -17,6 +17,8 @@
 #include <shellapi.h>
 #include <commdlg.h>
 #include <math.h>
+#include <stdbool.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <wchar.h>
 #pragma warning(pop)
@@ -89,7 +91,7 @@ line2px(int ln) {
 
 static
 charwidth(unsigned c) {
-	return pgGetCharWidth(font[0], c);
+	return font[0]->getCharWidth(font[0], c);
 }
 
 static
@@ -1227,7 +1229,7 @@ blurtext(int fontno, int x, int y, wchar_t *txt, int n, COLORREF fg) {
 	wchar_t *p;
 	wchar_t *end = txt + n;
 	int margin = total_margin;
-	int faux_bold = (fontno & 1) && pgGetFontWeight(font[fontno]) < 600;
+	int faux_bold = (fontno & 1) && font[fontno]->getWeight(font[fontno]) < 600;
 	PgMatrix ctm;
 	
 	/* Swap R & G because windows RGB macro builds them backwards */
@@ -1242,8 +1244,8 @@ blurtext(int fontno, int x, int y, wchar_t *txt, int n, COLORREF fg) {
 			at.x += font_tabw - fmod(at.x - margin + font_tabw, font_tabw);
 		else {
 			if (faux_bold)
-				pgFillChar(gs, font[fontno], pgPt(at.x + 1, at.y), *p, fg);
-			at.x += (int)pgFillChar(gs, font[fontno], at, *p, fg);
+				gs->fillChar(gs, font[fontno], pgPt(at.x + 1, at.y), *p, fg);
+			at.x += (int)gs->fillChar(gs, font[fontno], at, *p, fg);
 		}
 	}
 }
@@ -1344,7 +1346,7 @@ paint(PAINTSTRUCT *ps) {
 	SIZE	size;
 	int	i,n,y,x,len,first,last;
 	
-	pgLoadIdentity(gs);
+	gs->identity(gs);
 
 	first = px2line(ps->rcPaint.top);
 	last = px2line(ps->rcPaint.bottom);
@@ -1584,7 +1586,7 @@ WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 		}
 		gs->width = width + 3 & ~3;
 		gs->height = height;
-		gs->buf = BitmapBuffer;
+		((PgBitmapCanvas*)gs)->data = BitmapBuffer;
 		total_margin = conf.fixed_margin +
 			(conf.center && global.initwidth < width?
 				(width - global.initwidth) / 2:
@@ -1727,19 +1729,19 @@ configfont() {
 	dpi = GetDeviceCaps(hdc, LOGPIXELSY);
 	ReleaseDC(0, hdc);
 	
-	pgFreeFont(font[0]);
-	pgFreeFont(font[1]);
-	pgFreeFont(font[2]);
-	pgFreeFont(font[3]);
+	if (font[0]) font[0]->free(font[0]);
+	if (font[1]) font[1]->free(font[1]);
+	if (font[2]) font[2]->free(font[2]);
+	if (font[3]) font[3]->free(font[3]);
 	
 	font[0] = pgOpenFont(conf.fontname, conf.fontweight, conf.fontitalic, 0);
 	if (!font[0])
 		font[0] = pgOpenFont(L"Courier New", 400, false, 0);
 	
-	PgFontWeight weight = pgGetFontWeight(font[0]);
-	PgFontStretch stretch = pgGetFontStretch(font[0]);
-	const wchar_t *family = pgGetFontFamily(font[0]);
-	bool italic = pgIsFontItalic(font[0]);
+	PgFontWeight weight = font[0]->getWeight(font[0]);
+	PgFontStretch stretch = 0;
+	const wchar_t *family = font[0]->getFamily(font[0]);
+	bool italic = font[0]->isItalic(font[0]);
 	
 	font[1] = pgOpenFont(family, min(weight + 300, 900), italic, stretch);
 	font[2] = pgOpenFont(family, weight, !italic, stretch);
@@ -1755,20 +1757,20 @@ configfont() {
 	features[i] = 0;
 	
 	for (i = 0; i < 4; i++)
-		pgSetFontFeatures(font[i], features);
+		font[i]->useFeatures(font[i], features);
 	
 	sy = conf.fontsz * dpi/72.f;
 	sx = sy * conf.fontasp;
-	pgScaleFont(font[0], sy, sx);
-	pgScaleFont(font[1], sy, sx);
-	pgScaleFont(font[2], sy, sx);
-	pgScaleFont(font[3], sy, sx);
+	font[0]->scale(font[0], sy, sx);
+	font[1]->scale(font[1], sy, sx);
+	font[2]->scale(font[2], sy, sx);
+	font[3]->scale(font[3], sy, sx);
 	
-	font_aheight = pgGetFontAscender(font[0])
-		- pgGetFontDescender(font[0])
-		+ pgGetFontLeading(font[0]);
+	font_aheight = font[0]->getAscender(font[0])
+		- font[0]->getDescender(font[0])
+		+ font[0]->getLeading(font[0]);
 	font_lheight = font_aheight * conf.leading;
-	font_em = pgGetCharWidth(font[0], 'M');
+	font_em = font[0]->getCharWidth(font[0], 'M');
 	font_tabw = font_em * file.tabc;
 	
 	total_margin = conf.fixed_margin +
@@ -1844,7 +1846,7 @@ init() {
 	SelectObject(ddc, dbmp);
 	ReleaseDC(w, dc);
 	
-	gs = pgNew(NULL, 0, 0);
+	gs = pgNewBitmapCanvas(0, 0);
 	
 	SystemParametersInfo(SPI_GETWORKAREA, 0, &rt, 0);
 	w = CreateWindowEx(
