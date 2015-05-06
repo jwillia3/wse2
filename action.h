@@ -26,7 +26,6 @@ enum {
 	MovePageUp,
 	MoveSof,
 	MoveEof,
-	MoveBrace,
 	ToggleOverwrite,
 
 	DeleteChar,
@@ -37,6 +36,7 @@ enum {
 	SpaceBoth,
 	
 	DeleteLine,
+	DeleteBraces,
 	BreakLine,
 	JoinLine,
 	DupLine,
@@ -49,6 +49,7 @@ enum {
 	StartSelection,
 	EndSelection,
 	SelectWord,
+	SelectBraces,
 	DeleteSelection,
 	IndentSelection,
 	UnindentSelection,

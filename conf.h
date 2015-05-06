@@ -50,6 +50,7 @@ struct lang {
 	unsigned	kwd_opt[KWD_MAX];
 	wchar_t		cmdwrapper[128];
 	int		nkwd;
+	int		autoClose;
 } lang;
 
 wchar_t		*configfile;

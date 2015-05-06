@@ -5,6 +5,7 @@ typedef struct Buf	Buf;
 typedef struct Loc	Loc;
 typedef struct Undo	Undo;
 typedef struct Bookmark	Bookmark;
+typedef struct Scanner	Scanner;
 
 struct	Loc {
 	int	ln;
@@ -22,6 +23,13 @@ struct	Codec {
 	int	(*sign)(unsigned char*);
 	wchar_t *(*dec)(unsigned char*,int);
 	int	(*enc)(unsigned char*,wchar_t*,int);
+};
+
+struct Scanner {
+	Buf	*b;
+	int	ln;
+	int	ind;
+	wchar_t	c;
 };
 
 enum {
@@ -135,6 +143,9 @@ int		inslb(Buf *b, int ln, wchar_t *txt, int len),
 		lenb(Buf *b, int ln),
 		initb(Buf *b),
 		clearb(Buf *b),
-		sat(int lo, int x, int hi);
+		sat(int lo, int x, int hi),
+		forward(Scanner *scan),
+		backward(Scanner *scan);
+Scanner 	getscanner(Buf *b, int line, int ind);
 		
 wchar_t*	getb(Buf *b, int ln, int *len);

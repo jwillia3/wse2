@@ -8,7 +8,8 @@
 
 KEY REFERENCE
 	^A	Select all
-	^B	Match brace
+	^B	Select closest braces that contain the cursor
+	^_B	Delete closest braces that contain the cursor
 	^C	Copy
 	^D	Duplicate line
 	^E	

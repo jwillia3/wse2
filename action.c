@@ -509,58 +509,28 @@ join(int lo, int hi, int space) {
 
 static
 matchbrace() {
-	int	x,c,o,i,nest,len;
-	wchar_t	*txt;
-	
-	txt=getb(b, LN, &len) + IND;
-	nest=0;
-	i=LN;
-	
-	/*
-	 * Find closing brace (ON opening)
-	 */
-	if (c=closetbl[o=*txt]) {
-		for (;;) {
-			for ( ; *txt; txt++)
-				if (*txt==o)
-					nest++;
-				else if (*txt==c && nest>1)
-					nest--;
-				else if (*txt==c) {
-					txt++;
-					goto got;
-				}
-			if (++i>NLINES)
+	Scanner cur = getscanner(b, LN, IND);
+	Scanner back = cur;
+	Scanner forth;
+	do {
+		int n = 1;
+		
+		while (!closetbl[backward(&back)])
+			if (back.ln < 1)
 				return 0;
-			txt=getb(b, i, 0);
-		}
-	}
-	/*
-	 * Find opening brace (ON closing)
-	 */
-	else if (o=opentbl[c=txt[IND? -1: 0]]) {
-		if (IND) {
-			txt--;
-			IND--;
-		}
-		len=IND;
-		for (;;) {
-			for ( ; len>=0; len--, txt--)
-				if (*txt==c)
-					nest++;
-				else if (*txt==o && nest>1)
-					nest--;
-				else if (*txt==o)
-					goto got;
-			if (--i<1)
+		forth = back;
+		forward(&forth);
+		while (forward(&forth) != closetbl[back.c] || --n)
+			if (forth.ln > NLINES)
 				return 0;
-			txt=getb(b, i, &len);
-			txt+=len;
-		}
-	} else
-		return 0;
-got:
-	return gob(b, i, txt-getb(b, i, 0));
+			else if (forth.c == back.c)
+				n++;
+	} while (cur.ln > forth.ln || (cur.ln == forth.ln && cur.ind > forth.ind));
+	LN = back.ln;
+	IND = back.ind;
+	SLN = forth.ln;
+	SIND = forth.ind;
+	return 1;
 }
 
 static
@@ -769,8 +739,23 @@ _act(int action) {
 	case MoveEof:
 		return gob(b, NLINES, lenb(b, NLINES));
 		
-	case MoveBrace:
+	case SelectBraces:
 		return matchbrace();
+	case DeleteBraces:
+		oldln = LN;
+		oldind = IND;
+		if (!matchbrace())
+			return 0;
+		ordersel(&lo, &hi);
+		SLN = 0;
+		gob(b, lo.ln, lo.ind);
+		_act(DeleteChar);
+		gob(b, hi.ln, hi.ind - (lo.ln == hi.ln? 2: 1));
+		_act(DeleteChar);
+		gob(b, oldln, oldind);
+		record(UndoGroup, 0, 2);
+		return 1;
+	
 	case ToggleOverwrite:
 		return overwrite = !overwrite;
 	case DeleteChar:

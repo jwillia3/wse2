@@ -803,15 +803,38 @@ act(int action) {
 }
 
 actins(int c) {
-	int	ok, wassel, onlines;
+	int	ok, wassel, onlines, openclose;
 	Loc	lo,hi;
-	wchar_t	*txt;
+	wchar_t	*txt, *brace;
 	
 	onlines=NLINES;
 	wassel=ordersel(&lo, &hi);
 	
 	if (!_actins(c))
 		return 0;
+	
+	brace = wcschr(lang.brace, c);
+	txt = getb(b, LN, 0);
+	openclose = brace? (brace - lang.brace & 1): 0;
+	if (lang.autoClose &&
+		txt[IND] == c &&
+		((brace && openclose == 1) || brktbl[c] == 1))
+	{
+		_act(DeleteChar);
+	} else if (lang.autoClose &&
+		(brace && openclose == 0) &&
+		_actins(brace[1]))
+	{
+		if (c == '{') {
+			_act(MoveLeft);
+			_act(BreakLine);
+			_act(BreakLine);
+			_act(MoveUp);
+			_actins('\t');
+		} else
+			_act(MoveLeft);
+	}
+		
 	invd(LN, LN);
 	generalinvd(onlines, wassel, &lo, &hi);
 	return 1;
@@ -956,9 +979,10 @@ wmchar(int c) {
 		return act(SelectAll);
 	
 	case 2: /* ^B */
-		setsel(shift);
-		if (ctl)
-			return act(MoveBrace);
+		if (shift)
+			return act(DeleteBraces);
+		else
+			return act(SelectBraces);
 		return 0;
 	
 	case 3: /* ^C */
