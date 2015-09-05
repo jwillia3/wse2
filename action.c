@@ -674,7 +674,8 @@ _act(int action) {
 		
 		/* Punctuation */
 		if (isbrk(txt[IND-1])==1)
-			IND--;
+			while (IND && isbrk(txt[IND-1])==1)
+				IND--;
 		else
 			/* Skip to the beginning of word */
 			while (IND && !isbrk(txt[IND-1]))
@@ -710,15 +711,14 @@ _act(int action) {
 			return 1;
 		}
 		
-		/* Don't skip punctuation */
-		if (isbrk(txt[IND])==1) {
-			IND++;
-			return 1;
-		}
-		
-		/* Skip to the end of current word */
-		while (IND<len && !isbrk(txt[IND]))
-			IND++;
+		/* Punctuation */
+		if (isbrk(txt[IND])==1)
+			while (IND<len && isbrk(txt[IND])==1)
+				IND++;
+		else
+			/* Skip to the end of current word */
+			while (IND<len && !isbrk(txt[IND]))
+				IND++;
 		/* Skip spaces to the next */
 		while (IND<len && isbrk(txt[IND])==2)
 			IND++;
