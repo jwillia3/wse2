@@ -71,11 +71,13 @@ static struct	field fields[] = {
 		{L"init_width", Int, &global.initwidth},
 		{L"init_height", Int, &global.initheight},
 		{L"alpha", Float, &global.alpha},
+		{L"gamma", Float, &global.gamma},
 		{L"shell", String, &global.shell},
 		{0}
 		};
 defglobals() {
 	global.alpha = .9;
+	global.gamma = 2.2;
 	global.initwidth = 800;
 	global.initheight = 800;
 	global.wire[0] = 64;

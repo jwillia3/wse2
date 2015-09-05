@@ -1810,6 +1810,7 @@ reinitconfig() {
 	RECT	rt;
 	wchar_t	*s;
 	
+	pgSetGamma(global.gamma);
 	configfont();
 	reinitlang();
 	updatemenu();

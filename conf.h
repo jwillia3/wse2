@@ -36,6 +36,7 @@ struct {
 	int		initheight;
 	int		wire[4];
 	double		alpha;
+	double		gamma;
 	wchar_t		shell[128];
 } global;
 
