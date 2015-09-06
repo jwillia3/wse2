@@ -965,6 +965,24 @@ autoisearch(int skip) {
 	return ok;
 }
 
+int wmsyschar(int c) {
+	switch (c) {
+	case 'H':
+		act(MoveLeft);
+		break;
+	case 'J':
+		act(MoveDown);
+		break;
+	case 'K':
+		act(MoveUp);
+		break;
+	case 'L':
+		act(MoveRight);
+		break;
+	default: return 1;
+	}
+	return 0;
+}
 wmchar(int c) {
 	
 	int	ctl=GetAsyncKeyState(VK_CONTROL) & 0x8000;
@@ -1070,7 +1088,7 @@ wmchar(int c) {
 		return act(PasteClipboard);
 	
 	case 23: /* ^W */
-		return 0;
+		return act(ExitEditor);
 	
 	case 24: /* ^X */
 		return act(CutSelection);
@@ -1560,6 +1578,8 @@ WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 		EndPaint(hwnd, &ps);
 		return 0;
 	
+	case WM_SYSKEYDOWN:
+		return wmsyschar(wparam);
 	case WM_CHAR:
 		wmchar(wparam);
 		return 0;

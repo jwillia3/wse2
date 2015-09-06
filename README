@@ -34,10 +34,15 @@ KEY REFERENCE
 	^T	
 	^U	
 	^V	Paste
-	^W	
+	^W	Exit
 	^X	Cut
 	^Y	Redo
 	^Z	Undo
+	
+	Alt+H	Left
+	Alt+J	Down
+	Alt+K	Up
+	Alt+L	Right
 	
 	^Space	Select current word
 	^Bksp	Delete previous word
