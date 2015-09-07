@@ -288,10 +288,10 @@ openwrap(HWND hwnd) {
 static
 settitle(int mod) {
 	wchar_t	all[MAX_PATH];
-	swprintf(all, MAX_PATH, L"%s%ls%ls%ls",
-		mod? "*": "",
+	swprintf(all, MAX_PATH, L"%ls%ls%ls%ls",
+		mod? L"*": L"",
 		filebase,
-		*fileext? ".": "",
+		*fileext? L".": L"",
 		fileext);
 	SetWindowText(w, all);
 }

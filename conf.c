@@ -271,7 +271,7 @@ getcolor(wchar_t *arg, unsigned colour) {
 	int		r,g,b;
 	
 	if (4 == swscanf(arg, L"%ls + %lf %lf %lf", name, &h,&s,&v)
-	 || 4 == swscanf(arg, L"%ls + hsl %lf %lf %lf", &h,&s,&v)) {
+	 || 4 == swscanf(arg, L"%ls + hsl %lf %lf %lf", name, &h,&s,&v)) {
 		double oh, os, ov;
 		struct field *f;
 		rgb_to_hsv(colour, &oh, &os, &ov);
