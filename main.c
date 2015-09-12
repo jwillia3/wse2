@@ -965,7 +965,7 @@ autoisearch(int skip) {
 	return ok;
 }
 
-int wmsyschar(int c) {
+int wmsyskeydown(int c) {
 	switch (c) {
 	case 'H':
 		act(MoveLeft);
@@ -978,6 +978,15 @@ int wmsyschar(int c) {
 		break;
 	case 'L':
 		act(MoveRight);
+		break;
+	case 'W':
+		act(ExitEditor);
+		break;
+	case VK_LEFT:
+		act(MoveHome);
+		break;
+	case VK_RIGHT:
+		act(MoveEnd);
 		break;
 	default: return 1;
 	}
@@ -1579,7 +1588,7 @@ WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 		return 0;
 	
 	case WM_SYSKEYDOWN:
-		return wmsyschar(wparam);
+		return wmsyskeydown(wparam);
 	case WM_CHAR:
 		wmchar(wparam);
 		return 0;
