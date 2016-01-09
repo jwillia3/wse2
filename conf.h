@@ -11,6 +11,7 @@ struct conf {
 	int		selbg;
 	int		isearchbg;
 	int		bookmarkbg;
+	int		gutterbg;
 	struct textstyle style[8];
 	wchar_t		bgimage[128];
 	int		fixed_margin;
@@ -32,8 +33,6 @@ struct file {
 	int		usecrlf;
 } file;
 struct {
-	int		initwidth;
-	int		initheight;
 	int		wire[4];
 	double		alpha;
 	double		gamma;

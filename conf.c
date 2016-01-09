@@ -33,6 +33,7 @@ static struct	field fields[] = {
 		{L"bg", Color, &conf.bg, nice_colours_bg},
 		{L"bg2", Color, &conf.bg2},
 		{L"fg", Color, &conf.fg, nice_colours_fg},
+		{L"gutter_fg", Color, &conf.gutterbg},
 		{L"select", Color, &conf.selbg},
 		{L"isearch", Color, &conf.isearchbg},
 		{L"bookmark", Color, &conf.bookmarkbg},
@@ -68,8 +69,6 @@ static struct	field fields[] = {
 		{L"wire2", Int, global.wire+1},
 		{L"wire3", Int, global.wire+2},
 		{L"wire4", Int, global.wire+3},
-		{L"init_width", Int, &global.initwidth},
-		{L"init_height", Int, &global.initheight},
 		{L"alpha", Float, &global.alpha},
 		{L"gamma", Float, &global.gamma},
 		{L"shell", String, &global.shell},
@@ -78,8 +77,6 @@ static struct	field fields[] = {
 defglobals() {
 	global.alpha = .9;
 	global.gamma = 2.2;
-	global.initwidth = 800;
-	global.initheight = 800;
 	global.wire[0] = 64;
 	global.wire[1] = 72;
 	global.wire[2] = 80;
@@ -258,6 +255,7 @@ void nice_colours_bg(void *colourp) {
 	
 	rgb_to_hsv(colour, &h, &s, &v);
 	conf.bg2 = colour;
+	conf.gutterbg = hsv_to_rgb(h, s, v >= .5? v - .25: v + .25);
 	conf.fg = hsv_to_rgb(h, s, v >= .5? v - .5: v + .5);
 	nice_colours_fg(&conf.fg);
 	conf.selbg = hsv_to_rgb(h, s, v >= .5? v - .1: v + .2);

@@ -1424,6 +1424,12 @@ paint(PAINTSTRUCT *ps) {
 		}
 	}
 	
+	/* Clear the gutters */
+	SetDCPenColor(ddc, conf.gutterbg);
+	SetDCBrushColor(ddc, conf.gutterbg);
+	Rectangle(ddc, 0, 0, total_margin - 3, height);
+	Rectangle(ddc, width - total_margin + 3, 0, width, height);
+	
 	/* Draw bookmark line's background */
 	y=line2px(first);
 	for (i=first; i<=last; i++) {
@@ -1642,8 +1648,8 @@ WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 		gs->height = height;
 		((PgBitmapCanvas*)gs)->data = BitmapBuffer;
 		total_margin = conf.fixed_margin +
-			(conf.center && global.initwidth < width?
-				(width - global.initwidth) / 2:
+			(conf.center && global.wire[2] * font_em < width?
+				(width - global.wire[2] * font_em) / 2:
 				0);
 		movecaret();
 		SelectObject(ddc, dbmp);
@@ -1843,8 +1849,8 @@ configfont() {
 	font_tabw = font_em * file.tabc;
 	
 	total_margin = conf.fixed_margin +
-			(conf.center && global.initwidth < width?
-				(width - global.initwidth) / 2:
+			(conf.center && global.wire[2] * font_em < width?
+				(width - global.wire[2] * font_em) / 2:
 				0);
 	
 	return 1;
@@ -1932,10 +1938,10 @@ init() {
 		WS_EX_ACCEPTFILES|WS_EX_LAYERED,
 		L"Window", L"",
 		WS_OVERLAPPEDWINDOW|WS_VISIBLE,
-		max(0, (rt.right-rt.left)/2 - global.initwidth/2),
-		max(0, (rt.bottom-rt.top)/2 - global.initheight/2),
-		global.initwidth,
-		global.initheight,
+		CW_USEDEFAULT,
+		CW_USEDEFAULT,
+		1024,
+		800,
 		NULL, menu, GetModuleHandle(0), NULL);
 	SetLayeredWindowAttributes(w, 0, 255, LWA_ALPHA);
 	reinitconfig();
