@@ -47,6 +47,7 @@ int		font_lheight;	/* Line height */
 int		font_em;	/* Width of 'M' */
 int		font_tabw;	/* Tab width */
 int		total_margin;
+float		dpi = 96.0f;
 HMENU		encodingmenu;
 BOOL		use_console = TRUE;
 BOOL		transparent = FALSE;
@@ -1681,6 +1682,15 @@ WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 	case WM_COMMAND:
 		act(LOWORD(wparam));
 		return 0;
+	
+	case WM_CREATE:
+		/* Get device resolution */
+		{
+			HDC hdc = GetDC(hwnd);
+			dpi = GetDeviceCaps(hdc, LOGPIXELSY);
+			ReleaseDC(hwnd, hdc);
+		}
+		return 0;
 
 	case WM_DESTROY:
 		PostQuitMessage(0);
@@ -1701,6 +1711,19 @@ WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 		return ok;
 		}
 	
+	case 0x02E0: // case WM_DPICHANGED: // Windows 8.1
+		{
+			RECT r = *(RECT*)lparam;
+			dpi = LOWORD(wparam);
+			reinitconfig();
+			SetWindowPos(hwnd, NULL,
+				r.left,
+				r.top,
+				r.right - r.left,
+				r.bottom - r.top,
+				SWP_NOZORDER|SWP_NOACTIVATE);
+		}
+		return 0;
 	}
 	
 	/* Find dialog notification */
@@ -1768,19 +1791,12 @@ reinitlang() {
 
 static
 configfont() {
-	HDC	hdc;
 	wchar_t tmp[MAX_PATH];
 	wchar_t *p;
-	float	dpi;
 	float	sy;
 	float	sx;
 	int	i;
 	char	features[128];
-	
-	/* Get device resolution */
-	hdc = GetDC(0);
-	dpi = GetDeviceCaps(hdc, LOGPIXELSY);
-	ReleaseDC(0, hdc);
 	
 	if (font[0]) font[0]->free(font[0]);
 	if (font[1]) font[1]->free(font[1]);
@@ -1871,6 +1887,15 @@ static
 init() {
 	HDC	dc;
 	RECT	rt;
+	HMODULE	shcore;
+	
+	if (shcore = LoadLibrary(L"shcore.dll")) {
+		HRESULT (*SetProcessDpiAwareness)(INT);
+		SetProcessDpiAwareness = (void*) GetProcAddress(shcore,
+			"SetProcessDpiAwareness");
+		if (SetProcessDpiAwareness)
+			SetProcessDpiAwareness(2);
+	}
 	
 	initb(b);
 	top=1;
