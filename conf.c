@@ -282,7 +282,8 @@ getcolor(wchar_t *arg, unsigned colour) {
 	} else if (3 == swscanf(arg, L"%lf %lf %lf", &h,&s,&v)
 	 || 3 == swscanf(arg, L"hsl %lf %lf %lf", &h,&s,&v))
 		return hsv_to_rgb(h,s,v);
-	else if (swscanf(arg, L"rgb %d %d %d", &r,&g,&b)) {
+	else if (swscanf(arg, L"rgb %d %d %d", &r,&g,&b)
+	  || swscanf(arg, L"%02x%02x%02x", &r, &g, &b)) {
 		return (b<<16)+(g<<8)+r;
 	}
 	return colour;
