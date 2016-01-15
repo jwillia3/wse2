@@ -33,7 +33,7 @@ static struct	field fields[] = {
 		{L"bg", Color, &conf.bg, nice_colours_bg},
 		{L"bg2", Color, &conf.bg2},
 		{L"fg", Color, &conf.fg, nice_colours_fg},
-		{L"gutter_fg", Color, &conf.gutterbg},
+		{L"gutter_bg", Color, &conf.gutterbg},
 		{L"select", Color, &conf.selbg},
 		{L"isearch", Color, &conf.isearchbg},
 		{L"bookmark", Color, &conf.bookmarkbg},
