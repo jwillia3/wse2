@@ -83,7 +83,8 @@ modify(int undoing) {
 
 _record(Undo **stk, int type, int lo, int hi) {
 	
-	Undo	*u;
+	Undo	*u, *tmp;
+	int	i;
 	
 	if (hi<lo) {
 		int tmp=hi;
@@ -116,6 +117,10 @@ _record(Undo **stk, int type, int lo, int hi) {
 	case UndoGroup:
 		pop(stk);
 		move(&u->grp, stk, hi);
+		tmp = u->grp;
+		for (i = 0; i < hi - lo - 1; i++)
+			tmp = tmp->next;
+		u->car = tmp->car;
 		push(stk, u);
 		break;
 	

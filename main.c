@@ -58,6 +58,7 @@ BOOL		using_isearch;
 BOOL		editing_isearch;
 Pg		*gs;
 PgFont		*font[4];
+BOOL		disable_auto_close;
 
 OPENFILENAME	ofn = {
 			sizeof ofn,
@@ -804,38 +805,46 @@ act(int action) {
 }
 
 actins(int c) {
-	int	ok, wassel, onlines, openclose;
+	int	ok, wassel, onlines;
 	Loc	lo,hi;
 	wchar_t	*txt, *brace;
 	
 	onlines=NLINES;
 	wassel=ordersel(&lo, &hi);
 	
-	if (!_actins(c))
-		return 0;
-	
 	brace = wcschr(lang.brace, c);
-	txt = getb(b, LN, 0);
-	openclose = brace? (brace - lang.brace & 1): 0;
-	if (lang.autoClose &&
-		txt[IND] == c &&
-		((brace && openclose == 1) || brktbl[c] == 1))
-	{
-		_act(DeleteChar);
-	} else if (lang.autoClose &&
-		(brace && openclose == 0) &&
-		_actins(brace[1]))
-	{
-		if (c == '{') {
-			_act(MoveLeft);
+	if (brace && lang.autoClose && !disable_auto_close) {
+		BOOL closing = brace - lang.brace & 1;
+		
+		txt = getb(b, LN, 0);
+		if (!closing && ordersel(&lo, &hi)) {
+			act(EndSelection);
+			gob(b, lo.ln, lo.ind);
+			_actins(c);
+			gob(b, hi.ln, hi.ind+1);
+			_actins(brace[1]);
+			record(UndoGroup, 0, 2);
+		} else if (txt[IND] == c)
+			act(MoveRight);
+		else if (c == '{') {
+			_actins(c);
 			_act(BreakLine);
 			_act(BreakLine);
+			_actins(brace[1]);
 			_act(MoveUp);
 			_actins('\t');
-		} else
-			_act(MoveLeft);
-	}
-		
+			record(UndoGroup, 0, 5);
+		} else if (closing)
+			_actins(c);
+		else {
+			_actins(c);
+			_actins(brace[1]);
+			act(MoveLeft);
+			record(UndoGroup, 0, 2);
+		}
+	} else if (!_actins(c))
+		return 0;
+	
 	invd(LN, LN);
 	generalinvd(onlines, wassel, &lo, &hi);
 	return 1;
@@ -1596,13 +1605,21 @@ WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 	
 	case WM_SYSKEYDOWN:
 		return wmsyskeydown(wparam);
+		
+	case WM_SYSKEYUP:
+		if (wparam == VK_MENU)
+			disable_auto_close ^= TRUE;
+		return 0;
+		
 	case WM_CHAR:
 		wmchar(wparam);
+		disable_auto_close = FALSE;
 		return 0;
 	
 	case WM_KEYDOWN:
 		wmkey(wparam);
 		return 0;
+	
 	
 	case WM_SETFOCUS:
 		CreateCaret(hwnd, 0, overwrite? font_em: 0, font_lheight);
