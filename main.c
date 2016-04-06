@@ -975,22 +975,57 @@ autoisearch(int skip) {
 	return ok;
 }
 
+void start_incremental_search() {
+	if (SLN) {
+		wchar_t *tmp = copysel();
+		wcsncpy(fr.lpstrFindWhat,tmp,MAX_PATH);
+		fr.lpstrFindWhat[MAX_PATH] = 0;
+		free(tmp);
+	} else
+		fr.lpstrFindWhat[0] = 0;
+	isearchcursor = isearchlength = wcslen(fr.lpstrFindWhat);
+	using_isearch = 1;
+	editing_isearch = 1;
+	act(EndSelection);
+	invdafter(top);
+}
+
 int wmsyskeydown(int c) {
+	int	ctl = GetAsyncKeyState(VK_CONTROL) & 0x8000;
+	int	shift = GetAsyncKeyState(VK_SHIFT) & 0x8000;
+	
 	switch (c) {
-	case 'H':
-		act(MoveLeft);
+	case 'A':
+		act(SelectAll);
 		break;
-	case 'J':
-		act(MoveDown);
+	case 'C':
+		return act(CopySelection);
+	case 'D':
+		if (shift)
+			act(DeleteLine);
+		else
+			return 0;
 		break;
-	case 'K':
-		act(MoveUp);
+	case 'F':
+		start_incremental_search();
 		break;
-	case 'L':
-		act(MoveRight);
+	case 'S':
+		act(SaveFile);
+		break;
+	case 'V':
+		act(PasteClipboard);
 		break;
 	case 'W':
 		act(ExitEditor);
+		break;
+	case 'X':
+		act(CutSelection);
+		break;
+	case 'Y':
+		act(RedoChange);
+		break;
+	case 'Z':
+		act(UndoChange);
 		break;
 	case VK_LEFT:
 		act(MoveHome);
@@ -998,9 +1033,9 @@ int wmsyskeydown(int c) {
 	case VK_RIGHT:
 		act(MoveEnd);
 		break;
-	default: return 1;
+	default: return 0;
 	}
-	return 0;
+	return 1;
 }
 wmchar(int c) {
 	
@@ -1013,7 +1048,7 @@ wmchar(int c) {
 	switch (c) {
 	
 	case 1: /* ^A */
-		return act(SelectAll);
+		return act(MoveHome);
 	
 	case 2: /* ^B */
 		if (shift)
@@ -1029,23 +1064,12 @@ wmchar(int c) {
 		return act(DupLine);
 		
 	case 5: /* ^E */
-		return 0;
+		return act(MoveEnd);
 	
 	case 6: /* ^F */
 		if (ctl && shift)
 			return act(PromptFind);
-		if (SLN) {
-			wchar_t *tmp = copysel();
-			wcsncpy(fr.lpstrFindWhat,tmp,MAX_PATH);
-			fr.lpstrFindWhat[MAX_PATH] = 0;
-			free(tmp);
-		} else
-			fr.lpstrFindWhat[0] = 0;
-		isearchcursor = isearchlength = wcslen(fr.lpstrFindWhat);
-		using_isearch = 1;
-		editing_isearch = 1;
-		act(EndSelection);
-		invdafter(top);
+		start_incremental_search();
 		return 1;
 	
 	case 7: /* ^G */
@@ -1603,9 +1627,6 @@ WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 		EndPaint(hwnd, &ps);
 		return 0;
 	
-	case WM_SYSKEYDOWN:
-		return wmsyskeydown(wparam);
-		
 	case WM_SYSKEYUP:
 		if (wparam == VK_MENU)
 			disable_auto_close ^= TRUE;
@@ -2068,7 +2089,8 @@ WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show) {
 	while (GetMessage(&msg, NULL, 0, 0)) {
 		if (dlg && IsDialogMessage(dlg, &msg))
 			continue;
-		TranslateMessage(&msg);
+		if (msg.message != WM_SYSKEYDOWN || !wmsyskeydown(msg.wParam))
+			TranslateMessage(&msg);
 		DispatchMessage(&msg);
 	}
 	return msg.wParam;
