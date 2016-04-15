@@ -1007,6 +1007,8 @@ int wmsyskeydown(int c) {
 			return 0;
 		break;
 	case 'F':
+		if (ctl && shift)
+			return act(PromptFind);
 		start_incremental_search();
 		break;
 	case 'S':
@@ -1027,10 +1029,23 @@ int wmsyskeydown(int c) {
 	case 'Z':
 		act(UndoChange);
 		break;
+	case 191: // Alt + /
+		act(CommentSelection);
+		break;
+	case VK_UP:
+		setsel(shift);
+		act(MoveSof);
+		break;
+	case VK_DOWN:
+		setsel(shift);
+		act(MoveEof);
+		break;
 	case VK_LEFT:
+		setsel(shift);
 		act(MoveHome);
 		break;
 	case VK_RIGHT:
+		setsel(shift);
 		act(MoveEnd);
 		break;
 	default: return 0;
