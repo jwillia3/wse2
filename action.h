@@ -87,5 +87,9 @@ enum {
 	NextConfig,
 	EditConfig,
 	
-	ToggleTransparency
+	ToggleTransparency,
+	
+	RaiseFontMagnification,
+	LowerFontMagnification,
+	ResetFontMagnification,
 };

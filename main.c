@@ -48,6 +48,7 @@ int		font_em;	/* Width of 'M' */
 int		font_tabw;	/* Tab width */
 int		total_margin;
 float		dpi = 96.0f;
+float		font_magnification = 1.00f;
 HMENU		encodingmenu;
 BOOL		use_console = TRUE;
 BOOL		transparent = FALSE;
@@ -797,6 +798,22 @@ act(int action) {
 		transparent = !transparent;
 		SetLayeredWindowAttributes(w, 0, 255*(transparent?global.alpha:1), LWA_ALPHA);
 		break;
+	case RaiseFontMagnification:
+		font_magnification += 0.25f;
+		configfont();
+		invdafter(top);
+		break;
+	case LowerFontMagnification:
+		if (font_magnification > 0.25f) font_magnification -= 0.25f;
+		configfont();
+		invdafter(top);
+		break;
+	case ResetFontMagnification:
+		font_magnification = 1.00f;
+		configfont();
+		invdafter(top);
+		break;
+	
 	default:
 		invdafter(top);
 	}
@@ -1028,6 +1045,12 @@ int wmsyskeydown(int c) {
 		break;
 	case 'Z':
 		act(UndoChange);
+		break;
+	case 187: // Alt + + and Alt + =
+		if (!ctl) act(shift ? RaiseFontMagnification : ResetFontMagnification);
+		break;
+	case 189: // Alt + -
+		act(LowerFontMagnification);
 		break;
 	case 191: // Alt + /
 		act(CommentSelection);
@@ -1887,7 +1910,7 @@ configfont() {
 	for (i = 0; i < 4; i++)
 		font[i]->useFeatures(font[i], features);
 	
-	sy = conf.fontsz * dpi/72.f;
+	sy = conf.fontsz * font_magnification * dpi/72.f;
 	sx = sy * conf.fontasp;
 	font[0]->scale(font[0], sy, sx);
 	font[1]->scale(font[1], sy, sx);
@@ -1905,6 +1928,8 @@ configfont() {
 			(conf.center && global.wire[2] * font_em < width?
 				(width - global.wire[2] * font_em) / 2:
 				0);
+	
+	vis = height/font_lheight - 1;
 	
 	return 1;
 }
@@ -1934,8 +1959,6 @@ reinitconfig() {
 		bgpen=CreatePen(PS_SOLID, 1, conf.bg);
 	}
 	
-	/* Fix visible line count if font size changed */
-	vis = height/font_lheight - 1;
 	
 	/* Fix the caret size */
 	if (GetFocus()==w)
