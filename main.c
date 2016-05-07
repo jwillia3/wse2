@@ -1019,7 +1019,7 @@ int wmsyskeydown(int c) {
 		return act(CopySelection);
 	case 'D':
 		if (shift)
-			act(DeleteLine);
+			act(DupLine);
 		else
 			return 0;
 		break;
