@@ -257,6 +257,7 @@ void nice_colours_bg(void *colourp) {
 	conf.bg2 = colour;
 	conf.gutterbg = hsv_to_rgb(h, s, v >= .5? v - .125: v + .125);
 	conf.selbg = hsv_to_rgb(h, s, v >= .5? v - .125: v + .125);
+	conf.isearchbg = hsv_to_rgb(h, s, v >= .5? v - .25: v + .25);
 	conf.bookmarkbg = hsv_to_rgb(fmod(h + 180, 360), s * .25, v);
 	conf.fg = hsv_to_rgb(h, s, v >= .5? v - .5: v + .5);
 	nice_colours_fg(&conf.fg);
