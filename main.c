@@ -214,6 +214,7 @@ void switch_tab(int to_tab) {
 	settitle(TAB.buf->changes);
 	b = TAB.buf;
 	top = TAB.top;
+	reinitlang();
 	recalculate_text_metrics();
 	invdafter(1);
 }
@@ -799,12 +800,12 @@ act(int action) {
 		SetLayeredWindowAttributes(w, 0, 255*(transparent?global.alpha:1), LWA_ALPHA);
 		break;
 	case RaiseFontMagnification:
-		TAB.magnification += 0.25f;
+		TAB.magnification += 0.05f;
 		configfont();
 		invdafter(top);
 		break;
 	case LowerFontMagnification:
-		if (TAB.magnification > 0.25f) TAB.magnification -= 0.25f;
+		if (TAB.magnification > 0.05f * 2.0f) TAB.magnification -= 0.05f;
 		configfont();
 		invdafter(top);
 		break;
@@ -1144,7 +1145,7 @@ int wmsyskeydown(int c) {
 		act(UndoChange);
 		break;
 	case 187: // Alt + + and Alt + =
-		if (!ctl) act(shift ? RaiseFontMagnification : ResetFontMagnification);
+		if (!ctl) act(shift ? ResetFontMagnification : RaiseFontMagnification);
 		break;
 	case 189: // Alt + -
 		act(LowerFontMagnification);
@@ -1892,6 +1893,13 @@ wm_drag(int x, int y) {
 	return 1;
 }
 
+void fix_caret() {
+	if (GetFocus() != w) return;
+	CreateCaret(w, 0, overwrite? TAB.em: 0, TAB.line_height);
+	movecaret();
+	ShowCaret(w);
+}
+
 LRESULT CALLBACK
 WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 	PAINTSTRUCT ps;
@@ -1921,9 +1929,7 @@ WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 	
 	
 	case WM_SETFOCUS:
-		CreateCaret(hwnd, 0, overwrite? TAB.em: 0, TAB.line_height);
-		movecaret();
-		ShowCaret(hwnd);
+		fix_caret();
 		return 0;
 	
 	case WM_KILLFOCUS:
@@ -2136,6 +2142,7 @@ static void recalculate_text_metrics() {
 				0);
 				
 	vis = (height - tab_bar_height) / TAB.line_height - 1;
+	fix_caret();
 }
 
 static
@@ -2202,11 +2209,6 @@ reinitconfig() {
 		background_brush=CreateSolidBrush(conf.bg);
 		background_pen=CreatePen(PS_SOLID, 1, conf.bg);
 	}
-	
-	
-	/* Fix the caret size */
-	if (GetFocus()==w)
-		SendMessage(w, WM_SETFOCUS, 0, 0);
 }
 
 static
