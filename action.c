@@ -538,25 +538,6 @@ matchbrace() {
 }
 
 static
-clear_load(wchar_t *fn, wchar_t *encoding) {
-	b->changes=0;
-	clearb(b);
-	return load(fn, encoding);
-}
-
-static
-reload(wchar_t *encoding) {
-	int	oldln, oldind;
-	oldln=LN;
-	oldind=IND;
-	if (clear_load(filename,encoding)) {
-		gob(b, oldln, oldind);
-		return 1;
-	}
-	return 0;
-}
-
-static
 skiptabspaces(wchar_t *txt, int ln, int ind, int dir) {
 	int col=ind2col(ln, ind);
 	int i;
@@ -582,51 +563,6 @@ _act(int action) {
 	sel=SLN;
 
 	switch (action) {
-	
-	case NewFile:
-		free(filename);
-		filename=wcsdup(L"//Untitled");
-		clearb(b);
-		setcodec(L"utf-8");
-		defperfile();
-		return 1;
-	
-	case LoadFile:
-		return clear_load(filename,0);
-	
-	case ToggleLinebreak:
-		file.usecrlf ^= 1;
-		return 1;
-	
-	case ToggleTabs:
-		file.usetabs = !file.usetabs;
-		return 1;
-	
-	case Toggle8Tab:
-		file.tabc = (file.tabc == 8)? 4: 8;
-		return 1;
-	
-	case ToggleBOM:
-		file.usebom ^= 1;
-		return 1;
-	
-	case ReloadFileUTF8:
-		return reload(L"utf-8");
-	case ReloadFileUTF16:
-		return reload(L"utf-16");
-	case ReloadFileCP1252:
-		return reload(L"cp1252");
-	case ReloadFile:
-		return reload(0);
-			
-	case SetUTF8:
-		return !!setcodec(L"utf-8");
-	case SetUTF16:
-		return !!setcodec(L"utf-16");
-	case SetCP1252:
-		return !!setcodec(L"cp1252");
-	case SaveFile:
-		return save(filename);
 	
 	case MoveUp:
 		if (LN==1)

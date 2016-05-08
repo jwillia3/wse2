@@ -76,7 +76,6 @@ struct	Bookmark {
 
 Buf		*b;
 Bookmark	*bookmarks;
-wchar_t		*filename;
 wchar_t		lastcmd[512];
 wchar_t		wrapbefore[512];
 wchar_t		wrapafter[512];

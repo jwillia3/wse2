@@ -256,6 +256,32 @@ void close_tab() {
 }
 
 
+void new_file() {
+	b->changes=0;
+	clearb(TAB.buf);
+	defperfile();
+	top=1;
+	setfilename(L"");
+	settitle(0);
+}
+void load_file(wchar_t *filename) {
+	b->changes=0;
+	clearb(b);
+	if (!load(filename, L"utf-8"))
+		MessageBox(w, L"Could not load", L"Error", MB_OK);
+	setfilename(filename);
+	settitle(0);
+	TAB.tab_px_width = TAB.em * file.tabc;
+	invdafter(1);
+}
+void save_file() {
+	if (!save(TAB.filename))
+		MessageBox(w, L"Could not save", L"Error", MB_OK);
+	b->changes=0;
+	settitle(0);
+}
+
+
 INT_PTR CALLBACK
 SpawnProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 	int	len;
@@ -389,10 +415,10 @@ settitle(int mod) {
 static
 setfilename(wchar_t *fn) {
 	wchar_t	*s=fn, *e;
-
-	free(filename);
-	filename = wcsdup(fn);
-	TAB.filename = wcsdup(fn);
+	
+	int length = GetFullPathName(fn, 0, NULL, NULL);
+	TAB.filename = calloc(length + 1, sizeof *TAB.filename);
+	GetFullPathName(fn, length, TAB.filename, NULL);
 	
 	if ((e=wcsrchr(fn, L'\\')) || (e=wcsrchr(fn, L'/'))) {
 		wcsncpy(TAB.file_directory, fn, e-s);
@@ -521,49 +547,6 @@ generalinvd(int onlines, int wassel, Loc *olo, Loc *ohi) {
 	else if (selnow && !samerange(olo, ohi, &lo, &hi))
 		invd(min(olo->ln, lo.ln), max(ohi->ln, hi.ln));
 }
-
-updatemenu() {
-	ModifyMenu(encodingmenu,
-		ToggleLinebreak,
-		MF_BYCOMMAND | MF_STRING,
-		ToggleLinebreak,
-		file.usecrlf? L"Windows Linebreaks": L"UNIX Linebreaks");
-	ModifyMenu(encodingmenu,
-		ToggleTabs,
-		MF_BYCOMMAND | MF_STRING | (file.usetabs? MF_CHECKED: 0),
-		ToggleTabs,
-		L"Use Tabs");
-	ModifyMenu(encodingmenu,
-		Toggle8Tab,
-		MF_BYCOMMAND | MF_STRING | (file.tabc==8? MF_CHECKED: 0),
-		Toggle8Tab,
-		L"Tab Width 8");
-	ModifyMenu(encodingmenu,
-		ToggleBOM,
-		MF_BYCOMMAND | MF_STRING | (file.usebom? MF_CHECKED: 0),
-		ToggleBOM,
-		L"Use Unicode BOM");
-	ModifyMenu(encodingmenu,
-		SetCP1252,
-		MF_BYCOMMAND | MF_STRING |
-			(!wcscmp(codec->name, L"cp1252")? MF_CHECKED: 0),
-		SetCP1252,
-		L"CP-1252");
-	ModifyMenu(encodingmenu,
-		SetUTF8,
-		MF_BYCOMMAND | MF_STRING |
-			(!wcscmp(codec->name, L"utf-8")? MF_CHECKED: 0),
-		SetUTF8,
-		L"UTF-8");
-	ModifyMenu(encodingmenu,
-		SetUTF16,
-		MF_BYCOMMAND | MF_STRING |
-			(!wcscmp(codec->name, L"utf-16")? MF_CHECKED: 0),
-		SetUTF16,
-		L"UTF-16");
-		
-}
-
 spawn_cmd() {
 	STARTUPINFO		si;
 	PROCESS_INFORMATION	pi;
@@ -666,77 +649,6 @@ act(int action) {
 		ok=openwrap(w);
 		break;
 	
-	case NewFile:
-		top=1;
-		b->changes=0;
-		setfilename(L"//Untitled");
-		updatemenu();
-		settitle(0);
-		break;
-	
-	case ToggleLinebreak:
-		updatemenu();
-		break;
-	
-	case ToggleTabs:
-		updatemenu();
-		return 1;
-	
-	case Toggle8Tab:
-		TAB.tab_px_width = TAB.em * file.tabc;
-		updatemenu();
-		invdafter(top);
-		return 1;
-	
-	case ToggleBOM:
-		updatemenu();
-		return 1;
-	
-	case LoadFile:
-		if (!ok)
-			MessageBox(w, L"Could not load",
-				L"Error", MB_OK);
-		settitle(0);
-		updatemenu();
-		TAB.tab_px_width = TAB.em * file.tabc;
-		
-		/* Can't rely on generalinvd() because the
-		 * selection and line counts might not change
-		 */
-		invdafter(1);
-		break;
-	
-	case ReloadFileUTF8:
-	case ReloadFileUTF16:
-	case ReloadFileCP1252:
-	case ReloadFile:
-		if (!ok)
-			MessageBox(w, L"Could not load",
-				L"Error", MB_OK);
-		settitle(0);
-		updatemenu();
-		snap();
-		invdafter(top);
-		TAB.tab_px_width = TAB.em * file.tabc;
-		return ok;
-	
-	case SetUTF8:
-	case SetUTF16:
-	case SetCP1252:
-		settitle(1);
-		updatemenu();
-		return 1;
-		
-	case SaveFile:
-		if (!ok)
-			MessageBox(w, L"Could not save",
-				L"Error", MB_OK);
-		else {
-			b->changes=0;
-			settitle(0);
-		}
-		break;
-	
 	case DeleteLine:
 	case JoinLine:
 	case DupLine:
@@ -813,17 +725,6 @@ act(int action) {
 			invdafter(top);
 		break;
 	
-	case PromptOpen:
-		if (dlg)
-			break;
-		ofn.lpstrInitialDir=TAB.file_directory;
-		ok=GetOpenFileName(&ofn);
-		if (!ok)
-			break;
-		setfilename(ofn.lpstrFile);
-		ok=act(LoadFile);
-		break;
-	
 	case PromptSaveAs:
 		if (dlg)
 			break;
@@ -832,7 +733,7 @@ act(int action) {
 		if (!ok)
 			break;
 		setfilename(ofn.lpstrFile);
-		ok=act(SaveFile);
+		save_file();
 		break;
 	
 	case PromptGo:
@@ -1093,8 +994,7 @@ void fuzzy_search_typed(struct input_t *input) {
 void fuzzy_search_hit_return(struct input_t *input) {
 	if (fuzzy_search_files[0]) {
 		new_tab(b = newb());
-		setfilename(fuzzy_search_files[0]);
-		act(LoadFile);
+		load_file(fuzzy_search_files[0]);
 		mode = NORMAL_MODE;
 	}
 }
@@ -1182,11 +1082,15 @@ int wmsyskeydown(int c) {
 			return act(PromptFind);
 		start_isearch();
 		break;
+	case 'N':
+		new_file();
+		invdafter(top);
+		break;
 	case 'P':
 		start_fuzzy_search();
 		break;
 	case 'S':
-		act(SaveFile);
+		save_file();
 		break;
 	case 'T':
 		act(NewTab);
@@ -1297,7 +1201,9 @@ wmchar(int c) {
 		return act(BreakLine);
 	
 	case 14: /* ^N */
-		return act(NewFile);
+		new_file();
+		invdafter(top);
+		return true;
 	
 	case 15: /* ^O */
 		return act(PromptOpen);
@@ -1316,7 +1222,8 @@ wmchar(int c) {
 		return act(PromptReplace);
 		
 	case 19: /* ^S */
-		return act(SaveFile);
+		save_file();
+		return true;
 	
 	case 20: /* ^T */
 		return act(NewTab);
@@ -1467,7 +1374,8 @@ wmkey(int c) {
 		return 1;
 	
 	case VK_F5:
-		return act(ReloadFile);
+		load_file(TAB.filename);
+		return 1;
 		
 	case VK_F7:
 		if (ctl)
@@ -2082,16 +1990,14 @@ WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 	case WM_DROPFILES: {
 		TCHAR name[MAX_PATH];
 		HDROP drop = (HDROP)wparam;
-		int ok;
 		
 		DragQueryFile(drop,
 			DragQueryFile(drop,-1,0,0)-1,
 			name, MAX_PATH);
-			
-		setfilename(name);
-		ok=act(LoadFile);
+		
+		load_file(name);
 		DragFinish(drop);
-		return ok;
+		return true;
 		}
 	
 	case 0x02E0: // case WM_DPICHANGED: // Windows 8.1
@@ -2245,7 +2151,6 @@ reinitconfig() {
 	pgSetGamma(global.gamma);
 	configfont();
 	reinitlang();
-	updatemenu();
 	
 	if (TAB.bgbmp)
 		DeleteObject(TAB.bgbmp);
@@ -2332,74 +2237,6 @@ init() {
 	fr.hwndOwner = w;
 }
 
-static
-initmenu() {
-	HMENU	m;
-	
-	menu=CreateMenu();
-	
-	m=CreatePopupMenu();
-	AppendMenu(m, MF_STRING, NewFile, L"&New	^N");
-	AppendMenu(m, MF_STRING, PromptOpen, L"&Open...	^O");
-	AppendMenu(m, MF_STRING, SaveFile, L"&Save	^S");
-	AppendMenu(m, MF_STRING, PromptSaveAs, L"Save &As...");
-	AppendMenu(m, MF_STRING, ReloadFile, L"&Reload	F5");
-	AppendMenu(m, MF_SEPARATOR, 0, 0);
-	AppendMenu(m, MF_STRING, SpawnEditor, L"New Window	F2");
-	AppendMenu(m, MF_STRING, SpawnShell, L"Shell	^F2");
-	AppendMenu(m, MF_STRING, ToggleTransparency, L"Toggle Transparency	F11");
-	AppendMenu(m, MF_STRING, ExitEditor, L"E&xit");
-	AppendMenu(menu, MF_POPUP, (INT_PTR)m, L"&File");
-	
-	m=CreatePopupMenu();
-	AppendMenu(m, MF_STRING, UndoChange, L"&Undo	^Z");
-	AppendMenu(m, MF_STRING, RedoChange, L"&Redo	^Y");
-	AppendMenu(m, MF_SEPARATOR, 0, 0);
-	AppendMenu(m, MF_STRING, CutSelection, L"Cu&t	^X");
-	AppendMenu(m, MF_STRING, CopySelection, L"&Copy	^C");
-	AppendMenu(m, MF_STRING, PasteClipboard, L"Paste	^V");
-	AppendMenu(m, MF_STRING, DeleteSelection, L"De&lete	Del");
-	AppendMenu(m, MF_SEPARATOR, 0, 0);
-	AppendMenu(m, MF_STRING, PromptFind, L"&Find...	^F");
-	AppendMenu(m, MF_STRING, PromptReplace, L"&Replace...	^R");
-	AppendMenu(m, MF_STRING, PromptGo, L"&Go To Line...	^G");
-	AppendMenu(m, MF_SEPARATOR, 0, 0);
-	AppendMenu(m, MF_STRING, PromptWrap, L"&Wrap Line...");
-	AppendMenu(m, MF_STRING, WrapLine, L"Repeat Wrap Line");
-	AppendMenu(m, MF_SEPARATOR, 0, 0);
-	AppendMenu(m, MF_STRING, SelectAll, L"Select All	^A");
-	AppendMenu(menu, MF_POPUP, (INT_PTR)m, L"&Edit");
-	
-	m=CreatePopupMenu();
-	AppendMenu(m, MF_STRING, PromptSpawn, L"Run...	Shift+F7");
-	AppendMenu(m, MF_STRING, SpawnCmd, L"&Run Last Command	F7");
-	AppendMenu(menu, MF_POPUP, (INT_PTR)m, L"&Run");
-	
-	m=CreatePopupMenu();
-	encodingmenu=m;
-	AppendMenu(m, MF_STRING, ToggleLinebreak, L"LF Linebreaks");
-	AppendMenu(m, MF_STRING, ToggleTabs, L"Using Hard Tabs");
-	AppendMenu(m, MF_STRING, Toggle8Tab, L"8 EM Tabs");
-	AppendMenu(m, MF_SEPARATOR, 0, 0);
-	AppendMenu(m, MF_STRING, ToggleBOM, L"Not using Unicode BOM");
-	AppendMenu(m, MF_SEPARATOR, 0, 0);
-	AppendMenu(m, MF_STRING, SetUTF8, L"UTF-8");
-	AppendMenu(m, MF_STRING, SetCP1252, L"CP1252");
-	AppendMenu(m, MF_STRING, SetUTF16, L"UTF-16");
-	AppendMenu(m, MF_SEPARATOR, 0, 0);
-	AppendMenu(m, MF_STRING, ReloadFileCP1252, L"Reload as CP1252");
-	AppendMenu(m, MF_STRING, ReloadFileUTF8, L"Reload as UTF-8");
-	AppendMenu(m, MF_STRING, ReloadFileUTF16, L"Reload as UTF-16");
-	AppendMenu(menu, MF_POPUP, (INT_PTR)m, L"&Encoding");
-	
-	m=CreatePopupMenu();
-	AppendMenu(m, MF_STRING, NextConfig, L"&Next	F12");
-	AppendMenu(m, MF_STRING, PrevConfig, L"&Prev	_F12");
-	AppendMenu(m, MF_STRING, ReloadConfig, L"&Reload	^F12");
-	AppendMenu(m, MF_STRING, EditConfig, L"&Edit");
-	AppendMenu(menu, MF_POPUP, (INT_PTR)m, L"&Config");
-}
-
 int CALLBACK
 WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show) {
 
@@ -2412,7 +2249,6 @@ WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show) {
 	config();
 	new_tab(b = newb());
 	defperfile();
-	initmenu();
 	init();
 
 	/*
@@ -2422,13 +2258,11 @@ WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show) {
 	if (argc>1) {
 		for (int i = 1; i < argc; i++) {
 			if (i > 1) new_tab(b = newb());
-			setfilename(argv[i]);
-			if (!act(LoadFile))
-				MessageBox(w, L"Could not open file", L"Error", MB_OK);
+			load_file(argv[i]);
 		}
 		LocalFree(argv);
 	} else
-		act(NewFile);
+		new_file();
 	
 	while (GetMessage(&msg, NULL, 0, 0)) {
 		if (dlg && IsDialogMessage(dlg, &msg))

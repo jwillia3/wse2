@@ -1,19 +1,5 @@
 /* vim: set noexpandtab:tabstop=8 */
 enum {
-	ToggleLinebreak,
-	ToggleTabs,
-	Toggle8Tab,
-	ToggleBOM,
-	LoadFile,
-	ReloadFile,
-	ReloadFileUTF8,
-	ReloadFileUTF16,
-	ReloadFileCP1252,
-	SaveFile,
-	SetUTF8,
-	SetUTF16,
-	SetCP1252,
-
 	MoveUp,
 	MoveDown,
 	MoveLeft,
@@ -68,7 +54,6 @@ enum {
 	PromptOpen,
 	PromptSaveAs,
 	
-	NewFile,
 	ExitEditor,
 	SpawnEditor,
 	SpawnShell,
