@@ -263,26 +263,35 @@ void new_file() {
 	setfilename(L"");
 	settitle(0);
 }
-void load_file(wchar_t *filename) {
+void load_file(wchar_t *filename_with_line_number) {
+	wchar_t *filename = wcsdup(filename_with_line_number);
+	int line_number = separate_line_number(filename);
+	
 	b->changes=0;
 	clearb(b);
 	if (!load(filename, L"utf-8"))
 		MessageBox(w, L"Could not load", L"Error", MB_OK);
 	setfilename(filename);
+	free(filename);
 	settitle(0);
-	TAB.tab_px_width = TAB.em * file.tabc;
+	recalculate_text_metrics();
+	
+	gob(b, line_number, 0);
+	act(MoveHome);
 	invdafter(1);
 }
-void load_file_in_new_tab(wchar_t *filename) {
-	for (int i = 0; i < tab_count; i++)
-		printf("%ls <> %ls\n", tabs[i].filename, filename);
+void load_file_in_new_tab(wchar_t *filename_with_line_number) {
+	wchar_t *filename = wcsdup(filename_with_line_number);
+	int line_number = separate_line_number(filename);
 	for (int i = 0; i < tab_count; i++)
 		if (!wcsicmp(tabs[i].filename, filename)) {
 			switch_tab(i);
+			free(filename);
 			return;
 		}
+	free(filename);
 	switch_tab(new_tab(newb()));
-	load_file(filename);
+	load_file(filename_with_line_number);
 }
 void save_file() {
 	if (!save(TAB.filename))
@@ -957,13 +966,26 @@ void isearch_hit_return(struct input_t *input) {
 	invdafter(top);
 }
 
+int separate_line_number(wchar_t *filename) {
+	wchar_t *line_part = wcsrchr(filename, L':');
+	wchar_t *end;
+	bool had_line_number = line_part && (line_part[1] == 0 || iswdigit(line_part[1]));
+	int line_number = had_line_number ? wcstoul(line_part + 1, &end, 10) : 0;
+	if (!had_line_number) return 0;
+	*line_part = 0;
+	return line_number;
+}
+
 void filter_fuzzy_search_list(wchar_t **out, wchar_t **in, wchar_t *request) {
 	if (!in || !out) return;
+	
+	request = wcsdup(request);
+	separate_line_number(request);
 	*out = NULL;
 	for ( ; *in; in++)
 		if (!*request || wcsistr(*in, request))
 			*out++ = *in, *out = NULL;
-	
+	free(request);
 }
 void start_fuzzy_search() {
 	mode = FUZZY_SEARCH_MODE;
@@ -993,10 +1015,21 @@ void fuzzy_search_typed(struct input_t *input) {
 	invdafter(top);
 }
 void fuzzy_search_hit_return(struct input_t *input) {
-	if (fuzzy_search_files[0]) {
-		load_file_in_new_tab(fuzzy_search_files[0]);
-		mode = NORMAL_MODE;
+	mode = NORMAL_MODE;
+	if (*input->text == ':') {
+		int line_number = separate_line_number(input->text);
+		if (line_number) {
+			gob(b, line_number, 0);
+			act(MoveHome);
+		}
+	} else if (fuzzy_search_files[0]) {
+		wchar_t spec[MAX_PATH + 1];
+		swprintf(spec, MAX_PATH + 1, L"%ls:%d",
+			fuzzy_search_files[0],
+			separate_line_number(input->text));
+		load_file_in_new_tab(spec);
 	}
+	invdafter(top);
 }
 
 input_insert(int c) {
