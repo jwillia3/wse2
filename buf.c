@@ -133,6 +133,12 @@ getb(Buf *b, int ln, int *len) {
 	return (ln<1 || NLINES<ln)? L"": b->dat[ln-1].dat;
 }
 
+Buf *newb() {
+	Buf *buf= calloc(1, sizeof *buf);
+	initb(buf);
+	return buf;
+}
+
 initb(Buf *b) {
 	b->dat=0;
 	b->nlines=0;
@@ -148,6 +154,11 @@ initb(Buf *b) {
 	IND=0;
 	inslb(b, 1, L"", 0);
 	return 1;
+}
+
+void freeb(Buf *b) {
+	clearb(b);
+	free(b->dat);
 }
 
 clearb(Buf *b) {

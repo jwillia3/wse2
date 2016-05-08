@@ -77,9 +77,6 @@ struct	Bookmark {
 Buf		*b;
 Bookmark	*bookmarks;
 wchar_t		*filename;
-wchar_t		filepath[512];
-wchar_t		filebase[512];
-wchar_t		fileext[512];
 wchar_t		lastcmd[512];
 wchar_t		wrapbefore[512];
 wchar_t		wrapafter[512];
@@ -102,6 +99,7 @@ int		addbookmark(int line),
 		isbookmarked(int line);
 
 Codec*		setcodec(wchar_t *name);
+wchar_t 	**platform_list_directory(wchar_t *directory, int *countp);
 void		*platform_openfile(wchar_t *name, int write, int *sz);
 void		platform_closefile(void *file);
 void		platform_writefile(void *f, void *buf, int sz);
@@ -135,6 +133,8 @@ int		samerange(Loc *lo1, Loc *hi1, Loc *lo2, Loc *hi2),
 		col2ind(int ln, int col),
 		ind2col(int ln, int ind);
 
+Buf 		*newb();
+void		freeb(Buf *b);
 int		inslb(Buf *b, int ln, wchar_t *txt, int len),
 		insb(Buf *b, int c),
 		delb(Buf *b),

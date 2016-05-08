@@ -89,6 +89,11 @@ enum {
 	
 	ToggleTransparency,
 	
+	NewTab,
+	NextTab,
+	PreviousTab,
+	CloseTab,
+	
 	RaiseFontMagnification,
 	LowerFontMagnification,
 	ResetFontMagnification,

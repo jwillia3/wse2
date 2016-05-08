@@ -33,6 +33,10 @@ static struct	field fields[] = {
 		{L"bg", Color, &conf.bg, nice_colours_bg},
 		{L"bg2", Color, &conf.bg2},
 		{L"fg", Color, &conf.fg, nice_colours_fg},
+		{L"active_tab", Color, &conf.active_tab},
+		{L"inactive_tab", Color, &conf.inactive_tab},
+		{L"saved_file", Color, &conf.saved_file},
+		{L"unsaved_file", Color, &conf.unsaved_file},
 		{L"gutter_bg", Color, &conf.gutterbg},
 		{L"select", Color, &conf.selbg},
 		{L"isearch", Color, &conf.isearchbg},
@@ -49,6 +53,10 @@ static struct	field fields[] = {
 		{L"style8", Style, &conf.style[7]},
 		{L"fixed_margin", Int, &conf.fixed_margin},
 		{L"center", Boolean, &conf.center},
+		
+		{L"ui_font", String, &conf.ui_font_name},
+		{L"ui_font_small_size", Float, &conf.ui_font_small_size},
+		{L"ui_font_large_size", Float, &conf.ui_font_large_size},
 		
 		{L"font", String, font_spec},
 				
@@ -116,6 +124,10 @@ defconfig() {
 	conf.selbg = RGB(240,240,255);
 	conf.isearchbg = RGB(255,255,0);
 	conf.bookmarkbg = RGB(255,200,255);
+	conf.active_tab = conf.bg;
+	conf.inactive_tab = conf.bg2;
+	conf.saved_file = conf.fg;
+	conf.unsaved_file = RGB(255, 0, 0);
 	wcscpy(conf.bgimage, L"");
 	
 	wcscpy(conf.fontname, L"Courier New");
@@ -126,6 +138,9 @@ defconfig() {
 	conf.leading = 1.125;
 	*conf.fontfeatures = 0;
 	*font_spec = 0;
+	wcscpy(conf.ui_font_name, L"Consolas");
+	conf.ui_font_small_size = 10.0;
+	conf.ui_font_large_size = 24.0;
 	conf.fixed_margin = 1;
 	conf.center = 1;
 	return 1;
@@ -243,11 +258,16 @@ rgb_to_hsv(unsigned rgb, double *h, double *s, double *v) {
 }
 
 void nice_colours_fg(unsigned *colour) {
-	int i;
+	int	i;
+	double 	h,s,v;
+	
+	rgb_to_hsv(*colour, &h, &s, &v);
 	
 	conf.fg = *colour;
 	for (i = 0; i < 8; i++)
 		conf.style[i].color = conf.fg;
+	conf.saved_file = hsv_to_rgb(0, 0, v >= .5? v - .125: v + .125);
+	conf.unsaved_file = hsv_to_rgb(0, 0.75f, v);
 }
 void nice_colours_bg(void *colourp) {
 	unsigned	colour = *(unsigned*)colourp;
@@ -261,6 +281,8 @@ void nice_colours_bg(void *colourp) {
 	conf.bookmarkbg = hsv_to_rgb(fmod(h + 180, 360), s * .25, v);
 	conf.fg = hsv_to_rgb(h, s, v >= .5? v - .5: v + .5);
 	nice_colours_fg(&conf.fg);
+	conf.active_tab = hsv_to_rgb(h, 0, v);
+	conf.inactive_tab = hsv_to_rgb(h, 0, v >= .5? v - .125: v + .125);
 	conf.selbg = hsv_to_rgb(h, s, v >= .5? v - .1: v + .2);
 }
 

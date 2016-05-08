@@ -5,7 +5,46 @@
 #pragma warning(disable: 4005)
 #include <Windows.h>
 #pragma warning(pop)
+#include <stdlib.h>
+#include <string.h>
+#include <wchar.h>
 #include "wse.h"
+
+wchar_t **platform_list_directory(wchar_t *root, int *countp) {
+	wchar_t *directory = wcsdup(root);
+	wchar_t *queue[256];
+	wchar_t **list = NULL;
+	int count = 0;
+	int queue_count = 0;
+	do {
+		WIN32_FIND_DATA data;
+		wchar_t search[MAX_PATH];
+		wcscpy(search, directory);
+		wcscat(search, L"/*");
+		HANDLE h = FindFirstFile(search, &data);
+	    if (h != INVALID_HANDLE_VALUE) {
+	        do {
+				list = realloc(list, (count + 2) * sizeof *list);
+				wchar_t full[MAX_PATH * 2];
+				swprintf(full, MAX_PATH * 2, L"%ls/%ls", directory, data.cFileName);
+				if (data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+					if (wcscmp(data.cFileName, L".") && wcscmp(data.cFileName, L"..")) {
+						if (queue_count < sizeof queue / sizeof *queue)
+							queue[queue_count++] = wcsdup(full);
+					}
+				} else {
+					for (wchar_t *p = full; *p; p++) if (*p == '\\') *p = '/';
+					list[count++] = wcsdup(full);
+					list[count] = NULL;
+				}
+	        } while (FindNextFile(h, &data));
+	        FindClose(h);
+	    }
+		free(directory);
+	} while (queue_count-- && (directory = queue[queue_count]));
+	if (countp) *countp = count;
+	return list;
+}
 
 void *
 platform_openfile(wchar_t *fn, int write, int *sz) {

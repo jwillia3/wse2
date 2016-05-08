@@ -28,38 +28,75 @@
 #include "action.h"
 
 #define	BOT	(top+vis)
+#define TAB	tabs[current_tab]
+
+enum mode_t {
+	NORMAL_MODE,
+	ISEARCH_MODE,
+	FUZZY_SEARCH_MODE,
+};
+
+struct input_t {
+	wchar_t	*text;
+	int	length;
+	int	cursor;
+	void	(*hit_return)(struct input_t *);
+	void	(*typed)(struct input_t *);
+};
+
+void isearch_hit_return(struct input_t *);
+void isearch_typed(struct input_t *);
+void fuzzy_search_hit_return(struct input_t *);
+void fuzzy_search_typed(struct input_t *);
 
 HWND		w;
 HMENU		menu;
 HWND		dlg;
-HDC		ddc;
-HBITMAP		dbmp;
-HBITMAP		bgbmp;
-HBRUSH		bgbrush;
-HPEN		bgpen;
 UINT		WM_FIND;
-void		*BitmapBuffer;
-Loc		click;
 int		width;
 int		height;
-int		font_aheight;	/* Ascender height */
-int		font_lheight;	/* Line height */
-int		font_em;	/* Width of 'M' */
-int		font_tabw;	/* Tab width */
-int		total_margin;
 float		dpi = 96.0f;
-float		font_magnification = 1.00f;
 HMENU		encodingmenu;
 BOOL		use_console = TRUE;
 BOOL		transparent = FALSE;
 #define		ID_CONSOLE 104
-int		isearchlength;
-int		isearchcursor;
-BOOL		using_isearch;
-BOOL		editing_isearch;
+enum mode_t	mode;
+struct input_t	isearch_input = { .hit_return = isearch_hit_return, .typed = isearch_typed };
+struct input_t	fuzzy_search_input = { .hit_return = fuzzy_search_hit_return, .typed = fuzzy_search_typed };
+struct input_t	*current_input;
+wchar_t		**fuzzy_search_files;
+wchar_t		**all_fuzzy_search_files;
 Pg		*gs;
-PgFont		*font[4];
-BOOL		disable_auto_close;
+HDC		double_buffer_dc;
+HBITMAP		double_buffer_bmp;
+void		*double_buffer_data;
+PgFont		*ui_font;
+int		tab_bar_height = 24;
+
+struct tab_t {
+	Buf	*buf;
+	Loc	click;
+	PgFont	*font[4];
+	int	top;
+	float	magnification;
+	int	ascender_height;
+	int	line_height;
+	int	em;
+	int	tab_px_width;
+	int	total_margin;
+	HBITMAP	bgbmp;
+	HBRUSH	bgbrush;
+	HPEN	bgpen;
+	BOOL	inhibit_auto_close;
+	wchar_t	*filename;
+	wchar_t	file_directory[512];
+	wchar_t	file_basename[512];
+	wchar_t	filename_extension[512];
+} *tabs;
+int		tab_count;
+int		current_tab;
+
+
 
 OPENFILENAME	ofn = {
 			sizeof ofn,
@@ -82,19 +119,22 @@ WNDCLASSEX	wc = {
 			CS_VREDRAW|CS_HREDRAW|CS_DBLCLKS,
 			0, 0, 0, 0, 0, 0, 0,
 			0, L"Window", 0 };
+
+static void recalculate_text_metrics();
+
 static
 px2line(int px) {
-	return px/font_lheight + top;
+	return max(0, (px - tab_bar_height) / TAB.line_height) + top;
 }
 
 static
 line2px(int ln) {
-	return (ln-top)*font_lheight;
+	return (ln-top)*TAB.line_height + tab_bar_height;
 }
 
 static
 charwidth(unsigned c) {
-	return font[0]->getCharWidth(font[0], c);
+	return TAB.font[0]->getCharWidth(TAB.font[0], c);
 }
 
 static
@@ -104,12 +144,12 @@ ind2px(int ln, int ind) {
 
 	txt=getb(b, ln, 0);
 	px=0;
-	tab=font_tabw;
+	tab=TAB.tab_px_width;
 	for (i=0; txt[i] && i<ind; i++)
 		px += txt[i]=='\t'
 			? tab - (px + tab) % tab
 			: charwidth(txt[i]);
-	return px + total_margin;
+	return px + TAB.total_margin;
 }
 
 static
@@ -119,8 +159,8 @@ px2ind(int ln, int x) {
 
 	txt=getb(b, ln, 0);
 	px=0;
-	x-=total_margin;
-	tab=font_tabw;
+	x-=TAB.total_margin;
+	tab=TAB.tab_px_width;
 	for (i=0; txt[i] && px<x; i++)
 		px += txt[i]=='\t'
 			? tab - (px + tab) % tab
@@ -166,6 +206,53 @@ HWND makedlg(HWND hwnd, DIALOG_ITEM *items, int n, wchar_t *title, DLGPROC proc)
 	
 	return CreateDialogIndirect(GetModuleHandle(0),(void*)buf,
 		hwnd,proc);
+}
+
+void switch_tab(int to_tab) {
+	if (to_tab < 0) to_tab = 0;
+	if (to_tab >= tab_count) to_tab = tab_count - 1;
+	current_tab = to_tab;
+	settitle(TAB.buf->changes);
+	b = TAB.buf;
+	top = TAB.top;
+	recalculate_text_metrics();
+	invdafter(1);
+}
+void next_tab() {
+	switch_tab((current_tab + 1) % tab_count);
+}
+void previous_tab() {
+	switch_tab(((unsigned)current_tab - 1) % tab_count);
+}
+int new_tab(Buf *b) {
+	tabs = realloc(tabs, (tab_count + 1) * sizeof *tabs);
+	tabs[tab_count] = (struct tab_t){
+		.magnification = 1.00f,
+		.buf = b,
+		.filename = wcsdup(L""),
+		.top = 1,
+	};
+	current_tab = tab_count;
+	reinitconfig();
+	return tab_count++;
+}
+void close_tab() {
+	struct tab_t tab = tabs[current_tab];
+	
+//TODO: LEAKING BUFFERS
+//	free(tab.filename);
+//	freeb(tab.buf);
+//	free(tab.buf);
+	
+	for (int i = current_tab; i < tab_count - 1; i++)
+		tabs[i] = tabs[i + 1];
+	tab_count--;
+	
+	if (tab_count == 0) {
+		act(ExitEditor);
+		return;
+	}
+	switch_tab(current_tab);
 }
 
 
@@ -293,9 +380,9 @@ settitle(int mod) {
 	wchar_t	all[MAX_PATH];
 	swprintf(all, MAX_PATH, L"%ls%ls%ls%ls",
 		mod? L"*": L"",
-		filebase,
-		*fileext? L".": L"",
-		fileext);
+		TAB.file_basename,
+		*TAB.filename_extension? L".": L"",
+		TAB.filename_extension);
 	SetWindowText(w, all);
 }
 
@@ -304,25 +391,26 @@ setfilename(wchar_t *fn) {
 	wchar_t	*s=fn, *e;
 
 	free(filename);
-	filename=wcsdup(fn);
+	filename = wcsdup(fn);
+	TAB.filename = wcsdup(fn);
 	
 	if ((e=wcsrchr(fn, L'\\')) || (e=wcsrchr(fn, L'/'))) {
-		wcsncpy(filepath, fn, e-s);
-		filepath[e-s]=0;
+		wcsncpy(TAB.file_directory, fn, e-s);
+		TAB.file_directory[e-s]=0;
 		e++;
 	} else {
-		GetCurrentDirectory(512, filepath);
+		GetCurrentDirectory(512, TAB.file_directory);
 		e=fn;
 	}
 	
 	s=e;
 	if ((e=wcsrchr(s, L'.')) && s!=e) {
-		wcsncpy(filebase, s, e-s);
-		filebase[e-s]=0;
-		wcscpy(fileext, e+1);
+		wcsncpy(TAB.file_basename, s, e-s);
+		TAB.file_basename[e-s]=0;
+		wcscpy(TAB.filename_extension, e+1);
 	} else {
-		wcscpy(filebase, s);
-		fileext[0]=0;
+		wcscpy(TAB.file_basename, s);
+		TAB.filename_extension[0]=0;
 	}
 	
 	reinitlang();
@@ -330,6 +418,7 @@ setfilename(wchar_t *fn) {
 
 alertchange(int mod) {
 	settitle(mod);
+	invdafter(1);
 }
 
 alertabort(wchar_t *msg, wchar_t *re) {
@@ -349,8 +438,8 @@ movecaret() {
 	
 	x = ind2px(LN, IND);
 	y = line2px(LN);
-	if (y > height-font_lheight)
-		y += font_lheight;
+	if (y > height-TAB.line_height)
+		y += TAB.line_height;
 	if (GetFocus()==w)
 		SetCaretPos(x, y);
 	
@@ -489,7 +578,7 @@ spawn_cmd() {
 			sizeof wrap/sizeof *wrap,
 			lang.cmdwrapper,
 			lastcmd,
-			filename);
+			TAB.filename);
 	else
 		wcscpy(wrap, lastcmd);
 		
@@ -537,7 +626,7 @@ act(int action) {
 	
 	case ToggleOverwrite:
 		DestroyCaret();
-		CreateCaret(w, 0, overwrite? font_em: 0, font_lheight);
+		CreateCaret(w, 0, overwrite? TAB.em: 0, TAB.line_height);
 		movecaret();
 		ShowCaret(w);
 		break;
@@ -594,7 +683,7 @@ act(int action) {
 		return 1;
 	
 	case Toggle8Tab:
-		font_tabw = font_em * file.tabc;
+		TAB.tab_px_width = TAB.em * file.tabc;
 		updatemenu();
 		invdafter(top);
 		return 1;
@@ -609,7 +698,7 @@ act(int action) {
 				L"Error", MB_OK);
 		settitle(0);
 		updatemenu();
-		font_tabw = font_em * file.tabc;
+		TAB.tab_px_width = TAB.em * file.tabc;
 		
 		/* Can't rely on generalinvd() because the
 		 * selection and line counts might not change
@@ -628,7 +717,7 @@ act(int action) {
 		updatemenu();
 		snap();
 		invdafter(top);
-		font_tabw = font_em * file.tabc;
+		TAB.tab_px_width = TAB.em * file.tabc;
 		return ok;
 	
 	case SetUTF8:
@@ -727,7 +816,7 @@ act(int action) {
 	case PromptOpen:
 		if (dlg)
 			break;
-		ofn.lpstrInitialDir=filepath;
+		ofn.lpstrInitialDir=TAB.file_directory;
 		ok=GetOpenFileName(&ofn);
 		if (!ok)
 			break;
@@ -738,7 +827,7 @@ act(int action) {
 	case PromptSaveAs:
 		if (dlg)
 			break;
-		ofn.lpstrInitialDir=filepath;
+		ofn.lpstrInitialDir=TAB.file_directory;
 		ok=GetSaveFileName(&ofn);
 		if (!ok)
 			break;
@@ -788,7 +877,7 @@ act(int action) {
 		sz=GetModuleFileName(0, txt, MAX_PATH);
 		swprintf(txt+sz, MAX_PATH*2-sz, L" \"%ls\"",
 			configfile);
-		if (CreateProcess(0,txt, 0,0,0,0,0,filepath,&si, &pi)) {
+		if (CreateProcess(0,txt, 0,0,0,0,0,TAB.file_directory,&si, &pi)) {
 			CloseHandle(pi.hProcess);
 			CloseHandle(pi.hThread);
 		}
@@ -799,19 +888,31 @@ act(int action) {
 		SetLayeredWindowAttributes(w, 0, 255*(transparent?global.alpha:1), LWA_ALPHA);
 		break;
 	case RaiseFontMagnification:
-		font_magnification += 0.25f;
+		TAB.magnification += 0.25f;
 		configfont();
 		invdafter(top);
 		break;
 	case LowerFontMagnification:
-		if (font_magnification > 0.25f) font_magnification -= 0.25f;
+		if (TAB.magnification > 0.25f) TAB.magnification -= 0.25f;
 		configfont();
 		invdafter(top);
 		break;
 	case ResetFontMagnification:
-		font_magnification = 1.00f;
+		TAB.magnification = 1.00f;
 		configfont();
 		invdafter(top);
+		break;
+	case NewTab:
+		switch_tab(new_tab(newb()));
+		break;
+	case NextTab:
+		next_tab();
+		break;
+	case PreviousTab:
+		previous_tab();
+		break;
+	case CloseTab:
+		close_tab();
 		break;
 	
 	default:
@@ -830,7 +931,7 @@ actins(int c) {
 	wassel=ordersel(&lo, &hi);
 	
 	brace = wcschr(lang.brace, c);
-	if (brace && lang.autoClose && !disable_auto_close) {
+	if (brace && lang.autoClose && !TAB.inhibit_auto_close) {
 		BOOL closing = brace - lang.brace & 1;
 		
 		txt = getb(b, LN, 0);
@@ -934,77 +1035,118 @@ autoreplaceall() {
 		fr.Flags & FR_MATCHCASE);
 }
 
-isearch_insert(int c) {
-	wmemmove(fr.lpstrFindWhat + isearchcursor + 1,
-		fr.lpstrFindWhat + isearchcursor,
-		isearchlength - isearchcursor);
-	fr.lpstrFindWhat[isearchcursor++] = c;
-	fr.lpstrFindWhat[++isearchlength] = 0;
-	autoisearch(0);
+void start_isearch() {
+	mode = ISEARCH_MODE;
+	current_input = &isearch_input;
+	if (current_input->text)
+		free(current_input->text);
+	current_input->text = SLN ? copysel() : wcsdup(L"");
+	current_input->length = wcslen(current_input->text);
+	current_input->cursor = current_input->length;
+	act(EndSelection);
+	invdafter(top);
 }
-isearch_delete() {
-	wmemmove(fr.lpstrFindWhat + isearchcursor,
-		fr.lpstrFindWhat + isearchcursor + 1,
-		isearchlength - isearchcursor);
-	fr.lpstrFindWhat[--isearchlength] = 0;
-	autoisearch(0);
+void isearch_typed(struct input_t *input) {
+	actisearch(input->text, true, false);
+	invdafter(top);
 }
-isearch_move(int dir) {
-	if (dir > 0 && dir + isearchcursor <= isearchlength)
-		isearchcursor += dir;
-	if (dir < 0 && dir + isearchcursor >= 0)
-		isearchcursor += dir;
+void isearch_hit_return(struct input_t *input) {
+	actisearch(input->text, true, true);
 	invdafter(top);
 }
 
-wmchar_isearch(int c, int ctl, int shift) {
-	if (c >= 0x20 && isearchlength < MAX_PATH)
-		isearch_insert(c);
-	else if (c == 8 && isearchcursor > 0) { // backspace
-		isearch_move(-1);
-		isearch_delete();
+void filter_fuzzy_search_list(wchar_t **out, wchar_t **in, wchar_t *request) {
+	if (!in || !out) return;
+	*out = NULL;
+	for ( ; *in; in++)
+		if (!*request || wcsistr(*in, request))
+			*out++ = *in, *out = NULL;
+	
+}
+void start_fuzzy_search() {
+	mode = FUZZY_SEARCH_MODE;
+	current_input = &fuzzy_search_input;
+	if (current_input->text)
+		free(current_input->text);
+	current_input->text = wcsdup(L"");
+	current_input->length = 0;
+	current_input->cursor = 0;
+	
+	if (all_fuzzy_search_files) {
+		for (wchar_t **p = all_fuzzy_search_files; *p; p++) free(*p);
+		free(all_fuzzy_search_files);
+	}
+	if (fuzzy_search_files)
+		free(fuzzy_search_files);
+	int count;
+	all_fuzzy_search_files = platform_list_directory(TAB.file_directory, &count);
+	fuzzy_search_files = calloc(count, sizeof *fuzzy_search_files);
+	filter_fuzzy_search_list(fuzzy_search_files, all_fuzzy_search_files, fuzzy_search_input.text);
+	
+	act(EndSelection);
+	invdafter(top);
+}
+void fuzzy_search_typed(struct input_t *input) {
+	filter_fuzzy_search_list(fuzzy_search_files, all_fuzzy_search_files, input->text);
+	invdafter(top);
+}
+void fuzzy_search_hit_return(struct input_t *input) {
+	if (fuzzy_search_files[0]) {
+		new_tab(b = newb());
+		setfilename(fuzzy_search_files[0]);
+		act(LoadFile);
+		mode = NORMAL_MODE;
+	}
+}
+
+input_insert(int c) {
+	current_input->text = realloc(current_input->text,
+		(current_input->length + 2) * sizeof *current_input->text);
+	wmemmove(current_input->text + current_input->cursor + 1,
+		current_input->text + current_input->cursor,
+		current_input->length - current_input->cursor);
+	current_input->text[current_input->cursor++] = c;
+	current_input->text[++current_input->length] = 0;
+	current_input->typed(current_input);
+}
+input_delete() {
+	wmemmove(current_input->text + current_input->cursor,
+		current_input->text + current_input->cursor + 1,
+		current_input->length - current_input->cursor);
+	current_input->text[--current_input->length] = 0;
+	current_input->typed(current_input);
+}
+input_move(int dir) {
+	if (dir > 0 && dir + current_input->cursor <= current_input->length)
+		current_input->cursor += dir;
+	if (dir < 0 && dir + current_input->cursor >= 0)
+		current_input->cursor += dir;
+	invdafter(top);
+}
+
+wmchar_input(int c, int ctl, int shift) {
+	if (c >= 0x20 && current_input->length < MAX_PATH)
+		input_insert(c);
+	else if (c == 8 && current_input->cursor > 0) { // backspace
+		input_move(-1);
+		input_delete();
 	} else if (c == 127) // delete
-		isearch_delete();
+		input_delete();
 	else if (c == 27) { // escape
-		using_isearch = 0;
-		editing_isearch = 0;
+		mode = NORMAL_MODE;
 		invdafter(top);
-	} else if (c == '\t') { // tab
-		editing_isearch = !editing_isearch;
-		invdafter(top);
-	} else if (c == 13) // enter
-		autoisearch(1);
+	} else if (c == 13) // return
+		current_input->hit_return(current_input);
 	else if (c == 22) { // ^V
 		wchar_t *text;
 		if (!OpenClipboard(w))
 			return 0;
 		if (text = GetClipboardData(CF_UNICODETEXT))
 			while (*text)
-				isearch_insert(*text++);
+				input_insert(*text++);
 		CloseClipboard();
 	}
 	return 1;
-}
-
-autoisearch(int skip) {
-	int ok = actisearch(fr.lpstrFindWhat, fr.Flags & FR_DOWN, skip);
-	invdafter(top);
-	return ok;
-}
-
-void start_incremental_search() {
-	if (SLN) {
-		wchar_t *tmp = copysel();
-		wcsncpy(fr.lpstrFindWhat,tmp,MAX_PATH);
-		fr.lpstrFindWhat[MAX_PATH] = 0;
-		free(tmp);
-	} else
-		fr.lpstrFindWhat[0] = 0;
-	isearchcursor = isearchlength = wcslen(fr.lpstrFindWhat);
-	using_isearch = 1;
-	editing_isearch = 1;
-	act(EndSelection);
-	invdafter(top);
 }
 
 int wmsyskeydown(int c) {
@@ -1012,6 +1154,18 @@ int wmsyskeydown(int c) {
 	int	shift = GetAsyncKeyState(VK_SHIFT) & 0x8000;
 	
 	switch (c) {
+	case '1':
+	case '2':
+	case '3':
+	case '4':
+	case '5':
+	case '6':
+	case '7':
+	case '8':
+	case '9':
+	case '0':
+		switch_tab(c == '0' ? 9 : c - '1');
+		return true;
 	case 'A':
 		act(SelectAll);
 		break;
@@ -1026,16 +1180,22 @@ int wmsyskeydown(int c) {
 	case 'F':
 		if (ctl && shift)
 			return act(PromptFind);
-		start_incremental_search();
+		start_isearch();
+		break;
+	case 'P':
+		start_fuzzy_search();
 		break;
 	case 'S':
 		act(SaveFile);
+		break;
+	case 'T':
+		act(NewTab);
 		break;
 	case 'V':
 		act(PasteClipboard);
 		break;
 	case 'W':
-		act(ExitEditor);
+		act(CloseTab);
 		break;
 	case 'X':
 		act(CutSelection);
@@ -1080,9 +1240,8 @@ wmchar(int c) {
 	int	ctl=GetAsyncKeyState(VK_CONTROL) & 0x8000;
 	int	shift=GetAsyncKeyState(VK_SHIFT) & 0x8000;
 	
-	if (editing_isearch || (using_isearch && c == '\t'))
-		return wmchar_isearch(c, ctl, shift);
-	
+	if (mode == ISEARCH_MODE || mode == FUZZY_SEARCH_MODE)
+		return wmchar_input(c, ctl, shift);
 	switch (c) {
 	
 	case 1: /* ^A */
@@ -1107,7 +1266,7 @@ wmchar(int c) {
 	case 6: /* ^F */
 		if (ctl && shift)
 			return act(PromptFind);
-		start_incremental_search();
+		start_isearch();
 		return 1;
 	
 	case 7: /* ^G */
@@ -1160,7 +1319,7 @@ wmchar(int c) {
 		return act(SaveFile);
 	
 	case 20: /* ^T */
-		return 0;
+		return act(NewTab);
 	
 	case 21: /* ^U */
 		return 0;
@@ -1169,7 +1328,7 @@ wmchar(int c) {
 		return act(PasteClipboard);
 	
 	case 23: /* ^W */
-		return act(ExitEditor);
+		return act(CloseTab);
 	
 	case 24: /* ^X */
 		return act(CutSelection);
@@ -1206,16 +1365,16 @@ setsel(int yes) {
 	return act(EndSelection);
 }
 
-wmkey_isearch(int c, int ctl, int shift) {
+wmkey_input(int c, int ctl, int shift) {
 	switch (c) {
 	case VK_LEFT:
-		isearch_move(-1);
+		input_move(-1);
 		break;
 	case VK_RIGHT:
-		isearch_move(1);
+		input_move(1);
 		break;
 	case VK_F3:
-		wmchar_isearch(13, ctl, shift);
+		wmchar_input(13, ctl, shift);
 		break;
 	}
 	return 1;
@@ -1227,10 +1386,29 @@ wmkey(int c) {
 	int	shift=GetAsyncKeyState(VK_SHIFT) & 0x8000;
 	int	ok;
 	
-	if (editing_isearch)
-		return wmkey_isearch(c, ctl, shift);
+	if (mode == ISEARCH_MODE || mode == FUZZY_SEARCH_MODE)
+		return wmkey_input(c, ctl, shift);
 
 	switch (c) {
+	
+	case '\t':
+		if (ctl)
+			return act(shift ? PreviousTab : NextTab);
+		break;
+	
+	case '1':
+	case '2':
+	case '3':
+	case '4':
+	case '5':
+	case '6':
+	case '7':
+	case '8':
+	case '9':
+	case '0':
+		if (ctl) { switch_tab(c == '0' ? 9 :c - '1'); return true; }
+		break;
+		
 	
 	case VK_UP:
 		setsel(shift);
@@ -1285,12 +1463,7 @@ wmkey(int c) {
 		
 	case VK_F3:
 		act(EndSelection);
-		if (shift) {
-			fr.Flags ^= FR_DOWN;
-			autoisearch(-1);
-			fr.Flags ^= FR_DOWN;
-		} else
-			autoisearch(1);
+		isearch_hit_return(&isearch_input);
 		return 1;
 	
 	case VK_F5:
@@ -1335,23 +1508,24 @@ paintsel(HDC dc) {
 	x1=ind2px(lo.ln, lo.ind);
 	y1=line2px(lo.ln);
 	if (diff)
-		Rectangle(dc, x1, y1, width, y1 + font_lheight);
+		Rectangle(dc, x1, y1, width, y1 + TAB.line_height);
 	
 	x1=diff? 0: x1;
 	x2=ind2px(hi.ln, hi.ind);
 	y2=line2px(hi.ln);
-	Rectangle(dc, x1, y2, x2, y2 + font_lheight);
+	Rectangle(dc, x1, y2, x2, y2 + TAB.line_height);
 	
 	if (diff > 1)
-		Rectangle(dc, 0, y1 + font_lheight, 
+		Rectangle(dc, 0, y1 + TAB.line_height, 
 			width, y2);
 	return 1;
 }
 
 blurtext(int fontno, int x, int y, wchar_t *txt, int n, COLORREF fg) {
+	PgFont **font = TAB.font;
 	wchar_t *p;
 	wchar_t *end = txt + n;
-	int margin = total_margin;
+	int margin = TAB.total_margin;
 	int faux_bold = (fontno & 1) && font[fontno]->getWeight(font[fontno]) < 600;
 	PgMatrix ctm;
 	
@@ -1364,7 +1538,7 @@ blurtext(int fontno, int x, int y, wchar_t *txt, int n, COLORREF fg) {
 	PgPt at = pgPt(x, y);
 	for (p = txt; p < end; p++) {
 		if (*p == '\t')
-			at.x += font_tabw - fmod(at.x - margin + font_tabw, font_tabw);
+			at.x += TAB.tab_px_width - fmod(at.x - margin + TAB.tab_px_width, TAB.tab_px_width);
 		else {
 			if (faux_bold)
 				gs->fillChar(gs, font[fontno], pgPt(at.x + 1, at.y), *p, fg);
@@ -1381,22 +1555,17 @@ paintstatus(HDC dc) {
 	
 	SetDCPenColor(dc, conf.fg);
 	SetDCBrushColor(dc, conf.fg);
-	Rectangle(dc, 0, height-font_lheight, width, height);
-	
-	if (using_isearch)
-		len=swprintf(buf, 1024, L"%d:%d FIND: %ls",
-			LN, ind2col(LN, IND),
-			fr.lpstrFindWhat);
-	else
-		len=swprintf(buf, 1024, SLN? selmsg: noselmsg,
-			LN, ind2col(LN, IND),
-			NLINES,
-			SLN,
-			ind2col(SLN, SIND),
-			SLN==LN? abs(SIND-IND): abs(SLN-LN)+1,
-			SLN==LN? L"chars": L"lines");
+	Rectangle(dc, 0, height-TAB.line_height, width, height);
+
+	len=swprintf(buf, 1024, SLN? selmsg: noselmsg,
+		LN, ind2col(LN, IND),
+		NLINES,
+		SLN,
+		ind2col(SLN, SIND),
+		SLN==LN? abs(SIND-IND): abs(SLN-LN)+1,
+		SLN==LN? L"chars": L"lines");
 	blurtext(0, 0,
-		height-font_lheight+(font_lheight-font_aheight)/2,
+		height-TAB.line_height+(TAB.line_height-TAB.ascender_height)/2,
 		buf, len, conf.bg);
 }
 
@@ -1408,16 +1577,16 @@ paintline(HDC dc, int x, int y, int line) {
 	unsigned short *i = txt, *j = txt, *end = i + len;
 	SIZE	size;
 	
-	if (using_isearch) {
+	if (mode == ISEARCH_MODE) {
 		wchar_t *i = txt;
 		SetDCBrushColor(dc, conf.isearchbg);
 		SetDCPenColor(dc, conf.isearchbg);
-		for (i = txt; *i && (i = wcsistr(i, fr.lpstrFindWhat)); i += isearchlength)
+		for (i = txt; *i && (i = wcsistr(i, isearch_input.text)); i += current_input->length)
 			Rectangle(dc,
 				ind2px(line, i - txt),
-				y - (font_lheight-font_aheight)/2,
-				ind2px(line, i - txt + isearchlength),
-				y - (font_lheight-font_aheight)/2 + font_lheight);
+				y - (TAB.line_height-TAB.ascender_height)/2,
+				ind2px(line, i - txt + current_input->length),
+				y - (TAB.line_height-TAB.ascender_height)/2 + TAB.line_height);
 	}
 	
 	while (j<end) {
@@ -1458,10 +1627,17 @@ paintlines(HDC dc, int first, int last) {
 	int	line, _y=line2px(first);
 	
 	SetTextColor(dc, conf.fg);
-	for (line=first; line<=last; line++, _y += font_lheight)
+	for (line=first; line<=last; line++, _y += TAB.line_height)
 		paintline(dc,
-			total_margin,
-			_y + (font_lheight-font_aheight)/2, line);
+			TAB.total_margin,
+			_y + (TAB.line_height-TAB.ascender_height)/2, line);
+}
+
+static uint32_t to_rgba(int win32_colour) {
+	return 0xff000000 +
+		(win32_colour >> 16 & 0xff) +
+		(win32_colour & 0xff00) +
+		(win32_colour << 16 & 0xff0000);
 }
 
 paint(PAINTSTRUCT *ps) {
@@ -1475,72 +1651,174 @@ paint(PAINTSTRUCT *ps) {
 	last = px2line(ps->rcPaint.bottom);
 	
 	/* Clear the background */
-	SelectObject(ddc, bgbrush);
-	SelectObject(ddc, bgpen);
-	Rectangle(ddc, ps->rcPaint.left-1, ps->rcPaint.top-1,
+	SelectObject(double_buffer_dc, TAB.bgbrush);
+	SelectObject(double_buffer_dc, TAB.bgpen);
+	Rectangle(double_buffer_dc, ps->rcPaint.left-1, ps->rcPaint.top-1,
 		ps->rcPaint.right+1, ps->rcPaint.bottom+1);
 	
-	SelectObject(ddc, GetStockObject(DC_BRUSH));
-	SelectObject(ddc, GetStockObject(DC_PEN));
+	SelectObject(double_buffer_dc, GetStockObject(DC_BRUSH));
+	SelectObject(double_buffer_dc, GetStockObject(DC_PEN));
 	
 	/* Draw odd line's background */
 	if (!*conf.bgimage && conf.bg2 != conf.bg) {
-		SetDCPenColor(ddc, conf.bg2);
-		SetDCBrushColor(ddc, conf.bg2);
+		SetDCPenColor(double_buffer_dc, conf.bg2);
+		SetDCBrushColor(double_buffer_dc, conf.bg2);
 		y=line2px(first);
 		for (i=first; i<=last; i++) {
 			if (i % 2)
-				Rectangle(ddc, 0, y, width, y+font_lheight);
-			y += font_lheight;
+				Rectangle(double_buffer_dc, 0, y, width, y+TAB.line_height);
+			y += TAB.line_height;
 		}
 	}
 	
 	/* Clear the gutters */
-	SetDCPenColor(ddc, conf.gutterbg);
-	SetDCBrushColor(ddc, conf.gutterbg);
-	Rectangle(ddc, 0, 0, total_margin - 3, height);
-	Rectangle(ddc, width - total_margin + 3, 0, width, height);
+	SetDCPenColor(double_buffer_dc, conf.gutterbg);
+	SetDCBrushColor(double_buffer_dc, conf.gutterbg);
+	Rectangle(double_buffer_dc, 0, 0, TAB.total_margin - 3, height);
+	Rectangle(double_buffer_dc, width - TAB.total_margin + 3, 0, width, height);
 	
 	/* Draw bookmark line's background */
 	y=line2px(first);
 	for (i=first; i<=last; i++) {
 		if (isbookmarked(i)) {
-			SetDCPenColor(ddc, conf.bookmarkbg);
-			SetDCBrushColor(ddc, conf.bookmarkbg);
-			Rectangle(ddc, 0, y, width, y+font_lheight);
+			SetDCPenColor(double_buffer_dc, conf.bookmarkbg);
+			SetDCBrushColor(double_buffer_dc, conf.bookmarkbg);
+			Rectangle(double_buffer_dc, 0, y, width, y+TAB.line_height);
 		}
-		y += font_lheight;
+		y += TAB.line_height;
 	}
 	
-	paintsel(ddc);
+	// Draw the tabs
+	PgPath *path = pgNewPath();
+	path->move(path, &gs->ctm, pgPt(0.0f + 0.5f, 0.5f));
+	path->line(path, &gs->ctm, pgPt(width - 0.5f, 0.5f));
+	path->line(path, &gs->ctm, pgPt(width - 0.5f, tab_bar_height - 0.5f));
+	path->line(path, &gs->ctm, pgPt(0.0f + 0.5f, tab_bar_height - 0.5f));
+	path->close(path);
+	gs->fill(gs, path, to_rgba(conf.gutterbg));
+	path->free(path);
+	ui_font->scale(ui_font, conf.ui_font_small_size * dpi / 72.0f, 0.0f);
+	for (int i = 0; i < tab_count; i++) {
+		float left = (width / tab_count) * i;
+		float right = (width / tab_count) * (i + 1);
+		
+		PgPath *path = pgNewPath();
+		path->move(path, &gs->ctm, pgPt(left + 3.5f + 5.0f, 0.5f));
+		path->line(path, &gs->ctm, pgPt(right - 3.5f - 5.0f, 0.5f));
+		path->line(path, &gs->ctm, pgPt(right - 3.5f, tab_bar_height - 0.5f));
+		path->line(path, &gs->ctm, pgPt(left + 3.5f, tab_bar_height - 0.5f));
+		path->close(path);
+		gs->fill(gs, path, to_rgba(i == current_tab ? conf.active_tab : conf.inactive_tab));
+		path->free(path);
+		
+		float measured = 0.0;
+		int length = 0;
+		wchar_t *name = tabs[i].filename;
+		if (wcsrchr(name, '/'))
+			name = wcsrchr(name, '/') + 1;
+		if (wcsrchr(name, '\\'))
+			name = wcsrchr(name, '\\') + 1;
+		for (wchar_t *p = name; *p; p++) {
+			float px = ui_font->getCharWidth(ui_font, *p);
+			if (measured + px >= (right - left) - 6.0f) break;
+			measured += px;
+			length++;
+		}
+		float x_offset = 3.5f + left + (right - left) / 2.0f - measured / 2.0f;
+		float y_offset = tab_bar_height / 2.0f - ui_font->getEm(ui_font) / 2.0f;
+		gs->fillString(gs, ui_font,
+			pgPt(x_offset, y_offset),
+			name, length,
+			to_rgba(tabs[i].buf->changes ? conf.unsaved_file : conf.saved_file));
+	}
+	
+	paintsel(double_buffer_dc);
 	
 	/* Draw the wire */
 	if (global.wire) {
 		HPEN pen;
 		int i, n=sizeof global.wire/sizeof *global.wire;
 		pen = CreatePen(PS_DOT, 1, conf.fg);
-		SetBkMode(ddc, TRANSPARENT);
-		SelectObject(ddc, pen);
+		SetBkMode(double_buffer_dc, TRANSPARENT);
+		SelectObject(double_buffer_dc, pen);
 		for (i=0; i<n; i++) {
-			x=total_margin + global.wire[i] * font_em;
-			MoveToEx(ddc, x, ps->rcPaint.top, 0);
-			LineTo(ddc, x, ps->rcPaint.bottom);
+			x=TAB.total_margin + global.wire[i] * TAB.em;
+			MoveToEx(double_buffer_dc, x, tab_bar_height, 0);
+			LineTo(double_buffer_dc, x, ps->rcPaint.bottom);
 		}
-		SelectObject(ddc, GetStockObject(DC_PEN));
+		SelectObject(double_buffer_dc, GetStockObject(DC_PEN));
 		DeleteObject(pen);
 	}
 	
-	paintlines(ddc,first,last);
-	paintstatus(ddc);
+	paintlines(double_buffer_dc,first,last);
+	paintstatus(double_buffer_dc);
+	
+	if (mode == ISEARCH_MODE) {
+		float scale = 1.0f;
+		float measured;
+		do {
+			ui_font->scale(ui_font, conf.ui_font_large_size * dpi / 72.0f * scale, 0.0f);
+			measured = ui_font->getStringWidth(ui_font,
+				isearch_input.text,
+				isearch_input.length);
+			scale *= 0.99f;
+		} while (measured > width - 20.0f);
+		
+		float em = ui_font->getEm(ui_font);
+		float bar_height = em * 1.75;
+		float top = height - bar_height;
+		
+		PgPath *path = pgNewPath();
+		path->move(path, &gs->ctm, pgPt(0.0f, top + 0.5f));
+		path->line(path, &gs->ctm, pgPt(width - 0.5f, top + 0.5f));
+		path->line(path, &gs->ctm, pgPt(width - 0.5f, top + bar_height - 0.5f));
+		path->line(path, &gs->ctm, pgPt(0.0f + 0.5f, top + bar_height - 0.5f));
+		path->close(path);
+		gs->fill(gs, path, to_rgba(conf.fg) & ~0x1f000000);
+		path->free(path);
+		
+		float x_offset = width / 2.0f - measured / 2.0f;
+		float y_offset = top + bar_height / 2.0f - em / 2.0f;
+		gs->fillString(gs, ui_font, pgPt(x_offset, y_offset),
+			isearch_input.text,
+			isearch_input.length,
+			to_rgba(conf.bg));
+	} else if (mode == FUZZY_SEARCH_MODE) {
+		PgPath *path = pgNewPath();
+		path->move(path, &gs->ctm, pgPt(0.0f, 0.5f));
+		path->line(path, &gs->ctm, pgPt(width - 0.5f, 0.5f));
+		path->line(path, &gs->ctm, pgPt(width - 0.5f, height - 0.5f));
+		path->line(path, &gs->ctm, pgPt(0.0f + 0.5f, height - 0.5f));
+		path->close(path);
+		gs->fill(gs, path, to_rgba(conf.fg) & ~0x1f000000);
+		path->free(path);
+		
+		float x_offset = width * 1.0f / 4.0f;
+		float y = tab_bar_height;
+		ui_font->scale(ui_font, conf.ui_font_large_size * dpi / 72.0f, 0.0f);
+		gs->fillString(gs, ui_font, pgPt(x_offset, y),
+			fuzzy_search_input.text, fuzzy_search_input.length,
+			to_rgba(conf.bg));
+		y += ui_font->getEm(ui_font);
+	
+		ui_font->scale(ui_font, conf.ui_font_small_size * dpi / 72.0f, 0.0f);
+		float line_height = ui_font->getEm(ui_font);
+		for (wchar_t **p = fuzzy_search_files; p && *p; p++, y += line_height) {
+			gs->fillString(gs, ui_font, pgPt(x_offset, y),
+				*p, -1, to_rgba(conf.bg));
+		}
+	}
+	
 	BitBlt(ps->hdc,
 		ps->rcPaint.left,
 		ps->rcPaint.top,
 		ps->rcPaint.right,
 		ps->rcPaint.bottom,
-		ddc,
+		double_buffer_dc,
 		ps->rcPaint.left,
 		ps->rcPaint.top,
 		SRCCOPY);
+	
 	
 	/* Get another DC to this window to draw
 	 * the status bar, which is probably outside
@@ -1549,10 +1827,16 @@ paint(PAINTSTRUCT *ps) {
 	{
 		HDC dc = GetDC(w);
 		BitBlt(dc,
-			0, height-font_lheight,
+			0, height-TAB.line_height,
 			width, height,
-			ddc,
-			0, height-font_lheight,
+			double_buffer_dc,
+			0, height-TAB.line_height,
+			SRCCOPY);
+		BitBlt(dc,
+			0, 0,
+			width, tab_bar_height,
+			double_buffer_dc,
+			0, 0,
 			SRCCOPY);
 		ReleaseDC(w, dc);
 	}
@@ -1625,10 +1909,22 @@ wm_find() {
 	return 0;
 }
 
-wm_click(int x, int y) {
-	click.ln=px2line(y);
-	click.ind=px2ind(click.ln, x);
-	gob(b, click.ln, click.ind);
+void wm_click(int x, int y, bool left, bool middle, bool right) {
+	if (y < tab_bar_height) {
+		int selected = x / (width / tab_count);
+		if (middle) {
+			int old_tab = current_tab;
+			switch_tab(selected);
+			act(CloseTab);
+			if (old_tab != selected)
+				switch_tab(old_tab);
+		} else if (left)
+			switch_tab(selected);
+		return;
+	}
+	TAB.click.ln=px2line(y);
+	TAB.click.ind=px2ind(TAB.click.ln, x);
+	gob(b, TAB.click.ln, TAB.click.ind);
 	act(EndSelection);
 	act(StartSelection);
 	SetCapture(w);
@@ -1638,7 +1934,7 @@ wm_drag(int x, int y) {
 	int	ln,ind;
 	Loc	olo, ohi, lo, hi;
 	
-	if (!click.ln)
+	if (!TAB.click.ln)
 		return 0;
 	
 	ordersel(&olo, &ohi);
@@ -1667,12 +1963,12 @@ WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 	
 	case WM_SYSKEYUP:
 		if (wparam == VK_MENU)
-			disable_auto_close ^= TRUE;
+			TAB.inhibit_auto_close ^= TRUE;
 		return 0;
 		
 	case WM_CHAR:
 		wmchar(wparam);
-		disable_auto_close = FALSE;
+		TAB.inhibit_auto_close = FALSE;
 		return 0;
 	
 	case WM_KEYDOWN:
@@ -1681,7 +1977,7 @@ WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 	
 	
 	case WM_SETFOCUS:
-		CreateCaret(hwnd, 0, overwrite? font_em: 0, font_lheight);
+		CreateCaret(hwnd, 0, overwrite? TAB.em: 0, TAB.line_height);
 		movecaret();
 		ShowCaret(hwnd);
 		return 0;
@@ -1693,10 +1989,10 @@ WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 	case WM_SIZE:
 		width = (short) LOWORD(lparam);
 		height = (short) HIWORD(lparam);
-		vis = height/font_lheight - 1;
+		recalculate_text_metrics();
 		
 		/* Resize double-buffer */
-		DeleteObject(dbmp);
+		DeleteObject(double_buffer_bmp);
 		dc=GetDC(hwnd);
 		{
 			BITMAPINFO info = {
@@ -1712,23 +2008,23 @@ WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 				-1,
 				-1
 			} };
-			dbmp=CreateDIBSection(
+			double_buffer_bmp=CreateDIBSection(
 				NULL,
 				&info,
 				DIB_RGB_COLORS,
-				&BitmapBuffer,
+				&double_buffer_data,
 				NULL,
 				0);
 		}
 		gs->width = width + 3 & ~3;
 		gs->height = height;
-		((PgBitmapCanvas*)gs)->data = BitmapBuffer;
-		total_margin = conf.fixed_margin +
-			(conf.center && global.wire[2] * font_em < width?
-				(width - global.wire[2] * font_em) / 2:
+		((PgBitmapCanvas*)gs)->data = double_buffer_data;
+		TAB.total_margin = conf.fixed_margin +
+			(conf.center && global.wire[2] * TAB.em < width?
+				(width - global.wire[2] * TAB.em) / 2:
 				0);
 		movecaret();
-		SelectObject(ddc, dbmp);
+		SelectObject(double_buffer_dc, double_buffer_bmp);
 		ReleaseDC(hwnd, dc);
 		return 0;
 		
@@ -1741,8 +2037,13 @@ WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 		return 0;
 	
 	case WM_LBUTTONDOWN:
+	case WM_MBUTTONDOWN:
+	case WM_RBUTTONDOWN:
 		wm_click((short)LOWORD(lparam),
-			(short)HIWORD(lparam));
+			(short)HIWORD(lparam),
+			wparam & MK_LBUTTON,
+			wparam & MK_MBUTTON,
+			wparam & MK_RBUTTON);
 		return 0;
 	
 	case WM_MOUSEMOVE:
@@ -1751,7 +2052,7 @@ WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 		return 0;
 		
 	case WM_LBUTTONUP:
-		click.ln=0;
+		TAB.click.ln=0;
 		if (sameloc(&CAR, &SEL))
 			SLN=0;
 		ReleaseCapture();
@@ -1834,7 +2135,7 @@ autoselectlang() {
 	
 	for (i=0; i<nlangs; i++)
 	for (list=langset[i].ext; *list; list+=wcslen(list)+1)
-		if (!wcscmp(list, fileext) || !wcscmp(list, L"*")) {
+		if (!wcscmp(list, TAB.filename_extension) || !wcscmp(list, L"*")) {
 			lang=langset[i];
 			return 1;
 		}
@@ -1871,14 +2172,36 @@ reinitlang() {
 	}
 }
 
+static void recalculate_text_metrics() {
+	float sy = conf.fontsz * TAB.magnification * dpi / 72.f;
+	float sx = sy * conf.fontasp;
+	TAB.font[0]->scale(TAB.font[0], sy, sx);
+	TAB.font[1]->scale(TAB.font[1], sy, sx);
+	TAB.font[2]->scale(TAB.font[2], sy, sx);
+	TAB.font[3]->scale(TAB.font[3], sy, sx);
+	
+	TAB.ascender_height = TAB.font[0]->getAscender(TAB.font[0])
+		- TAB.font[0]->getDescender(TAB.font[0])
+		+ TAB.font[0]->getLeading(TAB.font[0]);
+	TAB.line_height = TAB.ascender_height * conf.leading;
+	TAB.em = TAB.font[0]->getCharWidth(TAB.font[0], 'M');
+	TAB.tab_px_width = TAB.em * file.tabc;
+	
+	TAB.total_margin = conf.fixed_margin +
+			(conf.center && global.wire[2] * TAB.em < width?
+				(width - global.wire[2] * TAB.em) / 2:
+				0);
+				
+	vis = (height - tab_bar_height) / TAB.line_height - 1;
+}
+
 static
 configfont() {
 	wchar_t tmp[MAX_PATH];
 	wchar_t *p;
-	float	sy;
-	float	sx;
 	int	i;
 	char	features[128];
+	PgFont	**font = TAB.font;
 	
 	if (font[0]) font[0]->free(font[0]);
 	if (font[1]) font[1]->free(font[1]);
@@ -1910,27 +2233,7 @@ configfont() {
 	for (i = 0; i < 4; i++)
 		font[i]->useFeatures(font[i], features);
 	
-	sy = conf.fontsz * font_magnification * dpi/72.f;
-	sx = sy * conf.fontasp;
-	font[0]->scale(font[0], sy, sx);
-	font[1]->scale(font[1], sy, sx);
-	font[2]->scale(font[2], sy, sx);
-	font[3]->scale(font[3], sy, sx);
-	
-	font_aheight = font[0]->getAscender(font[0])
-		- font[0]->getDescender(font[0])
-		+ font[0]->getLeading(font[0]);
-	font_lheight = font_aheight * conf.leading;
-	font_em = font[0]->getCharWidth(font[0], 'M');
-	font_tabw = font_em * file.tabc;
-	
-	total_margin = conf.fixed_margin +
-			(conf.center && global.wire[2] * font_em < width?
-				(width - global.wire[2] * font_em) / 2:
-				0);
-	
-	vis = height/font_lheight - 1;
-	
+	recalculate_text_metrics();
 	return 1;
 }
 
@@ -1944,19 +2247,19 @@ reinitconfig() {
 	reinitlang();
 	updatemenu();
 	
-	if (bgbmp)
-		DeleteObject(bgbmp);
+	if (TAB.bgbmp)
+		DeleteObject(TAB.bgbmp);
 
-	bgbmp=LoadImage(GetModuleHandle(0),
+	TAB.bgbmp=LoadImage(GetModuleHandle(0),
 		conf.bgimage? conf.bgimage: L"",
 		IMAGE_BITMAP, 0, 0,
 		LR_LOADFROMFILE);
-	if (bgbmp) {
-		bgbrush=CreatePatternBrush(bgbmp);
-		bgpen=GetStockObject(NULL_PEN);
+	if (TAB.bgbmp) {
+		TAB.bgbrush=CreatePatternBrush(TAB.bgbmp);
+		TAB.bgpen=GetStockObject(NULL_PEN);
 	} else {
-		bgbrush=CreateSolidBrush(conf.bg);
-		bgpen=CreatePen(PS_SOLID, 1, conf.bg);
+		TAB.bgbrush=CreateSolidBrush(conf.bg);
+		TAB.bgpen=CreatePen(PS_SOLID, 1, conf.bg);
 	}
 	
 	
@@ -2002,12 +2305,16 @@ init() {
 	gofr.lpstrFindWhat[0] = 0;
 
 	dc=GetDC(0);
-	ddc=CreateCompatibleDC(dc);
-	dbmp=CreateCompatibleBitmap(dc, 1,1);
-	SelectObject(ddc, dbmp);
+	double_buffer_dc=CreateCompatibleDC(dc);
+	double_buffer_bmp=CreateCompatibleBitmap(dc, 1,1);
+	SelectObject(double_buffer_dc, double_buffer_bmp);
 	ReleaseDC(w, dc);
 	
 	gs = pgNewBitmapCanvas(0, 0);
+	
+	if (ui_font) ui_font->free(ui_font);
+	ui_font = pgOpenFont(conf.ui_font_name, 400, false, 0);
+	
 	
 	SystemParametersInfo(SPI_GETWORKAREA, 0, &rt, 0);
 	w = CreateWindowEx(
@@ -2096,16 +2403,15 @@ initmenu() {
 int CALLBACK
 WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show) {
 
+
 	wchar_t	**argv;
 	MSG	msg;
-	int	argc, ok;
-	Buf	buf;
+	int	argc;
 
-	b = &buf;
 	defglobals();
-	defperfile();
 	config();
-	reinitconfig();
+	new_tab(b = newb());
+	defperfile();
 	initmenu();
 	init();
 
@@ -2114,13 +2420,13 @@ WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show) {
 	 */
 	argv = CommandLineToArgvW(GetCommandLine(), &argc);
 	if (argc>1) {
-		setfilename(argv[1]);
+		for (int i = 1; i < argc; i++) {
+			if (i > 1) new_tab(b = newb());
+			setfilename(argv[i]);
+			if (!act(LoadFile))
+				MessageBox(w, L"Could not open file", L"Error", MB_OK);
+		}
 		LocalFree(argv);
-		
-		ok=act(LoadFile) || !*filename;
-		if (!ok)
-			MessageBox(w, L"Could not open file",
-				L"Error", MB_OK);
 	} else
 		act(NewFile);
 	

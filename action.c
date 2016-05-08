@@ -124,6 +124,7 @@ _actquery(wchar_t *query, int down, int sens) {
 
 static
 isearchsearchline(int ln, int ind, int end, wchar_t *query) {
+	if (!query) return 0;
 	wchar_t	*text = getb(b, ln, 0);
 	wchar_t *at = wcsistr(text + ind, query);
 	if (!at || at - text >= end)
@@ -134,6 +135,9 @@ isearchsearchline(int ln, int ind, int end, wchar_t *query) {
 
 actisearch(wchar_t *query, int down, int skip) {
 	int		i;
+	
+	if (!query)
+		return 0;
 	
 	if (down) {
 		if (isearchsearchline(LN, IND+skip, lenb(b, LN), query))

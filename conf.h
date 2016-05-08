@@ -8,6 +8,10 @@ struct conf {
 	int		bg;
 	int		fg;
 	int		bg2;
+	int		active_tab;
+	int		inactive_tab;
+	int		saved_file;
+	int		unsaved_file;
 	int		selbg;
 	int		isearchbg;
 	int		bookmarkbg;
@@ -25,6 +29,10 @@ struct conf {
 	int		fontweight;
 	int		fontitalic;
 	double		leading;
+	
+	wchar_t		ui_font_name[128];
+	double		ui_font_small_size;
+	double		ui_font_large_size;
 } conf;
 struct file {
 	int		tabc;
