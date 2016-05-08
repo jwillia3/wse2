@@ -71,12 +71,14 @@ HDC		double_buffer_dc;
 HBITMAP		double_buffer_bmp;
 void		*double_buffer_data;
 PgFont		*ui_font;
+PgFont		*font[4];
 int		tab_bar_height = 24;
-
+HBITMAP		background_bitmap;
+HBRUSH		background_brush;
+HPEN		background_pen;
 struct tab_t {
 	Buf	*buf;
 	Loc	click;
-	PgFont	*font[4];
 	int	top;
 	float	magnification;
 	int	ascender_height;
@@ -84,9 +86,6 @@ struct tab_t {
 	int	em;
 	int	tab_px_width;
 	int	total_margin;
-	HBITMAP	bgbmp;
-	HBRUSH	bgbrush;
-	HPEN	bgpen;
 	BOOL	inhibit_auto_close;
 	wchar_t	*filename;
 	wchar_t	file_directory[512];
@@ -134,7 +133,7 @@ line2px(int ln) {
 
 static
 charwidth(unsigned c) {
-	return TAB.font[0]->getCharWidth(TAB.font[0], c);
+	return font[0]->getCharWidth(font[0], c);
 }
 
 static
@@ -1434,7 +1433,6 @@ paintsel(HDC dc) {
 }
 
 blurtext(int fontno, int x, int y, wchar_t *txt, int n, COLORREF fg) {
-	PgFont **font = TAB.font;
 	wchar_t *p;
 	wchar_t *end = txt + n;
 	int margin = TAB.total_margin;
@@ -1564,8 +1562,8 @@ paint(PAINTSTRUCT *ps) {
 	last = px2line(ps->rcPaint.bottom);
 	
 	/* Clear the background */
-	SelectObject(double_buffer_dc, TAB.bgbrush);
-	SelectObject(double_buffer_dc, TAB.bgpen);
+	SelectObject(double_buffer_dc, background_brush);
+	SelectObject(double_buffer_dc, background_pen);
 	Rectangle(double_buffer_dc, ps->rcPaint.left-1, ps->rcPaint.top-1,
 		ps->rcPaint.right+1, ps->rcPaint.bottom+1);
 	
@@ -2087,16 +2085,16 @@ reinitlang() {
 static void recalculate_text_metrics() {
 	float sy = conf.fontsz * TAB.magnification * dpi / 72.f;
 	float sx = sy * conf.fontasp;
-	TAB.font[0]->scale(TAB.font[0], sy, sx);
-	TAB.font[1]->scale(TAB.font[1], sy, sx);
-	TAB.font[2]->scale(TAB.font[2], sy, sx);
-	TAB.font[3]->scale(TAB.font[3], sy, sx);
+	font[0]->scale(font[0], sy, sx);
+	font[1]->scale(font[1], sy, sx);
+	font[2]->scale(font[2], sy, sx);
+	font[3]->scale(font[3], sy, sx);
 	
-	TAB.ascender_height = TAB.font[0]->getAscender(TAB.font[0])
-		- TAB.font[0]->getDescender(TAB.font[0])
-		+ TAB.font[0]->getLeading(TAB.font[0]);
+	TAB.ascender_height = font[0]->getAscender(font[0])
+		- font[0]->getDescender(font[0])
+		+ font[0]->getLeading(font[0]);
 	TAB.line_height = TAB.ascender_height * conf.leading;
-	TAB.em = TAB.font[0]->getCharWidth(TAB.font[0], 'M');
+	TAB.em = font[0]->getCharWidth(font[0], 'M');
 	TAB.tab_px_width = TAB.em * file.tabc;
 	
 	TAB.total_margin = conf.fixed_margin +
@@ -2113,7 +2111,6 @@ configfont() {
 	wchar_t *p;
 	int	i;
 	char	features[128];
-	PgFont	**font = TAB.font;
 	
 	if (font[0]) font[0]->free(font[0]);
 	if (font[1]) font[1]->free(font[1]);
@@ -2158,19 +2155,19 @@ reinitconfig() {
 	configfont();
 	reinitlang();
 	
-	if (TAB.bgbmp)
-		DeleteObject(TAB.bgbmp);
+	if (background_bitmap)
+		DeleteObject(background_bitmap);
 
-	TAB.bgbmp=LoadImage(GetModuleHandle(0),
+	background_bitmap=LoadImage(GetModuleHandle(0),
 		conf.bgimage? conf.bgimage: L"",
 		IMAGE_BITMAP, 0, 0,
 		LR_LOADFROMFILE);
-	if (TAB.bgbmp) {
-		TAB.bgbrush=CreatePatternBrush(TAB.bgbmp);
-		TAB.bgpen=GetStockObject(NULL_PEN);
+	if (background_bitmap) {
+		background_brush=CreatePatternBrush(background_bitmap);
+		background_pen=GetStockObject(NULL_PEN);
 	} else {
-		TAB.bgbrush=CreateSolidBrush(conf.bg);
-		TAB.bgpen=CreatePen(PS_SOLID, 1, conf.bg);
+		background_brush=CreateSolidBrush(conf.bg);
+		background_pen=CreatePen(PS_SOLID, 1, conf.bg);
 	}
 	
 	
