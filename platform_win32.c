@@ -29,8 +29,8 @@ wchar_t **platform_list_directory(wchar_t *root, int *countp) {
 				swprintf(full, MAX_PATH * 2, L"%ls/%ls", directory, data.cFileName);
 				if (data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
 					if (wcscmp(data.cFileName, L".") && wcscmp(data.cFileName, L"..")) {
-						if (queue_count < sizeof queue / sizeof *queue)
-							queue[queue_count++] = wcsdup(full);
+//						if (queue_count < sizeof queue / sizeof *queue)
+//							queue[queue_count++] = wcsdup(full);
 					}
 				} else {
 					for (wchar_t *p = full; *p; p++) if (*p == '\\') *p = '/';

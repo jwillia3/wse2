@@ -420,6 +420,8 @@ setfilename(wchar_t *fn) {
 	TAB.filename = calloc(length + 1, sizeof *TAB.filename);
 	GetFullPathName(fn, length, TAB.filename, NULL);
 	
+	for (wchar_t *p = TAB.filename; *p; p++) if (*p == '\\') *p = '/';
+	
 	if ((e=wcsrchr(fn, L'\\')) || (e=wcsrchr(fn, L'/'))) {
 		wcsncpy(TAB.file_directory, fn, e-s);
 		TAB.file_directory[e-s]=0;
@@ -993,8 +995,19 @@ void fuzzy_search_typed(struct input_t *input) {
 }
 void fuzzy_search_hit_return(struct input_t *input) {
 	if (fuzzy_search_files[0]) {
-		new_tab(b = newb());
-		load_file(fuzzy_search_files[0]);
+		wchar_t *winning_string = fuzzy_search_files[0];
+		bool found = false;
+	
+		for (int i = 0; i < tab_count; i++)
+			if (!wcsicmp(tabs[i].filename, winning_string)) {
+				switch_tab(i);
+				found = true;
+				break;
+			}	
+		if (!found) {
+			new_tab(b = newb());
+			load_file(fuzzy_search_files[0]);
+		}
 		mode = NORMAL_MODE;
 	}
 }
