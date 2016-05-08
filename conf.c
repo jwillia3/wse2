@@ -453,8 +453,9 @@ config() {
 	nconfs=0;
 	nlangs=0;
 	platform_bindir(path);
+	platform_normalize_path(path);
 	
-	wcscpy(wcsrchr(path, L'\\')+1, L"wse.conf");
+	wcscpy(wcsrchr(path, L'/')+1, L"wse.conf");
 	if (loadconfig(path)) {
 		configfile=wcsdup(path);
 		return 1;

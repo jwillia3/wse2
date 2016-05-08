@@ -10,6 +10,13 @@
 #include <wchar.h>
 #include "wse.h"
 
+wchar_t *platform_normalize_path(wchar_t *filename) {
+	for (wchar_t *p = filename; *p; p++)
+		if (*p == '\\')
+			*p = '/';
+	return filename;
+}
+
 wchar_t **platform_list_directory(wchar_t *root, int *countp) {
 	wchar_t *directory = wcsdup(root);
 	wchar_t *queue[256];
@@ -33,7 +40,7 @@ wchar_t **platform_list_directory(wchar_t *root, int *countp) {
 //							queue[queue_count++] = wcsdup(full);
 					}
 				} else {
-					for (wchar_t *p = full; *p; p++) if (*p == '\\') *p = '/';
+					platform_normalize_path(full);
 					list[count++] = wcsdup(full);
 					list[count] = NULL;
 				}

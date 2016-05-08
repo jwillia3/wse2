@@ -274,6 +274,17 @@ void load_file(wchar_t *filename) {
 	TAB.tab_px_width = TAB.em * file.tabc;
 	invdafter(1);
 }
+void load_file_in_new_tab(wchar_t *filename) {
+	for (int i = 0; i < tab_count; i++)
+		printf("%ls <> %ls\n", tabs[i].filename, filename);
+	for (int i = 0; i < tab_count; i++)
+		if (!wcsicmp(tabs[i].filename, filename)) {
+			switch_tab(i);
+			return;
+		}
+	switch_tab(new_tab(newb()));
+	load_file(filename);
+}
 void save_file() {
 	if (!save(TAB.filename))
 		MessageBox(w, L"Could not save", L"Error", MB_OK);
@@ -420,9 +431,9 @@ setfilename(wchar_t *fn) {
 	TAB.filename = calloc(length + 1, sizeof *TAB.filename);
 	GetFullPathName(fn, length, TAB.filename, NULL);
 	
-	for (wchar_t *p = TAB.filename; *p; p++) if (*p == '\\') *p = '/';
+	platform_normalize_path(TAB.filename);
 	
-	if ((e=wcsrchr(fn, L'\\')) || (e=wcsrchr(fn, L'/'))) {
+	if (e=wcsrchr(fn, L'/')) {
 		wcsncpy(TAB.file_directory, fn, e-s);
 		TAB.file_directory[e-s]=0;
 		e++;
@@ -773,18 +784,7 @@ act(int action) {
 		}
 		break;
 	case EditConfig:
-		ZeroMemory(&si, sizeof si);
-		ZeroMemory(&pi, sizeof pi);
-		si.cb=sizeof si;
-		txt=malloc((MAX_PATH*2+1)*sizeof(wchar_t));
-		sz=GetModuleFileName(0, txt, MAX_PATH);
-		swprintf(txt+sz, MAX_PATH*2-sz, L" \"%ls\"",
-			configfile);
-		if (CreateProcess(0,txt, 0,0,0,0,0,TAB.file_directory,&si, &pi)) {
-			CloseHandle(pi.hProcess);
-			CloseHandle(pi.hThread);
-		}
-		free(txt);
+		load_file_in_new_tab(configfile);
 		break;
 	case ToggleTransparency:
 		transparent = !transparent;
@@ -995,19 +995,7 @@ void fuzzy_search_typed(struct input_t *input) {
 }
 void fuzzy_search_hit_return(struct input_t *input) {
 	if (fuzzy_search_files[0]) {
-		wchar_t *winning_string = fuzzy_search_files[0];
-		bool found = false;
-	
-		for (int i = 0; i < tab_count; i++)
-			if (!wcsicmp(tabs[i].filename, winning_string)) {
-				switch_tab(i);
-				found = true;
-				break;
-			}	
-		if (!found) {
-			new_tab(b = newb());
-			load_file(fuzzy_search_files[0]);
-		}
+		load_file_in_new_tab(fuzzy_search_files[0]);
 		mode = NORMAL_MODE;
 	}
 }
@@ -1147,6 +1135,9 @@ int wmsyskeydown(int c) {
 	case VK_RIGHT:
 		setsel(shift);
 		act(MoveEnd);
+		break;
+	case VK_F12:
+		act(EditConfig);
 		break;
 	default: return 0;
 	}
@@ -1470,8 +1461,8 @@ blurtext(int fontno, int x, int y, wchar_t *txt, int n, COLORREF fg) {
 
 paintstatus(HDC dc) {
 	wchar_t	buf[1024];
-	wchar_t *selmsg=L"%d:%d of %d Sel %d:%d (%d %ls)";
-	wchar_t *noselmsg=L"%d:%d of %d";
+	wchar_t *selmsg=L"%ls %d:%d of %d Sel %d:%d (%d %ls)";
+	wchar_t *noselmsg=L"%ls %d:%d of %d";
 	int	len;
 	
 	SetDCPenColor(dc, conf.fg);
@@ -1479,6 +1470,7 @@ paintstatus(HDC dc) {
 	Rectangle(dc, 0, height-TAB.line_height, width, height);
 
 	len=swprintf(buf, 1024, SLN? selmsg: noselmsg,
+		TAB.filename,
 		LN, ind2col(LN, IND),
 		NLINES,
 		SLN,
@@ -2008,7 +2000,8 @@ WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 			DragQueryFile(drop,-1,0,0)-1,
 			name, MAX_PATH);
 		
-		load_file(name);
+		platform_normalize_path(name);
+		load_file_in_new_tab(name);
 		DragFinish(drop);
 		return true;
 		}
