@@ -40,14 +40,14 @@ struct input_t {
 	wchar_t	*text;
 	int	length;
 	int	cursor;
-	void	(*hit_return)(struct input_t *);
-	void	(*typed)(struct input_t *);
+	bool	(*before_key)(struct input_t *, int c, bool alt, bool ctl, bool shift);
+	void	(*after_key)(struct input_t *);
 };
 
-void isearch_hit_return(struct input_t *);
-void isearch_typed(struct input_t *);
-void fuzzy_search_hit_return(struct input_t *);
-void fuzzy_search_typed(struct input_t *);
+bool isearch_before_key(struct input_t *, int, bool, bool, bool);
+void isearch_after_key(struct input_t *);
+bool fuzzy_search_before_key(struct input_t *, int, bool, bool, bool);
+void fuzzy_search_after_key(struct input_t *);
 
 HWND		w;
 HMENU		menu;
@@ -61,8 +61,8 @@ BOOL		use_console = TRUE;
 BOOL		transparent = FALSE;
 #define		ID_CONSOLE 104
 enum mode_t	mode;
-struct input_t	isearch_input = { .hit_return = isearch_hit_return, .typed = isearch_typed };
-struct input_t	fuzzy_search_input = { .hit_return = fuzzy_search_hit_return, .typed = fuzzy_search_typed };
+struct input_t	isearch_input = { .before_key = isearch_before_key, .after_key = isearch_after_key };
+struct input_t	fuzzy_search_input = { .before_key = fuzzy_search_before_key, .after_key = fuzzy_search_after_key };
 struct input_t	*current_input;
 wchar_t		**fuzzy_search_files;
 wchar_t		**all_fuzzy_search_files;
@@ -72,7 +72,10 @@ HBITMAP		double_buffer_bmp;
 void		*double_buffer_data;
 PgFont		*ui_font;
 PgFont		*font[4];
+int		status_bar_height = 24;
 int		tab_bar_height = 24;
+int		isearch_bar_height = 24;
+int		additional_bars;
 HBITMAP		background_bitmap;
 HBRUSH		background_brush;
 HPEN		background_pen;
@@ -109,11 +112,6 @@ FINDREPLACE	fr = {
 			FR_DOWN|FR_DIALOGTERM
 			|FR_HIDEMATCHCASE|FR_HIDEWHOLEWORD,
 			0, 0, 1024, 1024, 0, 0, 0 };
-FINDREPLACE	gofr = {
-			sizeof gofr, 0, 0,
-			FR_HIDEUPDOWN|FR_HIDEMATCHCASE
-			|FR_HIDEWHOLEWORD|FR_DIALOGTERM, 0, 0,
-			1024, 1024, 0, 0, 0 };
 WNDCLASSEX	wc = {
 			sizeof wc,
 			CS_VREDRAW|CS_HREDRAW|CS_DBLCLKS,
@@ -121,6 +119,7 @@ WNDCLASSEX	wc = {
 			0, L"Window", 0 };
 
 static void recalculate_text_metrics();
+static void reserve_vertical_space(int amount);
 
 static
 px2line(int px) {
@@ -530,11 +529,15 @@ invd(int lo, int hi) {
 	RECT	rt;
 	
 	snap();
-	rt.top=line2px(lo);
-	rt.bottom=line2px(hi+1);
-	rt.left=0;
-	rt.right=width;
-	InvalidateRect(w, &rt, 0);
+	if (mode != NORMAL_MODE) { // line numbers don't mean anything in other modes
+		InvalidateRect(w, NULL, 0);
+	} else {
+		rt.top=line2px(lo);
+		rt.bottom=line2px(hi+1);
+		rt.left=0;
+		rt.right=width;
+		InvalidateRect(w, &rt, 0);
+	}
 }
 
 static
@@ -764,14 +767,6 @@ act(int action) {
 		save_file();
 		break;
 	
-	case PromptGo:
-		if (dlg)
-			break;
-		gofr.Flags &= ~FR_DIALOGTERM;
-		dlg=FindText(&gofr);
-		SetWindowText(dlg, L"Go to Line");
-		break;
-	
 	case PromptFind:
 	case PromptReplace:
 		if (dlg)
@@ -915,24 +910,6 @@ actreplaceall(wchar_t *query, wchar_t *repl, int down, int sens) {
 	return n;
 }
 
-autogo() {
-	int	n,ok;
-	wchar_t	*after;
-
-	n=wcstol(gofr.lpstrFindWhat, &after, 0);
-
-	if (n<1 || NLINES<n)
-		return 0;
-	if (*after && !iswspace(*after))
-		return 0;
-	
-	if (dlg)
-		SendMessage(dlg, WM_CLOSE, 0, 0);
-	gob(b, n, 0);
-	act(MoveHome);
-	return 1;
-}
-
 autoquery() {
 	return actquery(fr.lpstrFindWhat,
 		fr.Flags & FR_DOWN,
@@ -961,15 +938,28 @@ void start_isearch() {
 	current_input->text = SLN ? copysel() : wcsdup(L"");
 	current_input->length = wcslen(current_input->text);
 	current_input->cursor = current_input->length;
+	reserve_vertical_space(isearch_bar_height);
 	act(EndSelection);
 	invdafter(top);
 }
-void isearch_typed(struct input_t *input) {
-	actisearch(input->text, true, false);
+void isearch_next_result() {
+	actisearch(isearch_input.text, true, true);
 	invdafter(top);
 }
-void isearch_hit_return(struct input_t *input) {
-	actisearch(input->text, true, true);
+bool isearch_before_key(struct input_t *input, int c, bool alt, bool ctl, bool shift) {
+	if (c == '\r') {
+		isearch_next_result();
+		return false;
+	} else if (c == 27) {
+		reserve_vertical_space(-isearch_bar_height);
+		invdafter(top);
+		mode = NORMAL_MODE;
+		return false;
+	}
+	return true;
+}
+void isearch_after_key(struct input_t *input) {
+	actisearch(input->text, true, false);
 	invdafter(top);
 }
 
@@ -1017,29 +1007,37 @@ void start_fuzzy_search() {
 	act(EndSelection);
 	invdafter(top);
 }
-void fuzzy_search_typed(struct input_t *input) {
+bool fuzzy_search_before_key(struct input_t *input, int c, bool alt, bool ctl, bool shift) {
+	if (c == '\r') {
+		mode = NORMAL_MODE;
+		if (*input->text == ':') {
+			int line_number = separate_line_number(input->text);
+			if (line_number) {
+				gob(b, line_number, 0);
+				act(MoveHome);
+			}
+		} else if (fuzzy_search_files[0]) {
+			wchar_t spec[MAX_PATH + 1];
+			swprintf(spec, MAX_PATH + 1, L"%ls:%d",
+				fuzzy_search_files[0],
+				separate_line_number(input->text));
+			load_file_in_new_tab(spec);
+		}
+		invdafter(top);
+		return false;
+	} else if (c == 27) { // Escape
+		invdafter(top);
+		mode = NORMAL_MODE;
+		return false;
+	}
+	return true;
+}
+void fuzzy_search_after_key(struct input_t *input) {
 	filter_fuzzy_search_list(fuzzy_search_files, all_fuzzy_search_files, input->text);
 	invdafter(top);
 }
-void fuzzy_search_hit_return(struct input_t *input) {
-	mode = NORMAL_MODE;
-	if (*input->text == ':') {
-		int line_number = separate_line_number(input->text);
-		if (line_number) {
-			gob(b, line_number, 0);
-			act(MoveHome);
-		}
-	} else if (fuzzy_search_files[0]) {
-		wchar_t spec[MAX_PATH + 1];
-		swprintf(spec, MAX_PATH + 1, L"%ls:%d",
-			fuzzy_search_files[0],
-			separate_line_number(input->text));
-		load_file_in_new_tab(spec);
-	}
-	invdafter(top);
-}
 
-input_insert(int c) {
+void input_insert(int c) {
 	current_input->text = realloc(current_input->text,
 		(current_input->length + 2) * sizeof *current_input->text);
 	wmemmove(current_input->text + current_input->cursor + 1,
@@ -1047,16 +1045,26 @@ input_insert(int c) {
 		current_input->length - current_input->cursor);
 	current_input->text[current_input->cursor++] = c;
 	current_input->text[++current_input->length] = 0;
-	current_input->typed(current_input);
+	current_input->after_key(current_input);
 }
-input_delete() {
+void input_delete() {
+	if (current_input->cursor == current_input->length)
+		return;
 	wmemmove(current_input->text + current_input->cursor,
 		current_input->text + current_input->cursor + 1,
 		current_input->length - current_input->cursor);
 	current_input->text[--current_input->length] = 0;
-	current_input->typed(current_input);
+	current_input->after_key(current_input);
 }
-input_move(int dir) {
+void input_home() {
+	current_input->cursor = 0;
+	invdafter(top);
+}
+void input_end() {
+	current_input->cursor = current_input->length;
+	invdafter(top);
+}
+void input_move(int dir) {
 	if (dir > 0 && dir + current_input->cursor <= current_input->length)
 		current_input->cursor += dir;
 	if (dir < 0 && dir + current_input->cursor >= 0)
@@ -1064,20 +1072,16 @@ input_move(int dir) {
 	invdafter(top);
 }
 
-wmchar_input(int c, int ctl, int shift) {
+int wmchar_input(int c, bool alt, bool ctl, bool shift) {
+	if (!current_input->before_key(current_input, c, alt, ctl, shift))
+		return 1;
+	
 	if (c >= 0x20 && current_input->length < MAX_PATH)
 		input_insert(c);
 	else if (c == 8 && current_input->cursor > 0) { // backspace
 		input_move(-1);
 		input_delete();
-	} else if (c == 127) // delete
-		input_delete();
-	else if (c == 27) { // escape
-		mode = NORMAL_MODE;
-		invdafter(top);
-	} else if (c == 13) // return
-		current_input->hit_return(current_input);
-	else if (c == 22) { // ^V
+	} else if (c == 22) { // ^V
 		wchar_t *text;
 		if (!OpenClipboard(w))
 			return 0;
@@ -1089,9 +1093,31 @@ wmchar_input(int c, int ctl, int shift) {
 	return 1;
 }
 
+int wmkey_input(int c, bool alt, bool ctl, bool shift) {
+	if (!current_input->before_key(current_input, c, alt, ctl, shift))
+		return 1;
+		
+	switch (c) {
+	case VK_DELETE:
+		input_delete();
+		break;
+	case VK_LEFT:
+		if (alt) input_home(); else input_move(-1);
+		break;
+	case VK_RIGHT:
+		if (alt) input_end(); else input_move(1);
+		break;
+	}
+	return 1;
+}
+
 int wmsyskeydown(int c) {
+		
 	int	ctl = GetAsyncKeyState(VK_CONTROL) & 0x8000;
 	int	shift = GetAsyncKeyState(VK_SHIFT) & 0x8000;
+	
+	if (mode == ISEARCH_MODE || mode == FUZZY_SEARCH_MODE)
+		return !wmkey_input(c, true, ctl, shift);
 	
 	switch (c) {
 	case '1':
@@ -1188,7 +1214,7 @@ wmchar(int c) {
 	int	shift=GetAsyncKeyState(VK_SHIFT) & 0x8000;
 	
 	if (mode == ISEARCH_MODE || mode == FUZZY_SEARCH_MODE)
-		return wmchar_input(c, ctl, shift);
+		return wmchar_input(c, false, ctl, shift);
 	switch (c) {
 	
 	case 1: /* ^A */
@@ -1215,9 +1241,6 @@ wmchar(int c) {
 			return act(PromptFind);
 		start_isearch();
 		return 1;
-	
-	case 7: /* ^G */
-		return act(PromptGo);
 	
 	case 8: /* ^H Bksp */
 		return act(BackspaceChar);
@@ -1315,29 +1338,14 @@ setsel(int yes) {
 	return act(EndSelection);
 }
 
-wmkey_input(int c, int ctl, int shift) {
-	switch (c) {
-	case VK_LEFT:
-		input_move(-1);
-		break;
-	case VK_RIGHT:
-		input_move(1);
-		break;
-	case VK_F3:
-		wmchar_input(13, ctl, shift);
-		break;
-	}
-	return 1;
-}
-
-wmkey(int c) {
+int wmkey(int c) {
 
 	int	ctl=GetAsyncKeyState(VK_CONTROL) & 0x8000;
 	int	shift=GetAsyncKeyState(VK_SHIFT) & 0x8000;
 	int	ok;
 	
 	if (mode == ISEARCH_MODE || mode == FUZZY_SEARCH_MODE)
-		return wmkey_input(c, ctl, shift);
+		return wmkey_input(c, false, ctl, shift);
 
 	switch (c) {
 	
@@ -1413,7 +1421,7 @@ wmkey(int c) {
 		
 	case VK_F3:
 		act(EndSelection);
-		isearch_hit_return(&isearch_input);
+		isearch_next_result(&isearch_input);
 		return 1;
 	
 	case VK_F5:
@@ -1442,6 +1450,13 @@ wmkey(int c) {
 		return act(shift? PrevConfig: NextConfig);
 	}
 	return 0;
+}
+
+static uint32_t to_rgba(int win32_colour) {
+	return 0xff000000 +
+		(win32_colour >> 16 & 0xff) +
+		(win32_colour & 0xff00) +
+		(win32_colour << 16 & 0xff0000);
 }
 
 paintsel(HDC dc) {
@@ -1503,9 +1518,11 @@ paintstatus(HDC dc) {
 	wchar_t *noselmsg=L"%ls %d:%d of %d";
 	int	len;
 	
+	float top = height - status_bar_height;
+	
 	SetDCPenColor(dc, conf.fg);
 	SetDCBrushColor(dc, conf.fg);
-	Rectangle(dc, 0, height-TAB.line_height, width, height);
+	Rectangle(dc, 0, top, width, height);
 
 	len=swprintf(buf, 1024, SLN? selmsg: noselmsg,
 		TAB.filename,
@@ -1515,9 +1532,11 @@ paintstatus(HDC dc) {
 		ind2col(SLN, SIND),
 		SLN==LN? abs(SIND-IND): abs(SLN-LN)+1,
 		SLN==LN? L"chars": L"lines");
-	blurtext(0, 0,
-		height-TAB.line_height+(TAB.line_height-TAB.ascender_height)/2,
-		buf, len, conf.bg);
+	
+	ui_font->scale(ui_font, conf.ui_font_small_size, 0.0f);
+	float x = 4;
+	float y = top + status_bar_height / 2.0f - ui_font->getEm(ui_font) / 2.0f;
+	gs->fillString(gs, ui_font, pgPt(x, y), buf, len, to_rgba(conf.bg));
 }
 
 #include "re.h"
@@ -1578,26 +1597,15 @@ paintlines(HDC dc, int first, int last) {
 	int	line, _y=line2px(first);
 	
 	SetTextColor(dc, conf.fg);
-	for (line=first; line<=last; line++, _y += TAB.line_height)
+	for (line=first; line<=last && line <= BOT; line++, _y += TAB.line_height)
 		paintline(dc,
 			TAB.total_margin,
 			_y + (TAB.line_height-TAB.ascender_height)/2, line);
 }
 
-static uint32_t to_rgba(int win32_colour) {
-	return 0xff000000 +
-		(win32_colour >> 16 & 0xff) +
-		(win32_colour & 0xff00) +
-		(win32_colour << 16 & 0xff0000);
-}
-
-paint(PAINTSTRUCT *ps) {
-	wchar_t	*txt;
-	SIZE	size;
+void paint_normal_mode(PAINTSTRUCT *ps) {
 	int	i,n,y,x,len,first,last;
 	
-	gs->identity(gs);
-
 	first = px2line(ps->rcPaint.top);
 	last = px2line(ps->rcPaint.bottom);
 	
@@ -1703,62 +1711,82 @@ paint(PAINTSTRUCT *ps) {
 	
 	paintlines(double_buffer_dc,first,last);
 	paintstatus(double_buffer_dc);
+	/* Get another DC to this window to draw
+	 * the status bar, which is probably outside
+	 * of the update region of the PAINTSTRUCT
+	 */
 	
-	if (mode == ISEARCH_MODE) {
-		float scale = 1.0f;
-		float measured;
-		do {
-			ui_font->scale(ui_font, conf.ui_font_large_size * dpi / 72.0f * scale, 0.0f);
-			measured = ui_font->getStringWidth(ui_font,
-				isearch_input.text,
-				isearch_input.length);
-			scale *= 0.99f;
-		} while (measured > width - 20.0f);
-		
-		float em = ui_font->getEm(ui_font);
-		float bar_height = em * 1.75;
-		float top = height - bar_height;
-		
-		PgPath *path = pgNewPath();
-		path->move(path, &gs->ctm, pgPt(0.0f, top + 0.5f));
-		path->line(path, &gs->ctm, pgPt(width - 0.5f, top + 0.5f));
-		path->line(path, &gs->ctm, pgPt(width - 0.5f, top + bar_height - 0.5f));
-		path->line(path, &gs->ctm, pgPt(0.0f + 0.5f, top + bar_height - 0.5f));
-		path->close(path);
-		gs->fill(gs, path, to_rgba(conf.fg) & ~0x1f000000);
-		path->free(path);
-		
-		float x_offset = width / 2.0f - measured / 2.0f;
-		float y_offset = top + bar_height / 2.0f - em / 2.0f;
-		gs->fillString(gs, ui_font, pgPt(x_offset, y_offset),
-			isearch_input.text,
-			isearch_input.length,
-			to_rgba(conf.bg));
-	} else if (mode == FUZZY_SEARCH_MODE) {
-		PgPath *path = pgNewPath();
-		path->move(path, &gs->ctm, pgPt(0.0f, 0.5f));
-		path->line(path, &gs->ctm, pgPt(width - 0.5f, 0.5f));
-		path->line(path, &gs->ctm, pgPt(width - 0.5f, height - 0.5f));
-		path->line(path, &gs->ctm, pgPt(0.0f + 0.5f, height - 0.5f));
-		path->close(path);
-		gs->fill(gs, path, to_rgba(conf.fg) & ~0x1f000000);
-		path->free(path);
-		
-		float x_offset = width * 1.0f / 4.0f;
-		float y = tab_bar_height;
-		ui_font->scale(ui_font, conf.ui_font_large_size * dpi / 72.0f, 0.0f);
-		gs->fillString(gs, ui_font, pgPt(x_offset, y),
-			fuzzy_search_input.text, fuzzy_search_input.length,
-			to_rgba(conf.bg));
-		y += ui_font->getEm(ui_font);
+	HDC dc = GetDC(w);
+	BitBlt(dc,
+		0, height-TAB.line_height,
+		width, height,
+		double_buffer_dc,
+		0, height-TAB.line_height,
+		SRCCOPY);
+	BitBlt(dc,
+		0, 0,
+		width, tab_bar_height,
+		double_buffer_dc,
+		0, 0,
+		SRCCOPY);
+	ReleaseDC(w, dc);
+}
+
+void paint_isearch_mode(PAINTSTRUCT *ps) {
+	float top = height - status_bar_height - isearch_bar_height;
 	
-		ui_font->scale(ui_font, conf.ui_font_small_size * dpi / 72.0f, 0.0f);
-		float line_height = ui_font->getEm(ui_font);
-		for (wchar_t **p = fuzzy_search_files; p && *p; p++, y += line_height) {
-			gs->fillString(gs, ui_font, pgPt(x_offset, y),
-				*p, -1, to_rgba(conf.bg));
-		}
-	}
+	paint_normal_mode(ps);
+	
+	PgPath *path = pgNewPath();
+	path->move(path, &gs->ctm, pgPt(0.0f, top + 0.5f));
+	path->line(path, &gs->ctm, pgPt(width - 0.5f, top + 0.5f));
+	path->line(path, &gs->ctm, pgPt(width - 0.5f, top + isearch_bar_height - 0.5f));
+	path->line(path, &gs->ctm, pgPt(0.0f + 0.5f, top + isearch_bar_height - 0.5f));
+	path->close(path);
+	gs->fill(gs, path, to_rgba(conf.fg));
+	path->free(path);
+	
+	ui_font->scale(ui_font, conf.ui_font_small_size, 0.0f);
+	float x_offset = 32.0f;
+	float y_offset = top + 4.0f;
+	gs->fillString(gs, ui_font, pgPt(x_offset, y_offset),
+		isearch_input.text,
+		isearch_input.length,
+		to_rgba(conf.bg));
+}
+
+void paint_fuzzy_search_mode(PAINTSTRUCT *ps) {
+	PgPath *path = pgNewPath();
+	path->move(path, &gs->ctm, pgPt(0.0f, 0.5f));
+	path->line(path, &gs->ctm, pgPt(width - 0.5f, 0.5f));
+	path->line(path, &gs->ctm, pgPt(width - 0.5f, height - 0.5f));
+	path->line(path, &gs->ctm, pgPt(0.0f + 0.5f, height - 0.5f));
+	path->close(path);
+	gs->fill(gs, path, to_rgba(conf.fg));
+	path->free(path);
+	
+	float x_offset = width * 1.0f / 4.0f;
+	float y = tab_bar_height;
+	ui_font->scale(ui_font, conf.ui_font_large_size * dpi / 72.0f, 0.0f);
+	gs->fillString(gs, ui_font, pgPt(x_offset, y),
+		fuzzy_search_input.text, fuzzy_search_input.length,
+		to_rgba(conf.bg));
+	y += ui_font->getEm(ui_font);
+
+	ui_font->scale(ui_font, conf.ui_font_small_size * dpi / 72.0f, 0.0f);
+	float em = ui_font->getEm(ui_font);
+	float leading = em * 0.0125f;
+	for (wchar_t **p = fuzzy_search_files; p && *p; p++, y += em + leading * 2)
+		gs->fillString(gs, ui_font, pgPt(x_offset, y + leading),
+			*p, -1, to_rgba(conf.bg));
+}
+
+void paint(PAINTSTRUCT *ps) {
+	gs->identity(gs);
+	
+	if (mode == NORMAL_MODE) paint_normal_mode(ps);
+	else if (mode == ISEARCH_MODE) paint_isearch_mode(ps);
+	else if (mode == FUZZY_SEARCH_MODE) paint_fuzzy_search_mode(ps);
 	
 	BitBlt(ps->hdc,
 		ps->rcPaint.left,
@@ -1769,28 +1797,6 @@ paint(PAINTSTRUCT *ps) {
 		ps->rcPaint.left,
 		ps->rcPaint.top,
 		SRCCOPY);
-	
-	
-	/* Get another DC to this window to draw
-	 * the status bar, which is probably outside
-	 * of the update region of the PAINTSTRUCT
-	 */
-	{
-		HDC dc = GetDC(w);
-		BitBlt(dc,
-			0, height-TAB.line_height,
-			width, height,
-			double_buffer_dc,
-			0, height-TAB.line_height,
-			SRCCOPY);
-		BitBlt(dc,
-			0, 0,
-			width, tab_bar_height,
-			double_buffer_dc,
-			0, 0,
-			SRCCOPY);
-		ReleaseDC(w, dc);
-	}
 }
 
 wmscroll(int action) {
@@ -1841,13 +1847,10 @@ wmwheel(int clicks) {
 }
 
 wm_find() {
-	if (fr.Flags&FR_DIALOGTERM && gofr.Flags&FR_DIALOGTERM) {
+	if (fr.Flags&FR_DIALOGTERM) {
 		dlg=0;
 		return 0;
 	}
-	
-	if (! (gofr.Flags & FR_DIALOGTERM))
-		return autogo();
 	
 	if (fr.Flags & FR_FINDNEXT)
 		return autoquery();
@@ -2127,6 +2130,11 @@ reinitlang() {
 	}
 }
 
+static void reserve_vertical_space(int amount) {
+	additional_bars += amount;
+	vis = (height - tab_bar_height - additional_bars) / TAB.line_height;
+}
+
 static void recalculate_text_metrics() {
 	float sy = conf.fontsz * TAB.magnification * dpi / 72.f;
 	float sx = sy * conf.fontasp;
@@ -2146,8 +2154,7 @@ static void recalculate_text_metrics() {
 			(conf.center && global.wire[2] * TAB.em < width?
 				(width - global.wire[2] * TAB.em) / 2:
 				0);
-				
-	vis = (height - tab_bar_height) / TAB.line_height - 1;
+	reserve_vertical_space(0);
 	fix_caret();
 }
 
@@ -2250,9 +2257,6 @@ init() {
 	fr.lpstrReplaceWith = malloc((MAX_PATH + 1) * sizeof (wchar_t));
 	fr.lpstrReplaceWith[0] = 0;
 	
-	gofr.lpstrFindWhat = malloc((MAX_PATH + 1) * sizeof (wchar_t));
-	gofr.lpstrFindWhat[0] = 0;
-
 	dc=GetDC(0);
 	double_buffer_dc=CreateCompatibleDC(dc);
 	double_buffer_bmp=CreateCompatibleBitmap(dc, 1,1);
@@ -2277,7 +2281,6 @@ init() {
 		NULL, menu, GetModuleHandle(0), NULL);
 	SetLayeredWindowAttributes(w, 0, 255, LWA_ALPHA);
 	reinitconfig();
-	gofr.hwndOwner = w;
 	fr.hwndOwner = w;
 }
 
@@ -2292,6 +2295,7 @@ WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show) {
 	defglobals();
 	config();
 	new_tab(b = newb());
+	reserve_vertical_space(status_bar_height);
 	defperfile();
 	init();
 

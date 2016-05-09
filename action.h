@@ -48,7 +48,6 @@ enum {
 	CutSelection,
 	PasteClipboard,
 	
-	PromptGo,
 	PromptFind,
 	PromptReplace,
 	PromptOpen,

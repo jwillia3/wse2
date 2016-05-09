@@ -965,7 +965,6 @@ _act(int action) {
 	
 	case PromptOpen:
 	case PromptFind:
-	case PromptGo:
 	case PromptReplace:
 		return 0;
 	
