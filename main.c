@@ -91,6 +91,7 @@ struct tab_t {
 	wchar_t	file_directory[512];
 	wchar_t	file_basename[512];
 	wchar_t	filename_extension[512];
+	struct file file_settings;
 } *tabs;
 int		tab_count;
 int		current_tab;
@@ -214,6 +215,7 @@ void switch_tab(int to_tab) {
 	settitle(TAB.buf->changes);
 	b = TAB.buf;
 	top = TAB.top;
+	file = TAB.file_settings;
 	reinitlang();
 	recalculate_text_metrics();
 	invdafter(1);
@@ -231,6 +233,7 @@ int new_tab(Buf *b) {
 		.buf = b,
 		.filename = wcsdup(L""),
 		.top = 1,
+		.file_settings = file,
 	};
 	current_tab = tab_count;
 	reinitconfig();
@@ -267,6 +270,7 @@ void new_file() {
 void load_file(wchar_t *filename_with_line_number) {
 	wchar_t *filename = wcsdup(filename_with_line_number);
 	int line_number = separate_line_number(filename);
+	platform_normalize_path(filename);
 	
 	b->changes=0;
 	clearb(b);
@@ -275,7 +279,8 @@ void load_file(wchar_t *filename_with_line_number) {
 	setfilename(filename);
 	free(filename);
 	settitle(0);
-	recalculate_text_metrics();
+	TAB.file_settings = file;
+	reinitconfig();
 	
 	gob(b, line_number, 0);
 	act(MoveHome);
@@ -284,6 +289,7 @@ void load_file(wchar_t *filename_with_line_number) {
 void load_file_in_new_tab(wchar_t *filename_with_line_number) {
 	wchar_t *filename = wcsdup(filename_with_line_number);
 	int line_number = separate_line_number(filename);
+	platform_normalize_path(filename);
 	for (int i = 0; i < tab_count; i++)
 		if (!wcsicmp(tabs[i].filename, filename)) {
 			switch_tab(i);
@@ -2296,6 +2302,7 @@ WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show) {
 	if (argc>1) {
 		for (int i = 1; i < argc; i++) {
 			if (i > 1) new_tab(b = newb());
+			platform_normalize_path(argv[i]);
 			load_file(argv[i]);
 		}
 		LocalFree(argv);

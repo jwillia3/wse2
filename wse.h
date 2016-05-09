@@ -98,7 +98,7 @@ int		addbookmark(int line),
 		isbookmarked(int line);
 
 Codec*		setcodec(wchar_t *name);
-wchar_t     *platform_normalize_path(wchar_t *filename);
+wchar_t		*platform_normalize_path(wchar_t *filename);
 wchar_t 	**platform_list_directory(wchar_t *directory, int *countp);
 void		*platform_openfile(wchar_t *name, int write, int *sz);
 void		platform_closefile(void *file);
