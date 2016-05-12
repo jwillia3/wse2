@@ -1238,6 +1238,9 @@ wmchar(int c) {
 		start_isearch();
 		return 1;
 	
+	case 7: /* ^G */
+		return 0;
+	
 	case 8: /* ^H Bksp */
 		return act(BackspaceChar);
 	
@@ -1745,7 +1748,7 @@ void paint_isearch_mode(PAINTSTRUCT *ps) {
 	
 	ui_font->scale(ui_font, conf.ui_font_small_size, 0.0f);
 	float x_offset = 32.0f;
-	float y_offset = top + 4.0f;
+	float y_offset = top + isearch_bar_height / 2.0f - ui_font->getEm(ui_font) / 2.0f;
 	gs->fillString(gs, ui_font, pgPt(x_offset, y_offset),
 		isearch_input.text,
 		isearch_input.length,
