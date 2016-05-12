@@ -241,10 +241,9 @@ int new_tab(Buf *b) {
 void close_tab() {
 	struct tab_t tab = tabs[current_tab];
 	
-//TODO: LEAKING BUFFERS
-//	free(tab.filename);
-//	freeb(tab.buf);
-//	free(tab.buf);
+	free(tab.filename);
+	freeb(tab.buf);
+	free(tab.buf);
 	
 	for (int i = current_tab; i < tab_count - 1; i++)
 		tabs[i] = tabs[i + 1];
@@ -1094,9 +1093,6 @@ int wmchar_input(int c, bool alt, bool ctl, bool shift) {
 }
 
 int wmkey_input(int c, bool alt, bool ctl, bool shift) {
-	if (!current_input->before_key(current_input, c, alt, ctl, shift))
-		return 1;
-		
 	switch (c) {
 	case VK_DELETE:
 		input_delete();
@@ -1514,8 +1510,8 @@ blurtext(int fontno, int x, int y, wchar_t *txt, int n, COLORREF fg) {
 
 paintstatus(HDC dc) {
 	wchar_t	buf[1024];
-	wchar_t *selmsg=L"%ls %d:%d of %d Sel %d:%d (%d %ls)";
-	wchar_t *noselmsg=L"%ls %d:%d of %d";
+	wchar_t *selmsg=L"%ls %ls %d:%d of %d Sel %d:%d (%d %ls)";
+	wchar_t *noselmsg=L"%ls %ls %d:%d of %d";
 	int	len;
 	
 	float top = height - status_bar_height;
@@ -1526,6 +1522,7 @@ paintstatus(HDC dc) {
 
 	len=swprintf(buf, 1024, SLN? selmsg: noselmsg,
 		TAB.filename,
+		TAB.file_directory,
 		LN, ind2col(LN, IND),
 		NLINES,
 		SLN,
