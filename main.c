@@ -986,7 +986,11 @@ void filter_fuzzy_search_list(wchar_t **out, wchar_t **in, wchar_t *request) {
 	*out = NULL;
 	for ( ; *in; in++)
 		if (!*request || wcsistr(*in, request))
-			*out++ = *in, *out = NULL;
+			*out++ = *in +
+				(wcsstr(*in, TAB.file_directory) == 0 ?
+					wcslen(TAB.file_directory) + 1 :
+					0);
+	*out = NULL;
 	free(request);
 }
 void start_fuzzy_search() {
