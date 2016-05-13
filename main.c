@@ -283,43 +283,43 @@ static int compare_symbol_def(const void *a, const void *b) {
 	return wcscmp(((struct symbol_def_t*)a)[0].name, ((struct symbol_def_t*)b)[0].name);
 }
 static void reload_symbol_defs(wchar_t *directory) {
-	if (!directory)
-		return;
-		
-	for (int i = 0; i < symbol_def_count; i++) {
-		free(symbol_defs[i].name);
-		free(symbol_defs[i].file_spec);
-	}
-	symbol_def_count = 0;
-	
-	wchar_t command[MAX_PATH * 2];
-	swprintf(command, MAX_PATH * 2, L"cd %ls && ctags -xR >tags 2>nul", directory);
-	_wsystem(command);
-	
-	FILE *file = fopen("tags", "r");
-	if (file) {
-		char line[256];
-		wchar_t name[256];
-		char type[256];
-		int line_number;
-		wchar_t filename[256];
-		wchar_t file_spec[MAX_PATH * 2];
-		while (fgets(line, sizeof line, file)) {
-			if (4 != sscanf(line, "%ls\t%s\t%d\t%ls\t", name, type, &line_number, filename))
-				continue;
-			GetFullPathName(filename, MAX_PATH * 2, file_spec, NULL);
-			swprintf(file_spec, MAX_PATH * 2, L"%ls:%d", file_spec, line_number);
-			symbol_defs = realloc(symbol_defs, (symbol_def_count + 2) * sizeof *symbol_defs);
-			symbol_defs[symbol_def_count++] = (struct symbol_def_t){
-				.name = wcsdup(name),
-				.file_spec = platform_normalize_path(wcsdup(file_spec)),
-			};
-		}
-		symbol_defs[symbol_def_count] = (struct symbol_def_t){0,};
-		qsort(symbol_defs, symbol_def_count, sizeof *symbol_defs, compare_symbol_def);
-		fclose(file);
-		unlink("tags");
-	}
+//	if (!directory)
+//		return;
+//		
+//	for (int i = 0; i < symbol_def_count; i++) {
+//		free(symbol_defs[i].name);
+//		free(symbol_defs[i].file_spec);
+//	}
+//	symbol_def_count = 0;
+//	
+//	wchar_t command[MAX_PATH * 2];
+//	swprintf(command, MAX_PATH * 2, L"cd %ls && ctags -xR >tags 2>nul", directory);
+//	_wsystem(command);
+//	
+//	FILE *file = fopen("tags", "r");
+//	if (file) {
+//		char line[256];
+//		wchar_t name[256];
+//		char type[256];
+//		int line_number;
+//		wchar_t filename[256];
+//		wchar_t file_spec[MAX_PATH * 2];
+//		while (fgets(line, sizeof line, file)) {
+//			if (4 != sscanf(line, "%ls\t%s\t%d\t%ls\t", name, type, &line_number, filename))
+//				continue;
+//			GetFullPathName(filename, MAX_PATH * 2, file_spec, NULL);
+//			swprintf(file_spec, MAX_PATH * 2, L"%ls:%d", file_spec, line_number);
+//			symbol_defs = realloc(symbol_defs, (symbol_def_count + 2) * sizeof *symbol_defs);
+//			symbol_defs[symbol_def_count++] = (struct symbol_def_t){
+//				.name = wcsdup(name),
+//				.file_spec = platform_normalize_path(wcsdup(file_spec)),
+//			};
+//		}
+//		symbol_defs[symbol_def_count] = (struct symbol_def_t){0,};
+//		qsort(symbol_defs, symbol_def_count, sizeof *symbol_defs, compare_symbol_def);
+//		fclose(file);
+//		unlink("tags");
+//	}
 }
 
 
@@ -1060,21 +1060,24 @@ void filter_fuzzy_search_list(wchar_t **out, wchar_t **in, wchar_t *request) {
 	*out = NULL;
 	free(request);
 }
-void start_fuzzy_search() {
+void start_fuzzy_search(wchar_t *initial_text) {
 	mode = FUZZY_SEARCH_MODE;
 	current_input = &fuzzy_search_input;
 	if (current_input->text)
 		free(current_input->text);
-	current_input->text = wcsdup(L"");
+	current_input->text = wcsdup(initial_text);
 	current_input->length = 0;
 	current_input->cursor = 0;
 	
 	if (all_fuzzy_search_files) {
 		for (wchar_t **p = all_fuzzy_search_files; *p; p++) free(*p);
 		free(all_fuzzy_search_files);
+		all_fuzzy_search_files = NULL;
 	}
-	if (fuzzy_search_files)
+	if (fuzzy_search_files) {
 		free(fuzzy_search_files);
+		fuzzy_search_files = NULL;
+	}
 	int count;
 	all_fuzzy_search_files = platform_list_directory(TAB.file_directory, &count);
 	fuzzy_search_files = calloc(count, sizeof *fuzzy_search_files);
@@ -1098,7 +1101,8 @@ bool fuzzy_search_before_key(struct input_t *input, int c, bool alt, bool ctl, b
 				fuzzy_search_files[0],
 				separate_line_number(input->text));
 			load_file_in_new_tab(spec);
-		}
+		} else
+			load_file_in_new_tab(input->text);
 		invdafter(top);
 		return false;
 	} else if (c == 27) { // Escape
@@ -1226,7 +1230,7 @@ int wmsyskeydown(int c) {
 		invdafter(top);
 		break;
 	case 'P':
-		start_fuzzy_search();
+		start_fuzzy_search(L"");
 		break;
 	case 'R':
 		if (!SLN)
@@ -1325,6 +1329,7 @@ wmchar(int c) {
 		return 1;
 	
 	case 7: /* ^G */
+		start_fuzzy_search(L":");
 		return 0;
 	
 	case 8: /* ^H Bksp */

@@ -18,6 +18,7 @@ wchar_t *platform_normalize_path(wchar_t *filename) {
 }
 
 wchar_t **platform_list_directory(wchar_t *root, int *countp) {
+	return NULL;
 	wchar_t *directory = wcsdup(root);
 	wchar_t *queue[256];
 	wchar_t **list = NULL;
