@@ -961,38 +961,38 @@ int _act(Buf *b, int action) {
 		return 1;
 	
 	case AddBookmark:
-		addbookmark(LN);
+		addbookmark(b, LN);
 		return 1;
 	case DeleteBookmark:
-		return deletebookmark(LN);
+		return deletebookmark(b, LN);
 	case ToggleBookmark:
-		if (isbookmarked(LN))
-			deletebookmark(LN);
+		if (isbookmarked(b, LN))
+			deletebookmark(b, LN);
 		else
-			addbookmark(LN);
+			addbookmark(b, LN);
 		return 1;
 	case NextBookmark:
 		{
 			Bookmark *bm;
-			for (bm = bookmarks; bm; bm = bm->next)
+			for (bm = b->bookmarks; bm; bm = bm->next)
 				if (bm->line > LN)
 					return gob(b, bm->line, 0);
-			if (bookmarks)
-				return gob(b, bookmarks->line, 0);
+			if (b->bookmarks)
+				return gob(b, b->bookmarks->line, 0);
 			return 0;
 		}
 	case PrevBookmark:
 		{
 			Bookmark *bm;
-			if (!bookmarks)
+			if (!b->bookmarks)
 				return 0;
-			for (bm = bookmarks; bm; bm = bm->next)
+			for (bm = b->bookmarks; bm; bm = bm->next)
 				if (bm->line >= LN) 
 					if (bm->prev)
 						return gob(b, bm->prev->line, 0);
 					else
 						break;
-			for (bm = bookmarks; bm->next; bm = bm->next);
+			for (bm = b->bookmarks; bm->next; bm = bm->next);
 			return gob(b, bm->line, 0);
 		}
 	}

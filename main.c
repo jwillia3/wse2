@@ -1644,7 +1644,7 @@ void paint_normal_mode(PAINTSTRUCT *ps) {
 	/* Draw bookmark line's background */
 	y=line2px(first);
 	for (i=first; i<=last; i++) {
-		if (isbookmarked(i)) {
+		if (isbookmarked(TAB.buf, i)) {
 			SetDCPenColor(double_buffer_dc, conf.bookmarkbg);
 			SetDCBrushColor(double_buffer_dc, conf.bookmarkbg);
 			Rectangle(double_buffer_dc, 0, y, width, y+TAB.line_height);

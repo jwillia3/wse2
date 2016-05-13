@@ -55,6 +55,7 @@ struct	Buf {
 	int	max;
 	Loc	car;
 	Loc	sel;
+	Bookmark *bookmarks;
 	Undo	*undo;
 	Undo	*redo;
 	int	changes;
@@ -74,7 +75,6 @@ struct	Bookmark {
 #define SIND	(SEL.ind)
 #define NLINES	(b->nlines)
 
-Bookmark 	*bookmarks;
 wchar_t		lastcmd[512];
 wchar_t		wrapbefore[512];
 wchar_t		wrapafter[512];
@@ -92,9 +92,9 @@ int		config(),
 		configfont(),
 		defperfile(),
 		defglobals();
-int		addbookmark(int line),
-		deletebookmark(int line),
-		isbookmarked(int line);
+int		addbookmark(Buf *b, int line),
+		deletebookmark(Buf *b, int line),
+		isbookmarked(Buf *b, int line);
 
 Codec*		setcodec(wchar_t *name);
 wchar_t		*platform_normalize_path(wchar_t *filename);
