@@ -20,7 +20,7 @@ cmploc(Loc *x, Loc *y) {
 	return 1;
 }
 
-ordersel(Loc *lo, Loc *hi) {
+ordersel(Buf *b, Loc *lo, Loc *hi) {
 	int	sello = SLN<LN || (SLN==LN && SIND<IND);
 	*lo = sello? SEL: CAR;
 	*hi = sello? CAR: SEL;
@@ -33,7 +33,7 @@ nextcol(int vc, int c) {
 	return file.tabc - (vc + file.tabc-1) % file.tabc;
 }
 
-col2ind(int ln, int col) {
+col2ind(Buf *b, int ln, int col) {
 	wchar_t	*txt;
 	int	i,vc;
 	
@@ -44,7 +44,7 @@ col2ind(int ln, int col) {
 	return i;
 }
 
-ind2col(int ln, int ind) {
+ind2col(Buf *b, int ln, int ind) {
 	wchar_t	*txt;
 	int	i,vc;
 	

@@ -74,8 +74,7 @@ struct	Bookmark {
 #define SIND	(SEL.ind)
 #define NLINES	(b->nlines)
 
-Buf		*b;
-Bookmark	*bookmarks;
+Bookmark 	*bookmarks;
 wchar_t		lastcmd[512];
 wchar_t		wrapbefore[512];
 wchar_t		wrapafter[512];
@@ -110,28 +109,28 @@ int		encodeutf8to(unsigned char *out, wchar_t *in, wchar_t *end);
 wchar_t*	decodeutf8(unsigned char *in, unsigned char *end);
 wchar_t*	wcsistr(wchar_t *big, wchar_t *substring);
 
-int		_act(int action),
-		_actins(int c),
-		_actquery(wchar_t *query, int down, int sens),
-		actisearch(wchar_t *query, int down, int skip),
-		_actreplace(wchar_t *query, wchar_t *repl, int down, int sens),
-		_actreplaceall(wchar_t *query, wchar_t *repl, int down, int sens);
+int		_act(Buf *b, int action),
+		_actins(Buf *b, int c),
+		_actquery(Buf *b, wchar_t *query, int down, int sens),
+		actisearch(Buf *b, wchar_t *query, int down, int skip),
+		_actreplace(Buf *b, wchar_t *query, wchar_t *repl, int down, int sens),
+		_actreplaceall(Buf *b, wchar_t *query, wchar_t *repl, int down, int sens);
 
-wchar_t		*copysel();
+wchar_t		*copysel(Buf *b);
 
-int		record(int type, int lo, int hi),
-		undo(Undo **stk),
-		clearundo(Undo **stk);
+int		record(Buf *b, int type, int lo, int hi),
+		undo(Buf *b, Undo **stk),
+		clearundo(Buf *b, Undo **stk);
 		
-int		load(wchar_t *fn, wchar_t *encoding),
-		save(wchar_t *fn);
+int		load(Buf *b, wchar_t *fn, wchar_t *encoding),
+		save(Buf *b, wchar_t *fn);
 
 int		samerange(Loc *lo1, Loc *hi1, Loc *lo2, Loc *hi2),
 		sameloc(Loc *x, Loc *y),
 		cmploc(Loc *x, Loc *y),
-		ordersel(Loc *lo, Loc *hi),
-		col2ind(int ln, int col),
-		ind2col(int ln, int ind);
+		ordersel(Buf *b, Loc *lo, Loc *hi),
+		col2ind(Buf *b, int ln, int col),
+		ind2col(Buf *b, int ln, int ind);
 
 Buf 		*newb();
 void		freeb(Buf *b);

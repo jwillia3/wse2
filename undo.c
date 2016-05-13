@@ -3,14 +3,12 @@
 #include <wchar.h>
 #include "wse.h"
 
-static Undo*
-push(Undo **stk, Undo *u) {
+static Undo *push(Undo **stk, Undo *u) {
 	u->next=*stk;
 	return *stk=u;
 }
 
-static Undo*
-pop(Undo **stk) {
+static Undo *pop(Undo **stk) {
 	Undo	*u=*stk;
 	if (!u)
 		return 0;
@@ -19,8 +17,7 @@ pop(Undo **stk) {
 	return u;
 }
 
-static Undo*
-move(Undo **to, Undo **from, int n) {
+static Undo *move(Undo **to, Undo **from, int n) {
 	
 	Undo	*array, *last;
 	
@@ -32,8 +29,7 @@ move(Undo **to, Undo **from, int n) {
 	return *to=array;
 }
 
-static Line*
-getlines(int lo, int hi) {
+static Line *getlines(Buf *b, int lo, int hi) {
 
 	Line	*dat, *first;
 	wchar_t	*txt;
@@ -48,8 +44,7 @@ getlines(int lo, int hi) {
 	return first;
 }
 
-static
-putlines(Line *dat, int lo, int hi) {
+static void putlines(Buf *b, Line *dat, int lo, int hi) {
 	
 	Line	*array;
 	int	i;
@@ -63,15 +58,13 @@ putlines(Line *dat, int lo, int hi) {
 	
 }
 
-static
-droplines(int lo, int hi) {
+static void droplines(Buf *b, int lo, int hi) {
 	int	i;
 	for (i=hi; i>=lo; i--)
 		dellb(b, i);
 }
 
-static
-modify(int undoing) {
+static void modify(Buf *b, int undoing) {
 	int	incr=undoing? -1: 1;
 
 	b->changes+=incr;
@@ -81,7 +74,7 @@ modify(int undoing) {
 		alertchange(1);
 }
 
-_record(Undo **stk, int type, int lo, int hi) {
+int _record(Buf *b, Undo **stk, int type, int lo, int hi) {
 	
 	Undo	*u, *tmp;
 	int	i;
@@ -104,11 +97,11 @@ _record(Undo **stk, int type, int lo, int hi) {
 	switch (type) {
 	
 	case UndoSwap:
-		u->dat=getlines(lo, hi);
+		u->dat=getlines(b, lo, hi);
 		break;
 	
 	case UndoDelete:
-		u->dat=getlines(lo, hi);
+		u->dat=getlines(b, lo, hi);
 		break;
 	
 	case UndoInsert:
@@ -128,13 +121,13 @@ _record(Undo **stk, int type, int lo, int hi) {
 	return 1;
 }
 
-record(int type, int lo, int hi) {
-	clearundo(&b->redo);
-	modify(0);
-	return _record(&b->undo, type, lo, hi);
+int record(Buf *b, int type, int lo, int hi) {
+	clearundo(b, &b->redo);
+	modify(b, 0);
+	return _record(b, &b->undo, type, lo, hi);
 }
 
-undo(Undo **stk) {
+int undo(Buf *b, Undo **stk) {
 
 	Undo	*u, **ostk;
 	int	i, invmap[]={ UndoSwap, UndoInsert,
@@ -147,33 +140,33 @@ undo(Undo **stk) {
 	if (!u)
 		return 0;
 	
-	modify(stk==&b->undo);
+	modify(b, stk==&b->undo);
 	
 	/* Add inverse to opposite stack */
 	ostk = (stk==&b->undo)? &b->redo: &b->undo;
 	if (u->type != UndoGroup)
-		_record(ostk, invmap[u->type], u->lo, u->hi);
+		_record(b, ostk, invmap[u->type], u->lo, u->hi);
 	
 	switch (u->type) {
 	
 	case UndoSwap:
-		droplines(u->lo, u->hi);
-		putlines(u->dat, u->lo, u->hi);
+		droplines(b, u->lo, u->hi);
+		putlines(b, u->dat, u->lo, u->hi);
 		break;
 	
 	case UndoDelete:
-		putlines(u->dat, u->lo, u->hi);
+		putlines(b, u->dat, u->lo, u->hi);
 		break;
 	
 	case UndoInsert:
-		droplines(u->lo, u->hi);
+		droplines(b, u->lo, u->hi);
 		break;
 	
 	case UndoGroup:
 		move(stk, &u->grp, u->hi);
 		for (i=0; i<u->hi; i++)
-			undo(stk);
-		_record(ostk, UndoGroup, 0, u->hi);
+			undo(b, stk);
+		_record(b, ostk, UndoGroup, 0, u->hi);
 		break;
 		
 	}
@@ -183,8 +176,7 @@ undo(Undo **stk) {
 	return 1;
 }
 
-static
-freelines(Line *array, int lo, int hi) {
+static int freelines(Line *array, int lo, int hi) {
 	Line	*c;
 	int	i;
 	
@@ -197,14 +189,14 @@ freelines(Line *array, int lo, int hi) {
 	return 1;
 }
 
-clearundo(Undo **stk) {
+int clearundo(Buf *b, Undo **stk) {
 	
 	Undo	*u;
 	
 
 	while (u=pop(stk)) {
 		freelines(u->dat, u->lo, u->hi);
-		clearundo(&u->grp);
+		clearundo(b, &u->grp);
 	}
 	return 1;
 }

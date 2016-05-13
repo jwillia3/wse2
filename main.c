@@ -30,6 +30,13 @@
 #define	BOT	(top+vis)
 #define TAB	tabs[current_tab]
 
+#undef CAR
+#undef SEL
+#undef NLINES
+#define CAR	(TAB.buf->car)
+#define SEL	(TAB.buf->sel)
+#define NLINES	(TAB.buf->nlines)
+
 enum mode_t {
 	NORMAL_MODE,
 	ISEARCH_MODE,
@@ -141,7 +148,7 @@ ind2px(int ln, int ind) {
 	wchar_t	*txt;
 	int	i,px,tab;
 
-	txt=getb(b, ln, 0);
+	txt=getb(TAB.buf, ln, 0);
 	px=0;
 	tab=TAB.tab_px_width;
 	for (i=0; txt[i] && i<ind; i++)
@@ -156,7 +163,7 @@ px2ind(int ln, int x) {
 	wchar_t	*txt;
 	int	i,px,tab;
 
-	txt=getb(b, ln, 0);
+	txt=getb(TAB.buf, ln, 0);
 	px=0;
 	x-=TAB.total_margin;
 	tab=TAB.tab_px_width;
@@ -212,7 +219,6 @@ void switch_tab(int to_tab) {
 	if (to_tab >= tab_count) to_tab = tab_count - 1;
 	current_tab = to_tab;
 	settitle(TAB.buf->changes);
-	b = TAB.buf;
 	top = TAB.top;
 	file = TAB.file_settings;
 	reinitlang();
@@ -258,7 +264,7 @@ void close_tab() {
 
 
 void new_file() {
-	b->changes=0;
+	TAB.buf->changes=0;
 	clearb(TAB.buf);
 	defperfile();
 	top=1;
@@ -270,9 +276,9 @@ void load_file(wchar_t *filename_with_line_number) {
 	int line_number = separate_line_number(filename);
 	platform_normalize_path(filename);
 	
-	b->changes=0;
-	clearb(b);
-	if (!load(filename, L"utf-8"))
+	TAB.buf->changes=0;
+	clearb(TAB.buf);
+	if (!load(TAB.buf, filename, L"utf-8"))
 		MessageBox(w, L"Could not load", L"Error", MB_OK);
 	setfilename(filename);
 	free(filename);
@@ -280,7 +286,7 @@ void load_file(wchar_t *filename_with_line_number) {
 	TAB.file_settings = file;
 	reinitconfig();
 	
-	gob(b, line_number, 0);
+	gob(TAB.buf, line_number, 0);
 	act(MoveHome);
 	invdafter(1);
 }
@@ -299,9 +305,9 @@ void load_file_in_new_tab(wchar_t *filename_with_line_number) {
 	load_file(filename_with_line_number);
 }
 void save_file() {
-	if (!save(TAB.filename))
+	if (!save(TAB.buf, TAB.filename))
 		MessageBox(w, L"Could not save", L"Error", MB_OK);
-	b->changes=0;
+	TAB.buf->changes=0;
 	settitle(0);
 }
 
@@ -569,7 +575,7 @@ generalinvd(int onlines, int wassel, Loc *olo, Loc *ohi) {
 	int	selnow;
 	Loc	lo,hi;
 	
-	selnow=ordersel(&lo, &hi);
+	selnow=ordersel(TAB.buf, &lo, &hi);
 	if (onlines != NLINES)
 		invdafter(top);
 	else if (wassel != selnow && (wassel||selnow))
@@ -612,7 +618,7 @@ act(int action) {
 	wchar_t	*txt;
 	
 	onlines=NLINES;
-	wassel=ordersel(&lo, &hi);
+	wassel=ordersel(TAB.buf, &lo, &hi);
 	
 	switch (action) {
 	
@@ -629,7 +635,7 @@ act(int action) {
 		break;
 	}
 	
-	ok = _act(action);
+	ok = _act(TAB.buf, action);
 	
 	switch (action) {
 	
@@ -772,7 +778,7 @@ act(int action) {
 			break;
 		fr.Flags &= ~FR_DIALOGTERM;
 		if (SLN) {
-			wchar_t *tmp = copysel();
+			wchar_t *tmp = copysel(TAB.buf);
 			wcsncpy(fr.lpstrFindWhat,tmp,MAX_PATH);
 			fr.lpstrFindWhat[MAX_PATH] = 0;
 			free(tmp);
@@ -840,39 +846,39 @@ actins(int c) {
 	wchar_t	*txt, *brace;
 	
 	onlines=NLINES;
-	wassel=ordersel(&lo, &hi);
+	wassel=ordersel(TAB.buf, &lo, &hi);
 	
 	brace = wcschr(lang.brace, c);
 	if (brace && lang.autoClose && !TAB.inhibit_auto_close) {
 		BOOL closing = brace - lang.brace & 1;
 		
-		txt = getb(b, LN, 0);
-		if (!closing && ordersel(&lo, &hi)) {
+		txt = getb(TAB.buf, LN, 0);
+		if (!closing && ordersel(TAB.buf, &lo, &hi)) {
 			act(EndSelection);
-			gob(b, lo.ln, lo.ind);
-			_actins(c);
-			gob(b, hi.ln, hi.ind+1);
-			_actins(brace[1]);
-			record(UndoGroup, 0, 2);
+			gob(TAB.buf, lo.ln, lo.ind);
+			_actins(TAB.buf, c);
+			gob(TAB.buf, hi.ln, hi.ind+1);
+			_actins(TAB.buf, brace[1]);
+			record(TAB.buf, UndoGroup, 0, 2);
 		} else if (txt[IND] == c)
 			act(MoveRight);
 		else if (c == '{') {
-			_actins(c);
-			_act(BreakLine);
-			_act(BreakLine);
-			_actins(brace[1]);
-			_act(MoveUp);
-			_actins('\t');
-			record(UndoGroup, 0, 5);
+			_actins(TAB.buf, c);
+			_act(TAB.buf, BreakLine);
+			_act(TAB.buf, BreakLine);
+			_actins(TAB.buf, brace[1]);
+			_act(TAB.buf, MoveUp);
+			_actins(TAB.buf, '\t');
+			record(TAB.buf, UndoGroup, 0, 5);
 		} else if (closing)
-			_actins(c);
+			_actins(TAB.buf, c);
 		else {
-			_actins(c);
-			_actins(brace[1]);
+			_actins(TAB.buf, c);
+			_actins(TAB.buf, brace[1]);
 			act(MoveLeft);
-			record(UndoGroup, 0, 2);
+			record(TAB.buf, UndoGroup, 0, 2);
 		}
-	} else if (!_actins(c))
+	} else if (!_actins(TAB.buf, c))
 		return 0;
 	
 	invd(LN, LN);
@@ -882,7 +888,7 @@ actins(int c) {
 
 actquery(wchar_t *query, int down, int sens) {
 	wchar_t	title[2];
-	if (!_actquery(query, down, sens))
+	if (!_actquery(TAB.buf, query, down, sens))
 		return 0;
 	GetWindowText(dlg, title, 2);
 	if (dlg && title[0]=='F')
@@ -892,7 +898,7 @@ actquery(wchar_t *query, int down, int sens) {
 }
 
 actreplace(wchar_t *query, wchar_t *repl, int down, int sens) {
-	if (!_actreplace(query, repl, down, sens))
+	if (!_actreplace(TAB.buf, query, repl, down, sens))
 		return 0;
 	invdafter(top);
 	return 1;
@@ -902,7 +908,7 @@ actreplaceall(wchar_t *query, wchar_t *repl, int down, int sens) {
 	int	n;
 	if (dlg)
 		SendMessage(dlg, WM_CLOSE, 0, 0);
-	n=_actreplaceall(query, repl, down, sens);
+	n=_actreplaceall(TAB.buf, query, repl, down, sens);
 	if (!n)
 		return 0;
 	invdafter(top);
@@ -934,7 +940,7 @@ void start_isearch() {
 	current_input = &isearch_input;
 	if (current_input->text)
 		free(current_input->text);
-	current_input->text = SLN ? copysel() : wcsdup(L"");
+	current_input->text = SLN ? copysel(TAB.buf) : wcsdup(L"");
 	current_input->length = wcslen(current_input->text);
 	current_input->cursor = current_input->length;
 	reserve_vertical_space(isearch_bar_height);
@@ -942,7 +948,7 @@ void start_isearch() {
 	invdafter(top);
 }
 void isearch_next_result() {
-	actisearch(isearch_input.text, true, true);
+	actisearch(TAB.buf, isearch_input.text, true, true);
 	invdafter(top);
 }
 bool isearch_before_key(struct input_t *input, int c, bool alt, bool ctl, bool shift) {
@@ -958,7 +964,7 @@ bool isearch_before_key(struct input_t *input, int c, bool alt, bool ctl, bool s
 	return true;
 }
 void isearch_after_key(struct input_t *input) {
-	actisearch(input->text, true, false);
+	actisearch(TAB.buf, input->text, true, false);
 	invdafter(top);
 }
 
@@ -1012,7 +1018,7 @@ bool fuzzy_search_before_key(struct input_t *input, int c, bool alt, bool ctl, b
 		if (*input->text == ':') {
 			int line_number = separate_line_number(input->text);
 			if (line_number) {
-				gob(b, line_number, 0);
+				gob(TAB.buf, line_number, 0);
 				act(MoveHome);
 			}
 		} else if (fuzzy_search_files[0]) {
@@ -1466,7 +1472,7 @@ paintsel(HDC dc) {
 		return 0;
 	
 	diff = abs(SLN-LN);
-	ordersel(&lo, &hi);
+	ordersel(TAB.buf, &lo, &hi);
 	
 	SetDCBrushColor(dc, conf.selbg);
 	SetDCPenColor(dc, conf.selbg);
@@ -1513,8 +1519,8 @@ blurtext(int fontno, int x, int y, wchar_t *txt, int n, COLORREF fg) {
 
 paintstatus(HDC dc) {
 	wchar_t	buf[1024];
-	wchar_t *selmsg=L"%ls %ls %d:%d of %d Sel %d:%d (%d %ls)";
-	wchar_t *noselmsg=L"%ls %ls %d:%d of %d";
+	wchar_t *selmsg=L"%ls %d:%d of %d Sel %d:%d (%d %ls)";
+	wchar_t *noselmsg=L"%ls %d:%d of %d";
 	int	len;
 	
 	float top = height - status_bar_height;
@@ -1525,11 +1531,10 @@ paintstatus(HDC dc) {
 
 	len=swprintf(buf, 1024, SLN? selmsg: noselmsg,
 		TAB.filename,
-		TAB.file_directory,
-		LN, ind2col(LN, IND),
+		LN, ind2col(TAB.buf, LN, IND),
 		NLINES,
 		SLN,
-		ind2col(SLN, SIND),
+		ind2col(TAB.buf, SLN, SIND),
 		SLN==LN? abs(SIND-IND): abs(SLN-LN)+1,
 		SLN==LN? L"chars": L"lines");
 	
@@ -1543,7 +1548,7 @@ paintstatus(HDC dc) {
 
 paintline(HDC dc, int x, int y, int line) {
 	int	k,len,sect;
-	void	*txt = getb(b,line,&len);
+	void	*txt = getb(TAB.buf,line,&len);
 	unsigned short *i = txt, *j = txt, *end = i + len;
 	SIZE	size;
 	
@@ -1878,7 +1883,7 @@ void wm_click(int x, int y, bool left, bool middle, bool right) {
 	}
 	TAB.click.ln=px2line(y);
 	TAB.click.ind=px2ind(TAB.click.ln, x);
-	gob(b, TAB.click.ln, TAB.click.ind);
+	gob(TAB.buf, TAB.click.ln, TAB.click.ind);
 	act(EndSelection);
 	act(StartSelection);
 	SetCapture(w);
@@ -1891,13 +1896,13 @@ wm_drag(int x, int y) {
 	if (!TAB.click.ln)
 		return 0;
 	
-	ordersel(&olo, &ohi);
+	ordersel(TAB.buf, &olo, &ohi);
 	
 	ln=px2line(y);
 	ind=px2ind(ln, x);
-	gob(b, ln, ind);
+	gob(TAB.buf, ln, ind);
 	
-	ordersel(&lo, &hi);
+	ordersel(TAB.buf, &lo, &hi);
 	invd(min(lo.ln, olo.ln), max(hi.ln, ohi.ln));
 	return 1;
 }
@@ -2238,7 +2243,7 @@ init() {
 			SetProcessDpiAwareness(2);
 	}
 	
-	initb(b);
+	initb(TAB.buf);
 	top=1;
 
 	wc.lpfnWndProc = WndProc;
@@ -2294,7 +2299,7 @@ WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show) {
 
 	defglobals();
 	config();
-	new_tab(b = newb());
+	new_tab(newb());
 	reserve_vertical_space(status_bar_height);
 	defperfile();
 	init();
@@ -2305,7 +2310,7 @@ WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show) {
 	argv = CommandLineToArgvW(GetCommandLine(), &argc);
 	if (argc>1) {
 		for (int i = 1; i < argc; i++) {
-			if (i > 1) new_tab(b = newb());
+			if (i > 1) new_tab(TAB.buf = newb());
 			platform_normalize_path(argv[i]);
 			load_file(argv[i]);
 		}

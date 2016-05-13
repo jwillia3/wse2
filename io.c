@@ -178,7 +178,7 @@ setcodec(wchar_t *name) {
 }
 
 static
-ex_settings(int line) {
+ex_settings(Buf *b, int line) {
 	int	len;
 	wchar_t *settab;
 	wchar_t	*txt = getb(b,line,&len);
@@ -196,7 +196,7 @@ ex_settings(int line) {
 	}
 }
 
-load(wchar_t *fn, wchar_t *encoding) {
+int load(Buf *b, wchar_t *fn, wchar_t *encoding) {
 	wchar_t	*dst, *odst, *eol, eolc;
 	unsigned char	*src;
 	int	sz,n,cr=0;
@@ -240,13 +240,13 @@ load(wchar_t *fn, wchar_t *encoding) {
 	!eolc && dellb(b,NLINES); /* initial line wasn't in file */
 	
 	for (n=1; n<=5 && n<=NLINES; n++)
-		ex_settings(n);
+		ex_settings(b, n);
 	for (n=NLINES-5; n>1 && n<=NLINES; n++)
-		ex_settings(n);	
+		ex_settings(b, n);	
 	return 1;
 }
 
-save(wchar_t *fn) {
+int save(Buf *b, wchar_t *fn) {
 	wchar_t *linebreak = file.usecrlf? L"\r\n": L"\n";
 	unsigned char	*buf;
 	wchar_t	*src;

@@ -19,17 +19,16 @@
 #include "bre.h"
 
 extern act(void); /* deliberately mis-declared */
-static join(int lo, int hi, int space);
+static join(Buf *b, int lo, int hi, int space);
 
 /* Insert considering tab-to-space */
-static
-instabb(int c) {
+static int instabb(Buf *b, int c) {
 	if (c=='\t' && !file.usetabs) {
 		int i = 0;
 		do {
 			insb(b,' ');
 			i++;
-		} while ((ind2col(LN, IND)-1) % file.tabc);
+		} while ((ind2col(b, LN, IND)-1) % file.tabc);
 		return i;
 	} else if (overwrite) {
 		if (IND != lenb(b, LN))
@@ -39,8 +38,7 @@ instabb(int c) {
 		return insb(b,c);
 }
 
-static
-searchupline(struct match *m, int ln, int before, wchar_t *query) {
+static int searchupline(Buf *b, struct match *m, int ln, int before, wchar_t *query) {
 	wchar_t	*txt;
 	int	i;
 	
@@ -51,31 +49,29 @@ searchupline(struct match *m, int ln, int before, wchar_t *query) {
 		return 0;
 	
 	gob(b, ln, m->p[0]-txt);
-	_act(EndSelection);
-	_act(StartSelection);
+	_act(b, EndSelection);
+	_act(b, StartSelection);
 	gob(b, ln, m->lim[0]-txt);
 	return 1;
 }
 
-static
-searchup(struct match *m, int ln, int ind, wchar_t *query) {
+static int searchup(Buf *b, struct match *m, int ln, int ind, wchar_t *query) {
 	int	i,x;
 	Loc	lo,hi;
 	
-	x = ordersel(&lo,&hi)? lo.ind-1: ind-1;
-	if (x>=0 && searchupline(m, ln, x, query))
+	x = ordersel(b, &lo,&hi)? lo.ind-1: ind-1;
+	if (x>=0 && searchupline(b, m, ln, x, query))
 		return 1;
 	for (i=ln-1; i>0; i--)
-		if (searchupline(m, i, lenb(b,i), query))
+		if (searchupline(b, m, i, lenb(b,i), query))
 			return 1;
 	for (i=NLINES; i>ln; i--)
-		if (searchupline(m, i, lenb(b,i), query))
+		if (searchupline(b, m, i, lenb(b,i), query))
 			return 1;
 	return 0;
 }
 
-static
-searchline(struct match *m, int ln, int after, wchar_t *query) {
+static int searchline(Buf *b, struct match *m, int ln, int after, wchar_t *query) {
 	wchar_t	*txt;
 	int	len,ok;
 	
@@ -84,14 +80,13 @@ searchline(struct match *m, int ln, int after, wchar_t *query) {
 		return 0;
 	
 	gob(b, ln, m->p[0]-txt);
-	_act(EndSelection);
-	_act(StartSelection);
+	_act(b, EndSelection);
+	_act(b, StartSelection);
 	gob(b, ln, m->lim[0]-txt);
 	return 1;
 }
 
-static
-find(struct match *m, int ln, int ind, wchar_t *query, int down) {
+static int find(Buf *b, struct match *m, int ln, int ind, wchar_t *query, int down) {
 	struct match	_m;
 	jmp_buf		trap;
 	int		i;
@@ -105,25 +100,24 @@ find(struct match *m, int ln, int ind, wchar_t *query, int down) {
 	}
 	
 	if (!down)
-		return searchup(m, ln, ind, query);
+		return searchup(b, m, ln, ind, query);
 	
-	if (searchline(m, ln, ind, query))
+	if (searchline(b, m, ln, ind, query))
 		return 1;
 	for (i=ln+1; i<=NLINES; i++)
-		if (searchline(m, i, 0, query))
+		if (searchline(b, m, i, 0, query))
 			return 1;
 	for (i=1; i<ln; i++)
-		if (searchline(m, i, 0, query))
+		if (searchline(b, m, i, 0, query))
 			return 1;
 	return 0;
 }
 
-_actquery(wchar_t *query, int down, int sens) {
-	return find(0, LN, IND, query, down);
+_actquery(Buf *b, wchar_t *query, int down, int sens) {
+	return find(b, NULL, LN, IND, query, down);
 }
 
-static
-isearchsearchline(int ln, int ind, int end, wchar_t *query) {
+static int isearchsearchline(Buf *b, int ln, int ind, int end, wchar_t *query) {
 	if (!query) return 0;
 	wchar_t	*text = getb(b, ln, 0);
 	wchar_t *at = wcsistr(text + ind, query);
@@ -133,36 +127,36 @@ isearchsearchline(int ln, int ind, int end, wchar_t *query) {
 	return 1;
 }
 
-actisearch(wchar_t *query, int down, int skip) {
+int actisearch(Buf *b, wchar_t *query, int down, int skip) {
 	int		i;
 	
 	if (!query)
 		return 0;
 	
 	if (down) {
-		if (isearchsearchline(LN, IND+skip, lenb(b, LN), query))
+		if (isearchsearchline(b, LN, IND+skip, lenb(b, LN), query))
 			return 1;
 		for (i=LN+1; i<=NLINES; i++)
-			if (isearchsearchline(i, 0, lenb(b, i), query))
+			if (isearchsearchline(b, i, 0, lenb(b, i), query))
 				return 1;
 		for (i=1; i<LN; i++)
-			if (isearchsearchline(i, 0, lenb(b, i), query))
+			if (isearchsearchline(b, i, 0, lenb(b, i), query))
 				return 1;
-		return isearchsearchline(LN, 0, lenb(b, LN), query);
+		return isearchsearchline(b, LN, 0, lenb(b, LN), query);
 	} else {
-		if (isearchsearchline(LN, 0, IND-skip, query))
+		if (isearchsearchline(b, LN, 0, IND-skip, query))
 			return 1;
 		for (i=LN-1; i>=1; i--)
-			if (isearchsearchline(i, 0, lenb(b, i), query))
+			if (isearchsearchline(b, i, 0, lenb(b, i), query))
 				return 1;
 		for (i=NLINES; i>LN; i--)
-			if (isearchsearchline(i, 0, lenb(b, i), query))
+			if (isearchsearchline(b, i, 0, lenb(b, i), query))
 				return 1;
-		return isearchsearchline(LN, 0, lenb(b, i), query);
+		return isearchsearchline(b, LN, 0, lenb(b, i), query);
 	}
 }
 
-_actreplace(wchar_t *query, wchar_t *repl, int down, int sens) {
+int _actreplace(Buf *b, wchar_t *query, wchar_t *repl, int down, int sens) {
 	wchar_t		*txt,*src;
 	Loc		lo,unused;
 	int		len;
@@ -172,7 +166,7 @@ _actreplace(wchar_t *query, wchar_t *repl, int down, int sens) {
 	/* If there is a selection, search from the beginning
 	 * of the selection instead of wherever the caret is
 	 */	
-	if (!ordersel(&lo, &unused))
+	if (!ordersel(b, &lo, &unused))
 		lo=CAR;
 	lo.ind = lo.ind? lo.ind-1: 0;
 	
@@ -181,7 +175,7 @@ _actreplace(wchar_t *query, wchar_t *repl, int down, int sens) {
 		return 0;
 	}
 	
-	if (!find(&m, lo.ln, lo.ind, query, down))
+	if (!find(b, &m, lo.ln, lo.ind, query, down))
 		return 0;
 	
 	/* Must build substitute before deleting */
@@ -189,64 +183,61 @@ _actreplace(wchar_t *query, wchar_t *repl, int down, int sens) {
 	src=malloc((len+1) * sizeof(wchar_t));
 	_subst(src, &m, repl);
 
-	_act(DeleteSelection);
-	record(UndoSwap, LN, LN);
-	record(UndoGroup, 0, 2);
+	_act(b, DeleteSelection);
+	record(b, UndoSwap, LN, LN);
+	record(b, UndoGroup, 0, 2);
 		
 	for (txt=src; *txt; txt++)
-		instabb(*txt);
+		instabb(b, *txt);
 	
 	free(src);
 	
 	return 1;
 }
 
-_actreplaceall(wchar_t *query, wchar_t *repl, int down, int sens) {
+int _actreplaceall(Buf *b, wchar_t *query, wchar_t *repl, int down, int sens) {
 	int	n;
 	for (n=0; autoreplace(); n++);
 	if (!n)
 		return n;
-	record(UndoGroup, 0, n);
+	record(b, UndoGroup, 0, n);
 	return n;
 }
 
-_actins(int c) {
+int _actins(Buf *b, int c) {
 	if (SLN)
-		_act(DeleteSelection);
+		_act(b, DeleteSelection);
 	if (c=='\n')
-		return _act(BreakLine);
+		return _act(b, BreakLine);
 	
-	record(UndoSwap, LN, LN);
-	return instabb(c);
+	record(b, UndoSwap, LN, LN);
+	return instabb(b, c);
 }
 
-static
-isbrk(int c) {
+static int isbrk(int c) {
 	return brktbl[c&0xffff];
 }
 
-static
-getindent(int ln) {
+static int getindent(Buf *b, int ln) {
 	wchar_t	*txt;
 	int	i;
 	
 	txt=getb(b, ln, 0);
 	for (i=0; iswspace(txt[i]); i++);
-	return ind2col(ln, i);
+	return ind2col(b, ln, i);
 }
 
-static
-insprefix(int lo, int hi, wchar_t *txt) {
+static int insprefix(Buf *b, int lo, int hi, wchar_t *txt) {
 	Loc	old=CAR;
 	int	i, advance = 0;
 	wchar_t* p;
 
-	record(UndoSwap, lo, hi);
+	record(b, UndoSwap, lo, hi);
 	for (i=lo; i<=hi; i++) {
 		gob(b, i, 0);
 		advance = 0;
 		for (p=txt; *p; p++)
-			advance += instabb(*p);
+			advance += instabb(b, *p);
 	}
 	
 	if (SLN)
@@ -255,21 +246,20 @@ insprefix(int lo, int hi, wchar_t *txt) {
 	return hi-lo+1;
 }
 
-static
-wrap(int lo, int hi, wchar_t *pre, wchar_t *suf) {
+static wrap(Buf *b, int lo, int hi, wchar_t *pre, wchar_t *suf) {
 	Loc	old=CAR;
 	int	i, advance = 0;
 	wchar_t* p;
 
-	record(UndoSwap, lo, hi);
+	record(b, UndoSwap, lo, hi);
 	for (i=lo; i<=hi; i++) {
 		gob(b, i, 0);
 		advance = 0;
 		for (p=pre; *p; p++)
-			advance += instabb(*p);
-		_act(MoveEnd);
+			advance += instabb(b, *p);
+		_act(b, MoveEnd);
 		for (p=suf; *p; p++)
-			instabb(*p);
+			instabb(b, *p);
 	}
 	
 	if (SLN)
@@ -278,14 +268,13 @@ wrap(int lo, int hi, wchar_t *pre, wchar_t *suf) {
 	return hi-lo+1;
 }
 
-static
-delprefix(int lo, int hi, wchar_t *pre) {
+static int delprefix(Buf *b, int lo, int hi, wchar_t *pre) {
 	Loc	old=CAR;
 	wchar_t	*txt;
 	int	i, j, n, plen;
 	
 	plen=wcslen(pre);
-	record(UndoSwap, lo, hi);
+	record(b, UndoSwap, lo, hi);
 	n=0;
 	for (i=lo; i<=hi; i++) {
 		gob(b, i, 0);
@@ -306,11 +295,10 @@ delprefix(int lo, int hi, wchar_t *pre) {
 	return n;
 }
 
-static
-autoindent(int ln, int lvl) {
+static int autoindent(Buf *b, int ln, int lvl) {
 	int	x, nt, ns;
 	
-	x=getindent(ln);
+	x=getindent(b, ln);
 	if (x>=lvl)
 		return 0;
 	
@@ -320,14 +308,13 @@ autoindent(int ln, int lvl) {
 	ns=(lvl-1)%file.tabc;
 	
 	while (nt--)
-		instabb(L'\t');
+		instabb(b, L'\t');
 	while (ns--)
-		instabb(L' ');
+		instabb(b, L' ');
 	return 1;
 }
 
-static
-pastetext(wchar_t *txt) {
+static int pastetext(Buf *b, wchar_t *txt) {
 	wchar_t	*s;
 	int	len, n, sel;
 	int	lf;
@@ -336,7 +323,7 @@ pastetext(wchar_t *txt) {
 		return 0;
 	
 	if (sel=!!SLN)
-		_act(DeleteSelection);
+		_act(b, DeleteSelection);
 	
 	lf = wcscspn(txt, L"\r\n");
 	if (txt[lf]==L'\r')
@@ -344,11 +331,11 @@ pastetext(wchar_t *txt) {
 	
 	/* Single line */
 	if (!txt[lf]) {
-		record(UndoSwap, LN, LN);
+		record(b, UndoSwap, LN, LN);
 		if (sel)
-			record(UndoGroup, 0, 2);
+			record(b, UndoGroup, 0, 2);
 		for (s=txt; s < txt+lf; s++)
-			instabb(*s);
+			instabb(b, *s);
 		return 1;
 	}
 	
@@ -358,8 +345,8 @@ pastetext(wchar_t *txt) {
 		if (*s=='\r')
 			s++;
 	}
-	record(UndoSwap, LN, LN);
-	record(UndoInsert, LN+1, LN+n+1);
+	record(b, UndoSwap, LN, LN);
+	record(b, UndoInsert, LN+1, LN+n+1);
 	
 	/* Break first line */
 	s=getb(b, LN, &len)+IND;
@@ -380,18 +367,17 @@ pastetext(wchar_t *txt) {
 	} while (*s++);
 	
 	gob(b, LN + n-1, len);
-	join(LN, LN+1, 0);
-	record(UndoGroup, 0, 3 + sel);
+	join(b, LN, LN+1, 0);
+	record(b, UndoGroup, 0, 3 + sel);
 	return 1;
 }
 
-wchar_t*
-copysel() {
+wchar_t* copysel(Buf *b) {
 	Loc	lo,hi;
 	int	i,len,total;
 	wchar_t	*s, *out;
 	
-	if (!ordersel(&lo, &hi))
+	if (!ordersel(b, &lo, &hi))
 		return wcscpy(malloc(sizeof *out),L"");
 	
 	/* Single line */
@@ -427,53 +413,48 @@ copysel() {
 	return out;
 }
 
-static
-delend(int ln, int ind) {
+static int delend(Buf *b, int ln, int ind) {
 	if (ind==lenb(b, ln))
 		return 0;
 	gob(b, ln, ind);
-	record(UndoSwap, ln, ln);
+	record(b, UndoSwap, ln, ln);
 	while (delb(b));
 	return 1;
 }
 
-static
-delbefore(int ln, int ind) {
+static int delbefore(Buf *b, int ln, int ind) {
 	if (ind==0)
 		return 0;
-	record(UndoSwap, ln, ln);
+	record(b, UndoSwap, ln, ln);
 	gob(b, ln, 0);
 	while (ind--)
 		delb(b);
 	return 1;
 }
 
-static
-delexlines(int lo, int hi) {
+static int delexlines(Buf *b, int lo, int hi) {
 	int i;
 	if (lo+1 >= hi)
 		return 0;
-	record(UndoDelete, lo+1, hi-1);
+	record(b, UndoDelete, lo+1, hi-1);
 	for (i=lo+1; i<hi; i++)
 		dellb(b, lo+1);
 	return 1;
 }
 
-static
-delbetween(int ln, int lo, int hi) {
+static int delbetween(Buf *b, int ln, int lo, int hi) {
 	int	len;
 	if (lo==hi)
 		return 0;
 	len=hi-lo;
 	gob(b, ln, lo);
-	record(UndoSwap, LN, LN);
+	record(b, UndoSwap, LN, LN);
 	while (len--)
 		delb(b);
 	return 1;
 }
 
-static
-join(int lo, int hi, int space) {
+static int join(Buf *b, int lo, int hi, int space) {
 	wchar_t	*txt;
 	int	oldind, i;
 	
@@ -485,34 +466,33 @@ join(int lo, int hi, int space) {
 		oldind = IND;
 		
 		gob(b, lo, lenb(b, lo));
-		record(UndoSwap, lo, lo);
+		record(b, UndoSwap, lo, lo);
 		
 		if (space) {
 			while (iswspace(*txt))
 				txt++;
-			instabb(L' ');
+			instabb(b, L' ');
 		}
 		
 		while (*txt)
-			instabb(*txt++);
+			instabb(b, *txt++);
 		
 		gob(b, lo, oldind);
-		record(UndoDelete, lo+1, lo+1);
-		record(UndoGroup, 0, 2);
+		record(b, UndoDelete, lo+1, lo+1);
+		record(b, UndoGroup, 0, 2);
 		dellb(b, lo+1);
 	}
 	
 	if (hi-lo > 1) {
 		SLN=lo;
 		SIND=0;
-		_act(MoveEnd);
-		record(UndoGroup, 0, hi-lo);
+		_act(b, MoveEnd);
+		record(b, UndoGroup, 0, hi-lo);
 	}
 	return 1;
 }
 
-static
-matchbrace() {
+static int matchbrace(Buf *b) {
 	Scanner cur = getscanner(b, LN, IND);
 	Scanner back = cur;
 	Scanner forth;
@@ -537,9 +517,8 @@ matchbrace() {
 	return 1;
 }
 
-static
-skiptabspaces(wchar_t *txt, int ln, int ind, int dir) {
-	int col=ind2col(ln, ind);
+static int skiptabspaces(Buf *b, wchar_t *txt, int ln, int ind, int dir) {
+	int col=ind2col(b, ln, ind);
 	int i;
 	
 	if (dir > 0) {
@@ -554,7 +533,7 @@ skiptabspaces(wchar_t *txt, int ln, int ind, int dir) {
 	}
 }
 
-_act(int action) {
+int _act(Buf *b, int action) {
 	int		indent, n, len, sel, oldln, oldind;
 	int		undos;
 	Loc		lo, hi;
@@ -567,42 +546,42 @@ _act(int action) {
 	case MoveUp:
 		if (LN==1)
 			return 0;
-		IND=col2ind(LN-1, ind2col(LN, IND));
+		IND=col2ind(b, LN-1, ind2col(b, LN, IND));
 		return gob(b, LN-1, IND);
 	
 	case MovePageUp:
 		if (LN-vis+1 == 1)
 			return 0;
-		IND=col2ind(LN-vis+1, ind2col(LN, IND));
+		IND=col2ind(b, LN-vis+1, ind2col(b, LN, IND));
 		return gob(b, LN-vis+1, IND);
 	
 	case MoveDown:
 		if (LN==NLINES)
 			return 0;
-		IND=col2ind(LN+1, ind2col(LN, IND));
+		IND=col2ind(b, LN+1, ind2col(b, LN, IND));
 		return gob(b, LN+1, IND);
 	
 	case MovePageDown:
 		if (LN+vis-1 >= NLINES)
 			return 0;
-		IND=col2ind(LN+vis-1, ind2col(LN, IND));
+		IND=col2ind(b, LN+vis-1, ind2col(b, LN, IND));
 		return gob(b, LN+vis-1, IND);
 	
 	case MoveLeft:
 		txt=getb(b, LN, 0);
-		if (n=skiptabspaces(txt,LN,IND,-1))
+		if (n=skiptabspaces(b, txt,LN,IND,-1))
 			return gob(b,LN,IND-n);
 		if (gob(b, LN, IND-1))
 			return 1;
 		if (LN==1)
 			return 0;
-		_act(MoveUp);
-		_act(MoveEnd);
+		_act(b, MoveUp);
+		_act(b, MoveEnd);
 		return 0;
 	
 	case MoveWordLeft:
 		if (IND==0) {
-			_act(MoveLeft);
+			_act(b, MoveLeft);
 			return 0;
 		}
 		
@@ -625,22 +604,22 @@ _act(int action) {
 	
 	case MoveRight:
 		txt=getb(b, LN, 0);
-		if (n=skiptabspaces(txt,LN,IND,+1))
+		if (n=skiptabspaces(b, txt,LN,IND,+1))
 			return gob(b,LN,IND+n);
 			
 		if (gob(b, LN, IND+1))
 			return 1;
 		if (LN==NLINES)
 			return 0;
-		_act(MoveDown);
-		_act(MoveHome);
+		_act(b, MoveDown);
+		_act(b, MoveHome);
 		return 0;
 	
 	case MoveWordRight:
 		txt=getb(b, LN, &len);
 		
 		if (IND==len) {
-			_act(MoveRight);
+			_act(b, MoveRight);
 			return 0;
 		}
 		
@@ -668,10 +647,10 @@ _act(int action) {
 		return gob(b, LN, lenb(b, LN));
 	
 	case MoveHome:
-		indent=getindent(LN);
-		if (IND && ind2col(LN, IND)==indent)
+		indent=getindent(b, LN);
+		if (IND && ind2col(b, LN, IND)==indent)
 			return gob(b, LN, 0);
-		return gob(b, LN, col2ind(LN, indent));
+		return gob(b, LN, col2ind(b, LN, indent));
 	
 	case MoveSof:
 		return gob(b, 1, 0);
@@ -680,36 +659,36 @@ _act(int action) {
 		return gob(b, NLINES, lenb(b, NLINES));
 		
 	case SelectBraces:
-		return matchbrace();
+		return matchbrace(b);
 	case DeleteBraces:
 		oldln = LN;
 		oldind = IND;
-		if (!matchbrace())
+		if (!matchbrace(b))
 			return 0;
-		ordersel(&lo, &hi);
+		ordersel(b, &lo, &hi);
 		SLN = 0;
 		gob(b, lo.ln, lo.ind);
-		_act(DeleteChar);
+		_act(b, DeleteChar);
 		gob(b, hi.ln, hi.ind - (lo.ln == hi.ln? 2: 1));
-		_act(DeleteChar);
+		_act(b, DeleteChar);
 		gob(b, oldln, oldind);
-		record(UndoGroup, 0, 2);
+		record(b, UndoGroup, 0, 2);
 		return 1;
 	
 	case ToggleOverwrite:
 		return overwrite = !overwrite;
 	case DeleteChar:
 		if (sel)
-			return _act(DeleteSelection);
+			return _act(b, DeleteSelection);
 		
 		if (IND==lenb(b,LN)) {
-			join(LN, LN+1, 0);
+			join(b, LN, LN+1, 0);
 			return 0;
 		}
 		
-		record(UndoSwap, LN, LN);
+		record(b, UndoSwap, LN, LN);
 		txt=getb(b, LN, 0);
-		if ((n=skiptabspaces(txt,LN,IND,+1)) == file.tabc)
+		if ((n=skiptabspaces(b, txt,LN,IND,+1)) == file.tabc)
 			while (n-->0)
 				delb(b);
 		else
@@ -718,22 +697,22 @@ _act(int action) {
 	
 	case BackspaceChar:
 		if (sel)
-			return _act(DeleteSelection);
+			return _act(b, DeleteSelection);
 		
 		if (IND==0) {
 			if (LN==1)
 				return 0;
-			_act(MoveUp);
-			_act(MoveEnd);
-			join(LN, LN+1, 0);
+			_act(b, MoveUp);
+			_act(b, MoveEnd);
+			join(b, LN, LN+1, 0);
 			return 0;
 		}
 		
 		oldind=IND;
-		record(UndoSwap, LN, LN);
-		_act(MoveLeft);
+		record(b, UndoSwap, LN, LN);
+		_act(b, MoveLeft);
 		txt=getb(b, LN, 0);
-		if (IND+(n=skiptabspaces(txt,LN,IND,+1)) <= oldind && n)
+		if (IND+(n=skiptabspaces(b, txt,LN,IND,+1)) <= oldind && n)
 			while (n-->0)
 				delb(b);
 		else
@@ -742,94 +721,94 @@ _act(int action) {
 	
 	case SpaceAbove:
 		if (sel)
-			_act(DeleteSelection);
+			_act(b, DeleteSelection);
 		oldln=LN;
 		oldind=IND;
-		record(UndoInsert, oldln, oldln);
+		record(b, UndoInsert, oldln, oldln);
 		inslb(b, oldln, L"", 0);
 		gob(b,oldln,0);
-		autoindent(oldln, getindent(oldln+1));
-		_act(MoveEnd);
+		autoindent(b, oldln, getindent(b, oldln+1));
+		_act(b, MoveEnd);
 		break;
 	
 	case SpaceBelow:
 		if (sel)
-			_act(DeleteSelection);
-		_act(MoveEnd);
-		_act(BreakLine);
+			_act(b, DeleteSelection);
+		_act(b, MoveEnd);
+		_act(b, BreakLine);
 		break;
 		
 	case SpaceBoth:
 		if (sel)
-			_act(DeleteSelection);
+			_act(b, DeleteSelection);
 		oldln=LN;
 		oldind=IND;
-		record(UndoInsert, oldln, oldln);
-		record(UndoInsert, oldln+2, oldln+2);
-		record(UndoGroup, 0, 2);
+		record(b, UndoInsert, oldln, oldln);
+		record(b, UndoInsert, oldln+2, oldln+2);
+		record(b, UndoGroup, 0, 2);
 		
 		inslb(b, oldln, L"", 0);
 		gob(b, oldln, 0);
-		autoindent(oldln, getindent(oldln+1));
+		autoindent(b, oldln, getindent(b, oldln+1));
 		
 		inslb(b, oldln+2, L"", 0);
 		gob(b, oldln+2, 0);
-		autoindent(oldln+2, getindent(oldln+1));
+		autoindent(b, oldln+2, getindent(b, oldln+1));
 		
 		gob(b, oldln+1, oldind);
 		break;
 	
 	case DeleteLine:
 		if (sel)
-			_act(DeleteSelection);
-		record(UndoDelete, LN, LN);
+			_act(b, DeleteSelection);
+		record(b, UndoDelete, LN, LN);
 		return dellb(b, LN);
 	
 	case BreakLine:
 		if (sel)
-			_act(DeleteSelection);
+			_act(b, DeleteSelection);
 		
-		record(UndoSwap, LN, LN);
-		record(UndoInsert, LN+1, LN+1);
-		record(UndoGroup, 0, 2);
+		record(b, UndoSwap, LN, LN);
+		record(b, UndoInsert, LN+1, LN+1);
+		record(b, UndoGroup, 0, 2);
 		
 		txt = getb(b, LN, &len) + IND;
 		inslb(b, LN+1, txt, len-IND);
 		while (delb(b));
 		gob(b, LN+1, 0);
 		
-		if (!autoindent(LN, getindent(LN-1)))
-			_act(MoveHome);
+		if (!autoindent(b, LN, getindent(b, LN-1)))
+			_act(b, MoveHome);
 		return 1;
 	
 	case JoinLine:
 		if (sel) {
-			ordersel(&lo, &hi);
-			return join(lo.ln, hi.ln, 1);
+			ordersel(b, &lo, &hi);
+			return join(b, lo.ln, hi.ln, 1);
 		}
-		return join(LN, LN+1, 1);
+		return join(b, LN, LN+1, 1);
 	
 	case DupLine:
 		txt = getb(b, LN, &len);
-		record(UndoInsert, LN+1, LN+1);
+		record(b, UndoInsert, LN+1, LN+1);
 		inslb(b, LN+1, txt, len);
 		return 1;
 	
 	case AscendLine:
 		if (sel)
-			_act(EndSelection);
+			_act(b, EndSelection);
 		if (LN==1)
 			return 0;
 		
 		oldln=LN;
 		oldind=IND;
 		
-		record(UndoInsert, oldln-1, oldln-1);
+		record(b, UndoInsert, oldln-1, oldln-1);
 		txt = getb(b, oldln, &len);
 		inslb(b, oldln-1, txt, len);
 				
-		record(UndoDelete, oldln+1, oldln+1);
-		record(UndoGroup, 0, 2);
+		record(b, UndoDelete, oldln+1, oldln+1);
+		record(b, UndoGroup, 0, 2);
 		gob(b, oldln-1, IND);
 		dellb(b, oldln+1);
 		gob(b, oldln-1, oldind);
@@ -837,38 +816,38 @@ _act(int action) {
 	
 	case DescendLine:
 		if (sel)
-			_act(EndSelection);
+			_act(b, EndSelection);
 		if (LN==NLINES)
 			return 0;
 		oldln=LN;
 		oldind=IND;
 		
-		record(UndoInsert, oldln, oldln);
+		record(b, UndoInsert, oldln, oldln);
 		txt = getb(b, oldln+1, &len);
 		inslb(b, oldln, txt, len);
 		
-		record(UndoDelete, oldln+2, oldln+2);
-		record(UndoGroup, 0, 2);
+		record(b, UndoDelete, oldln+2, oldln+2);
+		record(b, UndoGroup, 0, 2);
 		gob(b, oldln+1, oldind);
 		return dellb(b, oldln+2);
 	
 	case WrapLine:
-		if (ordersel(&lo, &hi))
-			return wrap(lo.ln, hi.ln, wrapbefore, wrapafter);
-		return wrap(LN, LN, wrapbefore, wrapafter);
+		if (ordersel(b, &lo, &hi))
+			return wrap(b, lo.ln, hi.ln, wrapbefore, wrapafter);
+		return wrap(b, LN, LN, wrapbefore, wrapafter);
 	
 	case SelectAll:
 		SLN=0;
-		_act(MoveSof);
-		_act(StartSelection);
-		_act(MoveEof);
+		_act(b, MoveSof);
+		_act(b, StartSelection);
+		_act(b, MoveEof);
 		return 1;
 		
 	case SelectWord:
 		SLN=0;
-		_act(MoveWordLeft);
-		_act(StartSelection);
-		_act(MoveWordRight);
+		_act(b, MoveWordLeft);
+		_act(b, StartSelection);
+		_act(b, MoveWordRight);
 		return 1;
 		
 	case StartSelection:
@@ -883,85 +862,85 @@ _act(int action) {
 		return 1;
 	
 	case IndentSelection:
-		if (!ordersel(&lo, &hi))
+		if (!ordersel(b, &lo, &hi))
 			return 0;
-		return insprefix(lo.ln, hi.ln, L"\t");
+		return insprefix(b, lo.ln, hi.ln, L"\t");
 	
 	case UnindentSelection:
 		{
 			int i;
-			if (!ordersel(&lo, &hi))
+			if (!ordersel(b, &lo, &hi))
 				return 0;
 			for (i=0; i<file.tabc; i++)
-				if (!delprefix(lo.ln, hi.ln, L" "))
+				if (!delprefix(b, lo.ln, hi.ln, L" "))
 					break;
 			if (i) {
-				record(UndoGroup,0,i);
+				record(b, UndoGroup,0,i);
 				return 1;
 			}
-			return delprefix(lo.ln, hi.ln, L"\t");
+			return delprefix(b, lo.ln, hi.ln, L"\t");
 		}
 	
 	case CommentSelection:
 		if (!*lang.comment)
 			return 0;
 			
-		if (!ordersel(&lo, &hi)) {
-			_act(StartSelection);
-			_act(CommentSelection);
-			_act(EndSelection);
+		if (!ordersel(b, &lo, &hi)) {
+			_act(b, StartSelection);
+			_act(b, CommentSelection);
+			_act(b, EndSelection);
 			return 0;
 		}
 		txt=getb(b, lo.ln, 0);
 		len=wcslen(lang.comment);
 		if (!wcsncmp(txt, lang.comment, len)) {
-			delprefix(lo.ln, hi.ln, lang.comment);
+			delprefix(b, lo.ln, hi.ln, lang.comment);
 			return 0;
 		}
-		return insprefix(lo.ln, hi.ln, lang.comment);
+		return insprefix(b, lo.ln, hi.ln, lang.comment);
 	
 	case DeleteSelection:
-		if (!ordersel(&lo, &hi))
+		if (!ordersel(b, &lo, &hi))
 			return 0;
 		SLN=0;
 		
 		if (hi.ln==lo.ln)
-			return delbetween(lo.ln, lo.ind, hi.ind);
+			return delbetween(b, lo.ln, lo.ind, hi.ind);
 		
 		undos=0;
-		if (delend(lo.ln, lo.ind))
+		if (delend(b, lo.ln, lo.ind))
 			undos++;
-		if (delexlines(lo.ln, hi.ln))
+		if (delexlines(b, lo.ln, hi.ln))
 			undos++;
-		if (delbefore(lo.ln+1, hi.ind))
+		if (delbefore(b, lo.ln+1, hi.ind))
 			undos++;
 		gob(b, lo.ln, lo.ind);
-		if (join(LN, LN+1, 0))
+		if (join(b, LN, LN+1, 0))
 			undos++;
-		record(UndoGroup, 0, undos);
+		record(b, UndoGroup, 0, undos);
 		return 1;
 	
 	case CutSelection:
 		if (!SLN)
 			return 0;
-		_act(CopySelection);
-		_act(DeleteSelection);
+		_act(b, CopySelection);
+		_act(b, DeleteSelection);
 		return 1;
 	
 	case CopySelection:
 		if (!SLN)
 			return 0;
-		latch=copysel();
+		latch=copysel(b);
 		return 1;
 	
 	case PasteClipboard:
-		return pastetext(latch);
+		return pastetext(b, latch);
 	
 	case UndoChange:
-		return undo(&b->undo);
+		return undo(b, &b->undo);
 	
 	case RedoChange:
-		return undo(&b->redo);
+		return undo(b, &b->redo);
 	
 	case PromptOpen:
 	case PromptFind:

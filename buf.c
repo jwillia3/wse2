@@ -164,8 +164,8 @@ void freeb(Buf *b) {
 clearb(Buf *b) {
 	int	n;
 	
-	clearundo(&b->undo);
-	clearundo(&b->redo);
+	clearundo(b, &b->undo);
+	clearundo(b, &b->redo);
 	b->changes=0;
 	
 	n=NLINES;
@@ -246,9 +246,9 @@ forward(Scanner *scan) {
 		scan->ind = 0;
 	if (scan->ind < len)
 		return scan->c = txt[scan->ind++];
-	if (scan->ln < NLINES)
+	if (scan->ln < scan->b->nlines)
 		return scan->ln++, scan->ind = 0, forward(scan);
-	scan->ln = NLINES + 1;
+	scan->ln = scan->b->nlines + 1;
 	scan->ind = 0;
 	return scan->c = 0;
 }
@@ -257,8 +257,8 @@ backward(Scanner *scan) {
 	int len;
 	wchar_t *txt = getb(scan->b, scan->ln, &len);
 	
-	if (scan->ln > NLINES)
-		scan->ln = NLINES, scan->ind = lenb(scan->b, NLINES);
+	if (scan->ln > scan->b->nlines)
+		scan->ln = scan->b->nlines, scan->ind = lenb(scan->b, scan->b->nlines);
 	if (scan->ln < 1)
 		return scan->ln = 0, scan->ind = 0, scan->c = 0;
 	if (scan->ind > len)
