@@ -19,6 +19,7 @@
 #include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <wchar.h>
 #pragma warning(pop)
@@ -103,10 +104,14 @@ struct tab_t {
 	wchar_t	filename_extension[512];
 	struct file file_settings;
 } *tabs;
+struct symbol_def_t {
+	wchar_t *name;
+	wchar_t *file_spec;
+};
 int		tab_count;
 int		current_tab;
-
-
+struct symbol_def_t *symbol_defs;
+int		symbol_def_count;
 
 OPENFILENAME	ofn = {
 			sizeof ofn,
@@ -263,6 +268,61 @@ void close_tab() {
 }
 
 
+void load_file_in_new_tab(wchar_t *filename_with_line_number);
+
+static int compare_symbol_def_name(const void *a, const void *b) {
+	return wcscmp(a, ((struct symbol_def_t*)b)[0].name);
+}
+static int go_to_symbol(wchar_t *name) {
+	struct symbol_def_t *symbol = bsearch(name, symbol_defs, symbol_def_count, sizeof *symbol_defs, compare_symbol_def_name);
+	if (symbol)
+		load_file_in_new_tab(symbol->file_spec);
+	return symbol != NULL;
+}
+static int compare_symbol_def(const void *a, const void *b) {
+	return wcscmp(((struct symbol_def_t*)a)[0].name, ((struct symbol_def_t*)b)[0].name);
+}
+static void reload_symbol_defs(wchar_t *directory) {
+	if (!directory)
+		return;
+		
+	for (int i = 0; i < symbol_def_count; i++) {
+		free(symbol_defs[i].name);
+		free(symbol_defs[i].file_spec);
+	}
+	symbol_def_count = 0;
+	
+	wchar_t command[MAX_PATH * 2];
+	swprintf(command, MAX_PATH * 2, L"cd %ls && ctags -xR >tags 2>nul", directory);
+	_wsystem(command);
+	
+	FILE *file = fopen("tags", "r");
+	if (file) {
+		char line[256];
+		wchar_t name[256];
+		char type[256];
+		int line_number;
+		wchar_t filename[256];
+		wchar_t file_spec[MAX_PATH * 2];
+		while (fgets(line, sizeof line, file)) {
+			if (4 != sscanf(line, "%ls\t%s\t%d\t%ls\t", name, type, &line_number, filename))
+				continue;
+			GetFullPathName(filename, MAX_PATH * 2, file_spec, NULL);
+			swprintf(file_spec, MAX_PATH * 2, L"%ls:%d", file_spec, line_number);
+			symbol_defs = realloc(symbol_defs, (symbol_def_count + 2) * sizeof *symbol_defs);
+			symbol_defs[symbol_def_count++] = (struct symbol_def_t){
+				.name = wcsdup(name),
+				.file_spec = platform_normalize_path(wcsdup(file_spec)),
+			};
+		}
+		symbol_defs[symbol_def_count] = (struct symbol_def_t){0,};
+		qsort(symbol_defs, symbol_def_count, sizeof *symbol_defs, compare_symbol_def);
+		fclose(file);
+		unlink("tags");
+	}
+}
+
+
 void new_file() {
 	TAB.buf->changes=0;
 	clearb(TAB.buf);
@@ -284,7 +344,9 @@ void load_file(wchar_t *filename_with_line_number) {
 	free(filename);
 	settitle(0);
 	TAB.file_settings = file;
+	reload_symbol_defs(TAB.file_directory);
 	reinitconfig();
+	
 	
 	gob(TAB.buf, line_number, 0);
 	act(MoveHome);
@@ -297,6 +359,10 @@ void load_file_in_new_tab(wchar_t *filename_with_line_number) {
 	for (int i = 0; i < tab_count; i++)
 		if (!wcsicmp(tabs[i].filename, filename)) {
 			switch_tab(i);
+			_act(TAB.buf, EndSelection);
+			gob(TAB.buf, line_number, 0);
+			_act(TAB.buf, MoveHome);
+			invdafter(top);
 			free(filename);
 			return;
 		}
@@ -309,6 +375,7 @@ void save_file() {
 		MessageBox(w, L"Could not save", L"Error", MB_OK);
 	TAB.buf->changes=0;
 	settitle(0);
+	reload_symbol_defs(TAB.file_directory);
 }
 
 
@@ -1160,6 +1227,15 @@ int wmsyskeydown(int c) {
 		break;
 	case 'P':
 		start_fuzzy_search();
+		break;
+	case 'R':
+		if (!SLN)
+			_act(TAB.buf, SelectWord);
+		if (SLN) {
+			wchar_t *name = copysel(TAB.buf);
+			go_to_symbol(name);
+			free(name);
+		}
 		break;
 	case 'S':
 		save_file();
