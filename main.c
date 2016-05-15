@@ -1066,8 +1066,8 @@ void start_fuzzy_search(wchar_t *initial_text) {
 	if (current_input->text)
 		free(current_input->text);
 	current_input->text = wcsdup(initial_text);
-	current_input->length = 0;
-	current_input->cursor = 0;
+	current_input->length = wcslen(current_input->text);
+	current_input->cursor = current_input->length;
 	
 	if (all_fuzzy_search_files) {
 		for (wchar_t **p = all_fuzzy_search_files; *p; p++) free(*p);
