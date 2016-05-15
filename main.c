@@ -1112,6 +1112,9 @@ int wmsyskeydown(int c) {
 		return !wmkey_input(c, true, ctl, shift);
 	
 	switch (c) {
+	case 13: // Alt + Return
+		act(shift ? SpaceAbove : SpaceBelow);
+		return true;
 	case '1':
 	case '2':
 	case '3':
@@ -1140,6 +1143,9 @@ int wmsyskeydown(int c) {
 			return act(PromptFind);
 		start_isearch();
 		break;
+	case 'J':
+		act(JoinLine);
+		return true;
 	case 'N':
 		new_file();
 		invdafter(top);
@@ -1261,7 +1267,7 @@ wmchar(int c) {
 		return act(JoinLine);
 
 	case 11: /* ^K */
-		return 0;
+		return shift ? act(DeleteLine) : 0;
 	
 	case 12: /* ^L */
 		return act(DeleteLine);
