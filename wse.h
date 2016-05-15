@@ -76,8 +76,6 @@ struct	Bookmark {
 #define NLINES	(b->nlines)
 
 wchar_t		lastcmd[512];
-wchar_t		wrapbefore[512];
-wchar_t		wrapafter[512];
 int		top;
 int		vis;
 char		brktbl[65536];

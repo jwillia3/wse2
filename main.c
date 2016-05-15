@@ -58,13 +58,11 @@ bool fuzzy_search_before_key(struct input_t *, int, bool, bool, bool);
 void fuzzy_search_after_key(struct input_t *);
 
 HWND		w;
-HMENU		menu;
 HWND		dlg;
 UINT		WM_FIND;
 int		width;
 int		height;
 float		dpi = 96.0f;
-HMENU		encodingmenu;
 BOOL		use_console = TRUE;
 BOOL		transparent = FALSE;
 #define		ID_CONSOLE 104
@@ -113,12 +111,6 @@ int		current_tab;
 struct symbol_def_t *symbol_defs;
 int		symbol_def_count;
 
-OPENFILENAME	ofn = {
-			sizeof ofn,
-			0, 0, 0,
-			0, 0, 0, 0, MAX_PATH, 0, 0, 0, 0,
-			OFN_OVERWRITEPROMPT,
-			0, 0, 0, 0, 0, 0, 0, 0 };
 FINDREPLACE	fr = {
 			sizeof fr, 0, 0,
 			FR_DOWN|FR_DIALOGTERM
@@ -439,67 +431,6 @@ openspawn(HWND hwnd, wchar_t *initcmd) {
 	CheckDlgButton(dlgwnd, ID_CONSOLE, use_console);
 }
 
-INT_PTR CALLBACK
-WrapProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
-	int	len;
-	
-	switch (msg) {
-	case WM_INITDIALOG:
-		dlg=hwnd;
-		return TRUE;
-	case WM_CLOSE:
-		dlg=0;
-		DestroyWindow(hwnd);
-		return TRUE;
-	case WM_COMMAND:
-		switch (wparam) {
-		case IDOK:
-			GetWindowText(GetDlgItem(hwnd,100),
-				wrapbefore,
-				sizeof wrapbefore/sizeof *wrapbefore);
-			GetWindowText(GetDlgItem(hwnd,101),
-				wrapafter,
-				sizeof wrapafter/sizeof *wrapafter);
-			dlg=0;
-			DestroyWindow(hwnd);
-			act(WrapLine);
-			return TRUE;
-		case IDCANCEL:
-			dlg=0;
-			DestroyWindow(hwnd);
-			return TRUE;
-		}
-	}
-	return FALSE;
-}
-
-static
-openwrap(HWND hwnd) {
-	DIALOG_ITEM	items[] = {
-		{{WS_BORDER|WS_VISIBLE|WS_TABSTOP|ES_AUTOHSCROLL,0,
-			48,4, 256-48-4,14, 100},
-			0x81, wrapbefore},
-		{{WS_BORDER|WS_VISIBLE|WS_TABSTOP|ES_AUTOHSCROLL,0,
-			48,20, 256-48-4,14, 101},
-			0x81, wrapafter},
-		{{WS_VISIBLE,0,
-			4,8, 44,16, 102},
-			0x82, L"Before: "},
-		{{WS_VISIBLE,0,
-			4,24, 44,16, 103},
-			0x82, L"After: "},
-		{{WS_VISIBLE|BS_DEFPUSHBUTTON|WS_TABSTOP,0,
-			256,4, 28,16, IDOK},
-			0x80, L"OK"},
-		{{WS_VISIBLE|WS_TABSTOP,0,
-			256,20+4, 28,16, IDCANCEL},
-			0x80, L"Cancel"}
-	};
-	makedlg(hwnd, items, sizeof items/sizeof *items,
-		L"Wrap Lines", WrapProc);
-	
-}
-
 static
 settitle(int mod) {
 	wchar_t	all[MAX_PATH];
@@ -750,10 +681,6 @@ act(int action) {
 		ok=openspawn(w, lastcmd);
 		break;
 	
-	case PromptWrap:
-		ok=openwrap(w);
-		break;
-	
 	case DeleteLine:
 	case JoinLine:
 	case DupLine:
@@ -828,17 +755,6 @@ act(int action) {
 	case RedoChange:
 		if (ok)
 			invdafter(top);
-		break;
-	
-	case PromptSaveAs:
-		if (dlg)
-			break;
-		ofn.lpstrInitialDir=TAB.file_directory;
-		ok=GetSaveFileName(&ofn);
-		if (!ok)
-			break;
-		setfilename(ofn.lpstrFile);
-		save_file();
 		break;
 	
 	case PromptFind:
@@ -1363,8 +1279,8 @@ wmchar(int c) {
 		invdafter(top);
 		return true;
 	
-	case 15: /* ^O */
-		return act(PromptOpen);
+	case 15: // ^O
+		return false;
 	
 	case 16: /* ^P */
 		if (shift)
@@ -2338,11 +2254,6 @@ init() {
 	wc.hCursor = LoadCursor(NULL, IDC_IBEAM);
 	RegisterClassEx(&wc);
 	
-	/* Configure Open Dialog */
-	ofn.lpstrFile = malloc(MAX_PATH * sizeof (wchar_t));
-	ofn.lpstrFile[0] = 0;
-	ofn.hwndOwner = w;
-	
 	WM_FIND = RegisterWindowMessage(FINDMSGSTRING);
 	fr.lpstrFindWhat = malloc((MAX_PATH + 1) * sizeof (wchar_t));
 	fr.lpstrFindWhat[0] = 0;
@@ -2370,7 +2281,7 @@ init() {
 		CW_USEDEFAULT,
 		1024,
 		800,
-		NULL, menu, GetModuleHandle(0), NULL);
+		NULL, NULL, GetModuleHandle(0), NULL);
 	SetLayeredWindowAttributes(w, 0, 255, LWA_ALPHA);
 	reinitconfig();
 	fr.hwndOwner = w;

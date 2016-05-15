@@ -28,8 +28,6 @@ enum {
 	DupLine,
 	AscendLine,
 	DescendLine,
-	PromptWrap,
-	WrapLine,
 	
 	SelectAll,
 	StartSelection,
@@ -50,8 +48,6 @@ enum {
 	
 	PromptFind,
 	PromptReplace,
-	PromptOpen,
-	PromptSaveAs,
 	
 	ExitEditor,
 	SpawnEditor,

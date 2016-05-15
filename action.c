@@ -246,28 +246,6 @@ static int insprefix(Buf *b, int lo, int hi, wchar_t *txt) {
 	return hi-lo+1;
 }
 
-static wrap(Buf *b, int lo, int hi, wchar_t *pre, wchar_t *suf) {
-	Loc	old=CAR;
-	int	i, advance = 0;
-	wchar_t* p;
-
-	record(b, UndoSwap, lo, hi);
-	for (i=lo; i<=hi; i++) {
-		gob(b, i, 0);
-		advance = 0;
-		for (p=pre; *p; p++)
-			advance += instabb(b, *p);
-		_act(b, MoveEnd);
-		for (p=suf; *p; p++)
-			instabb(b, *p);
-	}
-	
-	if (SLN)
-		SIND += advance;
-	gob(b, old.ln, old.ind+advance);
-	return hi-lo+1;
-}
-
 static int delprefix(Buf *b, int lo, int hi, wchar_t *pre) {
 	Loc	old=CAR;
 	wchar_t	*txt;
@@ -831,11 +809,6 @@ int _act(Buf *b, int action) {
 		gob(b, oldln+1, oldind);
 		return dellb(b, oldln+2);
 	
-	case WrapLine:
-		if (ordersel(b, &lo, &hi))
-			return wrap(b, lo.ln, hi.ln, wrapbefore, wrapafter);
-		return wrap(b, LN, LN, wrapbefore, wrapafter);
-	
 	case SelectAll:
 		SLN=0;
 		_act(b, MoveSof);
@@ -942,7 +915,6 @@ int _act(Buf *b, int action) {
 	case RedoChange:
 		return undo(b, &b->redo);
 	
-	case PromptOpen:
 	case PromptFind:
 	case PromptReplace:
 		return 0;
