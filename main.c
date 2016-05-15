@@ -220,6 +220,8 @@ HWND makedlg(HWND hwnd, DIALOG_ITEM *items, int n, wchar_t *title, DLGPROC proc)
 }
 
 void switch_tab(int to_tab) {
+	TAB.top = top;
+
 	if (to_tab < 0) to_tab = 0;
 	if (to_tab >= tab_count) to_tab = tab_count - 1;
 	current_tab = to_tab;
