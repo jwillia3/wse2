@@ -226,7 +226,8 @@ hsv_to_rgb(double h, double s, double v) {
 	else if (h < 4.0) r=p, g=q, b=v;
 	else if (h < 5.0) r=t, g=p, b=v;
 	else r=v, g=p, b=q;
-	return ((unsigned)(r*255)<<16)+
+	return 0xff000000 +
+		((unsigned)(r*255)<<16)+
 		((unsigned)(g*255)<<8)+
 		((unsigned)(b*255));
 }
@@ -258,8 +259,8 @@ void nice_colours_fg(unsigned *colour) {
 	conf.fg = *colour;
 	for (i = 0; i < 8; i++)
 		conf.style[i].color = conf.fg;
-	conf.saved_file = hsv_to_rgb(0, 0, v >= .5? v - .125: v + .125);
-	conf.unsaved_file = hsv_to_rgb(0, 0.75f, v);
+	conf.saved_file = hsv_to_rgb(0, 0, v);
+	conf.unsaved_file = hsv_to_rgb(0, 1, 1);
 }
 void nice_colours_bg(void *colourp) {
 	unsigned	colour = *(unsigned*)colourp;
@@ -267,18 +268,18 @@ void nice_colours_bg(void *colourp) {
 	
 	rgb_to_hsv(colour, &h, &s, &v);
 	conf.bg2 = colour;
-	conf.gutterbg = hsv_to_rgb(h, s, v >= .5? v - .125: v + .125);
-	conf.selbg = hsv_to_rgb(h, s, v >= .5? v - .125: v + .125);
+	conf.gutterbg = hsv_to_rgb(h, s, v);
+	conf.selbg = hsv_to_rgb(h, s, v >= .5? v - .1: v + .2);
 	conf.isearchbg = hsv_to_rgb(h, s, v >= .5? v - .25: v + .25);
-	conf.bookmarkbg = hsv_to_rgb(fmod(h + 180, 360), s * .25, v);
+	conf.bookmarkbg = hsv_to_rgb(fmod(h + 90, 360), s < 0.125f ? 0.125f : s * 0.25f, v);
 	conf.fg = hsv_to_rgb(h, s, v >= .5? v - .5: v + .5);
 	nice_colours_fg(&conf.fg);
-	conf.active_tab = hsv_to_rgb(h, 0, v);
-	conf.inactive_tab = hsv_to_rgb(h, 0, v >= .5? v - .125: v + .125);
-	conf.selbg = hsv_to_rgb(h, s, v >= .5? v - .1: v + .2);
+	conf.active_tab = hsv_to_rgb(0, 0, v);
+	conf.inactive_tab = hsv_to_rgb(0, 0, v);
+	
 }
 
-static
+static unsigned
 getcolor(wchar_t *arg, unsigned colour) {
 	wchar_t		name[128];
 	double		h, s, v; /* hue,chroma,luma */
@@ -301,7 +302,7 @@ getcolor(wchar_t *arg, unsigned colour) {
 		return hsv_to_rgb(h,s,v);
 	else if (swscanf(arg, L"rgb %d %d %d", &r,&g,&b)
 	  || swscanf(arg, L"%02x%02x%02x", &r, &g, &b)) {
-		return (r<<16)+(g<<8)+b;
+		return 0xff000000+(r<<16)+(g<<8)+b;
 	} else if (1 == swscanf(arg, L"%ls", name)) {
 		for (struct field *f = fields; f->name; f++)
 			if (f->type == Color && !wcscmp(f->name, name))

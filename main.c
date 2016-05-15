@@ -1463,13 +1463,6 @@ int wmkey(int c) {
 	return 0;
 }
 
-static uint32_t to_rgba(int win32_colour) {
-	return 0xff000000 +
-		(win32_colour >> 16 & 0xff) +
-		(win32_colour & 0xff00) +
-		(win32_colour << 16 & 0xff0000);
-}
-
 paintsel() {
 	if (!SLN)
 		return false;
@@ -1489,30 +1482,24 @@ paintsel() {
 		PgRect r1 = pgRect(pgPt(TAB.total_margin, first_line_bottom), pgPt(end, last_line_top));
 		PgRect r2 = pgRect(pgPt(TAB.total_margin, last_line_top), pgPt(last_line_right, last_line_bottom));
 		
-		gs->clearSection(gs, r0, to_rgba(conf.selbg));
-		gs->clearSection(gs, r1, to_rgba(conf.selbg));
-		gs->clearSection(gs, r2, to_rgba(conf.selbg));
+		gs->clearSection(gs, r0, conf.selbg);
+		gs->clearSection(gs, r1, conf.selbg);
+		gs->clearSection(gs, r2, conf.selbg);
 	} else
 		gs->clearSection(gs,
 			pgRect(
 				pgPt(ind2px(lo.ln, lo.ind), line2px(lo.ln)),
 				pgPt(ind2px(hi.ln, hi.ind), line2px(hi.ln) + TAB.line_height)),
-			to_rgba(conf.selbg));
+			conf.selbg);
 	return true;
 }
 
-blurtext(int fontno, int x, int y, wchar_t *txt, int n, COLORREF fg) {
+blurtext(int fontno, int x, int y, wchar_t *txt, int n, uint32_t fg) {
 	wchar_t *p;
 	wchar_t *end = txt + n;
 	int margin = TAB.total_margin;
 	int faux_bold = (fontno & 1) && font[fontno]->getWeight(font[fontno]) < 600;
 	PgMatrix ctm;
-	
-	/* Swap R & G because windows RGB macro builds them backwards */
-	fg = 0xff000000 |
-		(fg >> 16 & 255) |
-		fg & 0x00ff00 |
-		(fg & 255) << 16;
 	
 	PgPt at = pgPt(x, y);
 	for (p = txt; p < end; p++) {
@@ -1534,7 +1521,7 @@ paintstatus() {
 	
 	float top = height - status_bar_height;
 	
-	gs->clearSection(gs, pgRect(pgPt(0, top), pgPt(width, height)), to_rgba(conf.fg));
+	gs->clearSection(gs, pgRect(pgPt(0, top), pgPt(width, height)), conf.fg);
 
 	len=swprintf(buf, 1024, SLN? selmsg: noselmsg,
 		TAB.filename,
@@ -1548,7 +1535,7 @@ paintstatus() {
 	ui_font->scale(ui_font, conf.ui_font_small_size, 0.0f);
 	float x = 4;
 	float y = top + status_bar_height / 2.0f - ui_font->getEm(ui_font) / 2.0f;
-	gs->fillString(gs, ui_font, pgPt(x, y), buf, len, to_rgba(conf.bg));
+	gs->fillString(gs, ui_font, pgPt(x, y), buf, len, conf.bg);
 }
 
 #include "re.h"
@@ -1566,7 +1553,7 @@ paintline(int x, int y, int line) {
 				pgRect(
 					pgPt(ind2px(line, i - txt), y - (TAB.line_height - TAB.ascender_height)/2),
 					pgPt(ind2px(line, i - txt + current_input->length), y - (TAB.line_height - TAB.ascender_height) / 2 + TAB.line_height)),
-				to_rgba(conf.isearchbg));
+				conf.isearchbg);
 	}
 	
 	while (j<end) {
@@ -1621,7 +1608,7 @@ void paint_normal_mode(PAINTSTRUCT *ps) {
 		pgRect(
 			pgPt(ps->rcPaint.left-1, ps->rcPaint.top-1),
 			pgPt(ps->rcPaint.right+1, ps->rcPaint.bottom+1)),
-		to_rgba(conf.bg));
+		conf.bg);
 	
 	/* Draw odd line's background */
 	if (conf.bg2 != conf.bg) {
@@ -1632,35 +1619,34 @@ void paint_normal_mode(PAINTSTRUCT *ps) {
 					pgRect(
 						pgPt(0, y),
 						pgPt(width, y + TAB.line_height)),
-					to_rgba(conf.bg2));
+					conf.bg2);
 			y += TAB.line_height;
 		}
 	}
 	
 	/* Clear the gutters */
-	gs->clearSection(gs, pgRect(pgPt(0, 0), pgPt(TAB.total_margin - 3, height)), to_rgba(conf.gutterbg));
-	gs->clearSection(gs, pgRect(pgPt(width - TAB.total_margin + 3, 0), pgPt(width, height)), to_rgba(conf.gutterbg));
+	gs->clearSection(gs, pgRect(pgPt(0, 0), pgPt(TAB.total_margin - 3, height)), conf.gutterbg);
+	gs->clearSection(gs, pgRect(pgPt(width - TAB.total_margin + 3, 0), pgPt(width, height)), conf.gutterbg);
 	
 	/* Draw bookmark line's background */
 	y=line2px(first);
 	for (i=first; i<=last; i++) {
 		if (isbookmarked(TAB.buf, i))
-			gs->clearSection(gs, pgRect(pgPt(0, y), pgPt(width, y + TAB.line_height)), to_rgba(conf.bookmarkbg));
+			gs->clearSection(gs, pgRect(pgPt(0, y), pgPt(width, y + TAB.line_height)), conf.bookmarkbg);
 		y += TAB.line_height;
 	}
 	
 	// Draw the tabs
-	gs->clearSection(gs, pgRect(pgPt(0, 0), pgPt(width, tab_bar_height)), to_rgba(conf.gutterbg));
+	gs->clearSection(gs, pgRect(pgPt(0, 0), pgPt(width, tab_bar_height)), conf.gutterbg);
 	
 	ui_font->scale(ui_font, conf.ui_font_small_size * dpi / 72.0f, 0.0f);
 	for (int i = 0; i < tab_count; i++) {
 		float left = (width / tab_count) * i;
 		float right = (width / tab_count) * (i + 1);
 		
-		gs->clearSection(gs, pgRect(pgPt(left, 0), pgPt(right, tab_bar_height)),
-			to_rgba(i == current_tab ? conf.active_tab : conf.inactive_tab));
-		gs->clearSection(gs, pgRect(pgPt(right - 1, 0), pgPt(right, tab_bar_height)),
-			to_rgba(0));
+		uint32_t colour = i == current_tab ? conf.active_tab : conf.inactive_tab;
+		gs->clearSection(gs, pgRect(pgPt(left, 0), pgPt(right, tab_bar_height)), colour);
+		gs->clearSection(gs, pgRect(pgPt(right - 1, 0), pgPt(right, tab_bar_height)), 0);
 		
 		float measured = 0.0;
 		int length = 0;
@@ -1678,7 +1664,7 @@ void paint_normal_mode(PAINTSTRUCT *ps) {
 		gs->fillString(gs, ui_font,
 			pgPt(x_offset, y_offset),
 			name, length,
-			to_rgba(tabs[i].buf->changes ? conf.unsaved_file : conf.saved_file));
+			tabs[i].buf->changes ? conf.unsaved_file : conf.saved_file);
 	}
 	
 	paintsel();
@@ -1710,7 +1696,7 @@ void paint_isearch_mode(PAINTSTRUCT *ps) {
 	
 	paint_normal_mode(ps);
 	
-	gs->clearSection(gs, pgRect(pgPt(0, top), pgPt(width, top + isearch_bar_height)), to_rgba(conf.fg));
+	gs->clearSection(gs, pgRect(pgPt(0, top), pgPt(width, top + isearch_bar_height)), conf.fg);
 	
 	ui_font->scale(ui_font, conf.ui_font_small_size, 0.0f);
 	float x_offset = 32.0f;
@@ -1718,11 +1704,11 @@ void paint_isearch_mode(PAINTSTRUCT *ps) {
 	gs->fillString(gs, ui_font, pgPt(x_offset, y_offset),
 		isearch_input.text,
 		isearch_input.length,
-		to_rgba(conf.bg));
+		conf.bg);
 }
 
 void paint_fuzzy_search_mode(PAINTSTRUCT *ps) {
-	gs->clearSection(gs, pgRect(pgPt(0, 0), pgPt(width, height)), to_rgba(conf.fg));
+	gs->clearSection(gs, pgRect(pgPt(0, 0), pgPt(width, height)), conf.fg);
 	
 	float x_offset = width * 1.0f / 4.0f;
 	float y = tab_bar_height;
@@ -1734,7 +1720,7 @@ void paint_fuzzy_search_mode(PAINTSTRUCT *ps) {
 	
 	gs->fillString(gs, ui_font, pgPt(x_offset, y),
 		item_text, wcslen(item_text),
-		to_rgba(conf.bg));
+		conf.bg);
 	y += ui_font->getEm(ui_font);
 
 	ui_font->scale(ui_font, conf.ui_font_small_size * dpi / 72.0f, 0.0f);
@@ -1742,7 +1728,7 @@ void paint_fuzzy_search_mode(PAINTSTRUCT *ps) {
 	float leading = em * 0.0125f;
 	for (wchar_t **p = fuzzy_search_files; p && *p; p++, y += em + leading * 2)
 		gs->fillString(gs, ui_font, pgPt(x_offset, y + leading),
-			*p, -1, to_rgba(conf.bg));
+			*p, -1, conf.bg);
 }
 
 void paint(PAINTSTRUCT *ps) {
