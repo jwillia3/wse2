@@ -17,7 +17,6 @@ struct conf {
 	int		bookmarkbg;
 	int		gutterbg;
 	struct textstyle style[8];
-	wchar_t		bgimage[128];
 	int		fixed_margin;
 	int		center;
 	
@@ -41,7 +40,7 @@ struct file {
 	int		usecrlf;
 } file;
 struct {
-	int		wire[4];
+	int		line_width;
 	double		alpha;
 	double		gamma;
 	wchar_t		shell[128];

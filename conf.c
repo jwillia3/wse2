@@ -41,7 +41,6 @@ static struct	field fields[] = {
 		{L"select", Color, &conf.selbg},
 		{L"isearch", Color, &conf.isearchbg},
 		{L"bookmark", Color, &conf.bookmarkbg},
-		{L"bg_image", String, &conf.bgimage},
 		
 		{L"style1", Style, &conf.style[0]},
 		{L"style2", Style, &conf.style[1]},
@@ -73,10 +72,7 @@ static struct	field fields[] = {
 		{L"use_bom", Boolean, &file.usebom},
 		{L"use_crlf", Boolean, &file.usecrlf},
 		
-		{L"wire1", Int, global.wire},
-		{L"wire2", Int, global.wire+1},
-		{L"wire3", Int, global.wire+2},
-		{L"wire4", Int, global.wire+3},
+		{L"line_width", Int, &global.line_width},
 		{L"alpha", Float, &global.alpha},
 		{L"gamma", Float, &global.gamma},
 		{L"shell", String, &global.shell},
@@ -85,10 +81,7 @@ static struct	field fields[] = {
 defglobals() {
 	global.alpha = .9;
 	global.gamma = 2.2;
-	global.wire[0] = 64;
-	global.wire[1] = 72;
-	global.wire[2] = 80;
-	global.wire[3] = 132;
+	global.line_width = 80;
 	wcscpy(global.shell, L"cmd");
 	return 0;
 }
@@ -128,7 +121,6 @@ defconfig() {
 	conf.inactive_tab = conf.bg2;
 	conf.saved_file = conf.fg;
 	conf.unsaved_file = RGB(255, 0, 0);
-	wcscpy(conf.bgimage, L"");
 	
 	wcscpy(conf.fontname, L"Courier New");
 	conf.fontweight = 0;
@@ -138,7 +130,7 @@ defconfig() {
 	conf.leading = 1.125;
 	*conf.fontfeatures = 0;
 	*font_spec = 0;
-	wcscpy(conf.ui_font_name, L"Courier New");
+	wcscpy(conf.ui_font_name, L"Consolas");
 	conf.ui_font_small_size = 12.0;
 	conf.ui_font_large_size = 24.0;
 	conf.fixed_margin = 1;
@@ -234,16 +226,16 @@ hsv_to_rgb(double h, double s, double v) {
 	else if (h < 4.0) r=p, g=q, b=v;
 	else if (h < 5.0) r=t, g=p, b=v;
 	else r=v, g=p, b=q;
-	return ((unsigned)(b*255)<<16)+
+	return ((unsigned)(r*255)<<16)+
 		((unsigned)(g*255)<<8)+
-		((unsigned)(r*255));
+		((unsigned)(b*255));
 }
 
 static
 rgb_to_hsv(unsigned rgb, double *h, double *s, double *v) {
-	double r = (rgb & 255) / 255.0;
+	double b = (rgb & 255) / 255.0;
 	double g = (rgb >> 8 & 255) / 255.0;
-	double b = (rgb >> 16 & 255) / 255.0;
+	double r = (rgb >> 16 & 255) / 255.0;
 	
 	double maxc = max(r, max(g, b));
 	double minc = min(r, min(g, b));
@@ -309,7 +301,12 @@ getcolor(wchar_t *arg, unsigned colour) {
 		return hsv_to_rgb(h,s,v);
 	else if (swscanf(arg, L"rgb %d %d %d", &r,&g,&b)
 	  || swscanf(arg, L"%02x%02x%02x", &r, &g, &b)) {
-		return (b<<16)+(g<<8)+r;
+		return (r<<16)+(g<<8)+b;
+	} else if (1 == swscanf(arg, L"%ls", name)) {
+		for (struct field *f = fields; f->name; f++)
+			if (f->type == Color && !wcscmp(f->name, name))
+				return *(unsigned*)f->ptr;
+		return 0;
 	}
 	return colour;
 }

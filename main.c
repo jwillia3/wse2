@@ -82,9 +82,6 @@ int		status_bar_height = 24;
 int		tab_bar_height = 24;
 int		isearch_bar_height = 24;
 int		additional_bars;
-HBITMAP		background_bitmap;
-HBRUSH		background_brush;
-HPEN		background_pen;
 struct tab_t {
 	Buf	*buf;
 	Loc	click;
@@ -1467,32 +1464,35 @@ static uint32_t to_rgba(int win32_colour) {
 		(win32_colour << 16 & 0xff0000);
 }
 
-paintsel(HDC dc) {
-	Loc	lo, hi;
-	int	diff,x1,y1,x2,y2;
-	
+paintsel() {
 	if (!SLN)
-		return 0;
+		return false;
 	
-	diff = abs(SLN-LN);
+	Loc lo, hi;
 	ordersel(TAB.buf, &lo, &hi);
-	
-	SetDCBrushColor(dc, conf.selbg);
-	SetDCPenColor(dc, conf.selbg);
-	x1=ind2px(lo.ln, lo.ind);
-	y1=line2px(lo.ln);
-	if (diff)
-		Rectangle(dc, x1, y1, width, y1 + TAB.line_height);
-	
-	x1=diff? 0: x1;
-	x2=ind2px(hi.ln, hi.ind);
-	y2=line2px(hi.ln);
-	Rectangle(dc, x1, y2, x2, y2 + TAB.line_height);
-	
-	if (diff > 1)
-		Rectangle(dc, 0, y1 + TAB.line_height, 
-			width, y2);
-	return 1;
+	if (lo.ln != hi.ln) {
+		int first_line_left = ind2px(lo.ln, lo.ind);
+		int first_line_top = line2px(lo.ln);
+		int first_line_bottom = first_line_top + TAB.line_height;
+		int last_line_top = line2px(hi.ln);
+		int last_line_bottom = last_line_top + TAB.line_height;
+		int last_line_right = ind2px(hi.ln, hi.ind);
+		int end = width - TAB.total_margin;
+		
+		PgRect r0 = pgRect(pgPt(first_line_left, first_line_top), pgPt(end, first_line_bottom));
+		PgRect r1 = pgRect(pgPt(TAB.total_margin, first_line_bottom), pgPt(end, last_line_top));
+		PgRect r2 = pgRect(pgPt(TAB.total_margin, last_line_top), pgPt(last_line_right, last_line_bottom));
+		
+		gs->clearSection(gs, r0, to_rgba(conf.selbg));
+		gs->clearSection(gs, r1, to_rgba(conf.selbg));
+		gs->clearSection(gs, r2, to_rgba(conf.selbg));
+	} else
+		gs->clearSection(gs,
+			pgRect(
+				pgPt(ind2px(lo.ln, lo.ind), line2px(lo.ln)),
+				pgPt(ind2px(hi.ln, hi.ind), line2px(hi.ln) + TAB.line_height)),
+			to_rgba(conf.selbg));
+	return true;
 }
 
 blurtext(int fontno, int x, int y, wchar_t *txt, int n, COLORREF fg) {
@@ -1520,7 +1520,7 @@ blurtext(int fontno, int x, int y, wchar_t *txt, int n, COLORREF fg) {
 	}
 }
 
-paintstatus(HDC dc) {
+paintstatus() {
 	wchar_t	buf[1024];
 	wchar_t *selmsg=L"%ls %d:%d of %d Sel %d:%d (%d %ls)";
 	wchar_t *noselmsg=L"%ls %d:%d of %d";
@@ -1528,9 +1528,7 @@ paintstatus(HDC dc) {
 	
 	float top = height - status_bar_height;
 	
-	SetDCPenColor(dc, conf.fg);
-	SetDCBrushColor(dc, conf.fg);
-	Rectangle(dc, 0, top, width, height);
+	gs->clearSection(gs, pgRect(pgPt(0, top), pgPt(width, height)), to_rgba(conf.fg));
 
 	len=swprintf(buf, 1024, SLN? selmsg: noselmsg,
 		TAB.filename,
@@ -1549,7 +1547,7 @@ paintstatus(HDC dc) {
 
 #include "re.h"
 
-paintline(HDC dc, int x, int y, int line) {
+paintline(int x, int y, int line) {
 	int	k,len,sect;
 	void	*txt = getb(TAB.buf,line,&len);
 	unsigned short *i = txt, *j = txt, *end = i + len;
@@ -1557,14 +1555,12 @@ paintline(HDC dc, int x, int y, int line) {
 	
 	if (mode == ISEARCH_MODE) {
 		wchar_t *i = txt;
-		SetDCBrushColor(dc, conf.isearchbg);
-		SetDCPenColor(dc, conf.isearchbg);
 		for (i = txt; *i && (i = wcsistr(i, isearch_input.text)); i += current_input->length)
-			Rectangle(dc,
-				ind2px(line, i - txt),
-				y - (TAB.line_height-TAB.ascender_height)/2,
-				ind2px(line, i - txt + current_input->length),
-				y - (TAB.line_height-TAB.ascender_height)/2 + TAB.line_height);
+			gs->clearSection(gs,
+				pgRect(
+					pgPt(ind2px(line, i - txt), y - (TAB.line_height - TAB.ascender_height)/2),
+					pgPt(ind2px(line, i - txt + current_input->length), y - (TAB.line_height - TAB.ascender_height) / 2 + TAB.line_height)),
+				to_rgba(conf.isearchbg));
 	}
 	
 	while (j<end) {
@@ -1588,7 +1584,6 @@ paintline(HDC dc, int x, int y, int line) {
 			/* Then draw the keyword */
 			blurtext(style, x,y, j, sect,
 				conf.style[lang.kwd_color[k]].color);
-			SetTextColor(dc, conf.fg);
 			i=j+=sect;
 			x=ind2px(line,j-txt);
 		} else  if (*j && brktbl[*j] != 1) { /* Skip spaces or word */
@@ -1601,13 +1596,11 @@ paintline(HDC dc, int x, int y, int line) {
 		blurtext(0, x,y, i, j-i, conf.fg);
 }
 
-paintlines(HDC dc, int first, int last) {
+paintlines(int first, int last) {
 	int	line, _y=line2px(first);
 	
-	SetTextColor(dc, conf.fg);
 	for (line=first; line<=last && line <= BOT; line++, _y += TAB.line_height)
-		paintline(dc,
-			TAB.total_margin,
+		paintline(TAB.total_margin,
 			_y + (TAB.line_height-TAB.ascender_height)/2, line);
 }
 
@@ -1618,73 +1611,56 @@ void paint_normal_mode(PAINTSTRUCT *ps) {
 	last = px2line(ps->rcPaint.bottom);
 	
 	/* Clear the background */
-	SelectObject(double_buffer_dc, background_brush);
-	SelectObject(double_buffer_dc, background_pen);
-	Rectangle(double_buffer_dc, ps->rcPaint.left-1, ps->rcPaint.top-1,
-		ps->rcPaint.right+1, ps->rcPaint.bottom+1);
-	
-	SelectObject(double_buffer_dc, GetStockObject(DC_BRUSH));
-	SelectObject(double_buffer_dc, GetStockObject(DC_PEN));
+	gs->clearSection(gs,
+		pgRect(
+			pgPt(ps->rcPaint.left-1, ps->rcPaint.top-1),
+			pgPt(ps->rcPaint.right+1, ps->rcPaint.bottom+1)),
+		to_rgba(conf.bg));
 	
 	/* Draw odd line's background */
-	if (!*conf.bgimage && conf.bg2 != conf.bg) {
-		SetDCPenColor(double_buffer_dc, conf.bg2);
-		SetDCBrushColor(double_buffer_dc, conf.bg2);
+	if (conf.bg2 != conf.bg) {
 		y=line2px(first);
 		for (i=first; i<=last; i++) {
 			if (i % 2)
-				Rectangle(double_buffer_dc, 0, y, width, y+TAB.line_height);
+				gs->clearSection(gs,
+					pgRect(
+						pgPt(0, y),
+						pgPt(width, y + TAB.line_height)),
+					to_rgba(conf.bg2));
 			y += TAB.line_height;
 		}
 	}
 	
 	/* Clear the gutters */
-	SetDCPenColor(double_buffer_dc, conf.gutterbg);
-	SetDCBrushColor(double_buffer_dc, conf.gutterbg);
-	Rectangle(double_buffer_dc, 0, 0, TAB.total_margin - 3, height);
-	Rectangle(double_buffer_dc, width - TAB.total_margin + 3, 0, width, height);
+	gs->clearSection(gs, pgRect(pgPt(0, 0), pgPt(TAB.total_margin - 3, height)), to_rgba(conf.gutterbg));
+	gs->clearSection(gs, pgRect(pgPt(width - TAB.total_margin + 3, 0), pgPt(width, height)), to_rgba(conf.gutterbg));
 	
 	/* Draw bookmark line's background */
 	y=line2px(first);
 	for (i=first; i<=last; i++) {
-		if (isbookmarked(TAB.buf, i)) {
-			SetDCPenColor(double_buffer_dc, conf.bookmarkbg);
-			SetDCBrushColor(double_buffer_dc, conf.bookmarkbg);
-			Rectangle(double_buffer_dc, 0, y, width, y+TAB.line_height);
-		}
+		if (isbookmarked(TAB.buf, i))
+			gs->clearSection(gs, pgRect(pgPt(0, y), pgPt(width, y + TAB.line_height)), to_rgba(conf.bookmarkbg));
 		y += TAB.line_height;
 	}
 	
 	// Draw the tabs
-	PgPath *path = pgNewPath();
-	path->move(path, &gs->ctm, pgPt(0.0f + 0.5f, 0.5f));
-	path->line(path, &gs->ctm, pgPt(width - 0.5f, 0.5f));
-	path->line(path, &gs->ctm, pgPt(width - 0.5f, tab_bar_height - 0.5f));
-	path->line(path, &gs->ctm, pgPt(0.0f + 0.5f, tab_bar_height - 0.5f));
-	path->close(path);
-	gs->fill(gs, path, to_rgba(conf.gutterbg));
-	path->free(path);
+	gs->clearSection(gs, pgRect(pgPt(0, 0), pgPt(width, tab_bar_height)), to_rgba(conf.gutterbg));
+	
 	ui_font->scale(ui_font, conf.ui_font_small_size * dpi / 72.0f, 0.0f);
 	for (int i = 0; i < tab_count; i++) {
 		float left = (width / tab_count) * i;
 		float right = (width / tab_count) * (i + 1);
 		
-		PgPath *path = pgNewPath();
-		path->move(path, &gs->ctm, pgPt(left + 3.5f + 5.0f, 0.5f));
-		path->line(path, &gs->ctm, pgPt(right - 3.5f - 5.0f, 0.5f));
-		path->line(path, &gs->ctm, pgPt(right - 3.5f, tab_bar_height - 0.5f));
-		path->line(path, &gs->ctm, pgPt(left + 3.5f, tab_bar_height - 0.5f));
-		path->close(path);
-		gs->fill(gs, path, to_rgba(i == current_tab ? conf.active_tab : conf.inactive_tab));
-		path->free(path);
+		gs->clearSection(gs, pgRect(pgPt(left, 0), pgPt(right, tab_bar_height)),
+			to_rgba(i == current_tab ? conf.active_tab : conf.inactive_tab));
+		gs->clearSection(gs, pgRect(pgPt(right - 1, 0), pgPt(right, tab_bar_height)),
+			to_rgba(0));
 		
 		float measured = 0.0;
 		int length = 0;
 		wchar_t *name = tabs[i].filename;
 		if (wcsrchr(name, '/'))
 			name = wcsrchr(name, '/') + 1;
-		if (wcsrchr(name, '\\'))
-			name = wcsrchr(name, '\\') + 1;
 		for (wchar_t *p = name; *p; p++) {
 			float px = ui_font->getCharWidth(ui_font, *p);
 			if (measured + px >= (right - left) - 6.0f) break;
@@ -1699,26 +1675,9 @@ void paint_normal_mode(PAINTSTRUCT *ps) {
 			to_rgba(tabs[i].buf->changes ? conf.unsaved_file : conf.saved_file));
 	}
 	
-	paintsel(double_buffer_dc);
-	
-	/* Draw the wire */
-	if (global.wire) {
-		HPEN pen;
-		int i, n=sizeof global.wire/sizeof *global.wire;
-		pen = CreatePen(PS_DOT, 1, conf.fg);
-		SetBkMode(double_buffer_dc, TRANSPARENT);
-		SelectObject(double_buffer_dc, pen);
-		for (i=0; i<n; i++) {
-			x=TAB.total_margin + global.wire[i] * TAB.em;
-			MoveToEx(double_buffer_dc, x, tab_bar_height, 0);
-			LineTo(double_buffer_dc, x, ps->rcPaint.bottom);
-		}
-		SelectObject(double_buffer_dc, GetStockObject(DC_PEN));
-		DeleteObject(pen);
-	}
-	
-	paintlines(double_buffer_dc,first,last);
-	paintstatus(double_buffer_dc);
+	paintsel();
+	paintlines(first,last);
+	paintstatus();
 	/* Get another DC to this window to draw
 	 * the status bar, which is probably outside
 	 * of the update region of the PAINTSTRUCT
@@ -1745,14 +1704,7 @@ void paint_isearch_mode(PAINTSTRUCT *ps) {
 	
 	paint_normal_mode(ps);
 	
-	PgPath *path = pgNewPath();
-	path->move(path, &gs->ctm, pgPt(0.0f, top + 0.5f));
-	path->line(path, &gs->ctm, pgPt(width - 0.5f, top + 0.5f));
-	path->line(path, &gs->ctm, pgPt(width - 0.5f, top + isearch_bar_height - 0.5f));
-	path->line(path, &gs->ctm, pgPt(0.0f + 0.5f, top + isearch_bar_height - 0.5f));
-	path->close(path);
-	gs->fill(gs, path, to_rgba(conf.fg));
-	path->free(path);
+	gs->clearSection(gs, pgRect(pgPt(0, top), pgPt(width, top + isearch_bar_height)), to_rgba(conf.fg));
 	
 	ui_font->scale(ui_font, conf.ui_font_small_size, 0.0f);
 	float x_offset = 32.0f;
@@ -1764,14 +1716,7 @@ void paint_isearch_mode(PAINTSTRUCT *ps) {
 }
 
 void paint_fuzzy_search_mode(PAINTSTRUCT *ps) {
-	PgPath *path = pgNewPath();
-	path->move(path, &gs->ctm, pgPt(0.0f, 0.5f));
-	path->line(path, &gs->ctm, pgPt(width - 0.5f, 0.5f));
-	path->line(path, &gs->ctm, pgPt(width - 0.5f, height - 0.5f));
-	path->line(path, &gs->ctm, pgPt(0.0f + 0.5f, height - 0.5f));
-	path->close(path);
-	gs->fill(gs, path, to_rgba(conf.fg));
-	path->free(path);
+	gs->clearSection(gs, pgRect(pgPt(0, 0), pgPt(width, height)), to_rgba(conf.fg));
 	
 	float x_offset = width * 1.0f / 4.0f;
 	float y = tab_bar_height;
@@ -1986,10 +1931,7 @@ WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 		gs->width = width + 3 & ~3;
 		gs->height = height;
 		((PgBitmapCanvas*)gs)->data = double_buffer_data;
-		TAB.total_margin = conf.fixed_margin +
-			(conf.center && global.wire[2] * TAB.em < width?
-				(width - global.wire[2] * TAB.em) / 2:
-				0);
+		recalculate_text_metrics();
 		movecaret();
 		SelectObject(double_buffer_dc, double_buffer_bmp);
 		ReleaseDC(hwnd, dc);
@@ -2159,8 +2101,8 @@ static void recalculate_text_metrics() {
 	TAB.tab_px_width = TAB.em * file.tabc;
 	
 	TAB.total_margin = conf.fixed_margin +
-			(conf.center && global.wire[2] * TAB.em < width?
-				(width - global.wire[2] * TAB.em) / 2:
+			(conf.center && global.line_width * TAB.em < width?
+				(width - global.line_width * TAB.em) / 2:
 				0);
 	reserve_vertical_space(0);
 	fix_caret();
@@ -2173,6 +2115,9 @@ configfont() {
 	int	i;
 	char	features[128];
 	
+	if (ui_font) ui_font->free(ui_font);
+	ui_font = pgOpenFont(conf.ui_font_name, 400, false, 0);
+		
 	if (font[0]) font[0]->free(font[0]);
 	if (font[1]) font[1]->free(font[1]);
 	if (font[2]) font[2]->free(font[2]);
@@ -2215,21 +2160,6 @@ reinitconfig() {
 	pgSetGamma(global.gamma);
 	configfont();
 	reinitlang();
-	
-	if (background_bitmap)
-		DeleteObject(background_bitmap);
-
-	background_bitmap=LoadImage(GetModuleHandle(0),
-		conf.bgimage? conf.bgimage: L"",
-		IMAGE_BITMAP, 0, 0,
-		LR_LOADFROMFILE);
-	if (background_bitmap) {
-		background_brush=CreatePatternBrush(background_bitmap);
-		background_pen=GetStockObject(NULL_PEN);
-	} else {
-		background_brush=CreateSolidBrush(conf.bg);
-		background_pen=CreatePen(PS_SOLID, 1, conf.bg);
-	}
 }
 
 static
@@ -2267,10 +2197,6 @@ init() {
 	ReleaseDC(w, dc);
 	
 	gs = pgNewBitmapCanvas(0, 0);
-	
-	if (ui_font) ui_font->free(ui_font);
-	ui_font = pgOpenFont(conf.ui_font_name, 400, false, 0);
-	
 	
 	SystemParametersInfo(SPI_GETWORKAREA, 0, &rt, 0);
 	w = CreateWindowEx(
