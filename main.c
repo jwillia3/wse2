@@ -995,7 +995,7 @@ void start_fuzzy_search(wchar_t *initial_text) {
 	}
 	int count;
 	all_fuzzy_search_files = platform_list_directory(TAB.file_directory, &count);
-	fuzzy_search_files = calloc(count, sizeof *fuzzy_search_files);
+	fuzzy_search_files = calloc(count + 1, sizeof *fuzzy_search_files);
 	filter_fuzzy_search_list(fuzzy_search_files, all_fuzzy_search_files, fuzzy_search_input.text);
 	
 	act(EndSelection);
@@ -1727,8 +1727,13 @@ void paint_fuzzy_search_mode(PAINTSTRUCT *ps) {
 	float x_offset = width * 1.0f / 4.0f;
 	float y = tab_bar_height;
 	ui_font->scale(ui_font, conf.ui_font_large_size * dpi / 72.0f, 0.0f);
+	
+	wchar_t *item_text = wcsstr(fuzzy_search_input.text, TAB.file_directory) ?
+		fuzzy_search_input.text + wcslen(TAB.file_directory) :
+		fuzzy_search_input.text;
+	
 	gs->fillString(gs, ui_font, pgPt(x_offset, y),
-		fuzzy_search_input.text, fuzzy_search_input.length,
+		item_text, wcslen(item_text),
 		to_rgba(conf.bg));
 	y += ui_font->getEm(ui_font);
 
@@ -2262,4 +2267,4 @@ WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show) {
  * Creates a console when compiled for conosle.
  * Ignored otherwise.
  */
-// main() { return WinMain(0,0,0,0); }
+ main() { return WinMain(0,0,0,0); }

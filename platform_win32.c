@@ -5,6 +5,7 @@
 #pragma warning(disable: 4005)
 #include <Windows.h>
 #pragma warning(pop)
+#include <io.h>
 #include <stdlib.h>
 #include <string.h>
 #include <wchar.h>
@@ -18,39 +19,42 @@ wchar_t *platform_normalize_path(wchar_t *filename) {
 }
 
 wchar_t **platform_list_directory(wchar_t *root, int *countp) {
-	return NULL;
-	wchar_t *directory = wcsdup(root);
-	wchar_t *queue[256];
-	wchar_t **list = NULL;
+	wchar_t *dir = root;
+	wchar_t **queue = calloc(1, sizeof *queue);
+	int queued = 1;
+	queue[0] = wcsdup(root);
+	
+	wchar_t **list = calloc(1, sizeof *list);
 	int count = 0;
-	int queue_count = 0;
-	do {
-		WIN32_FIND_DATA data;
-		wchar_t search[MAX_PATH];
-		wcscpy(search, directory);
-		wcscat(search, L"/*");
-		HANDLE h = FindFirstFile(search, &data);
-	    if (h != INVALID_HANDLE_VALUE) {
-	        do {
-				list = realloc(list, (count + 2) * sizeof *list);
-				wchar_t full[MAX_PATH * 2];
-				swprintf(full, MAX_PATH * 2, L"%ls/%ls", directory, data.cFileName);
-				if (data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
-					if (wcscmp(data.cFileName, L".") && wcscmp(data.cFileName, L"..")) {
-//						if (queue_count < sizeof queue / sizeof *queue)
-//							queue[queue_count++] = wcsdup(full);
-					}
-				} else {
-					platform_normalize_path(full);
-					list[count++] = wcsdup(full);
-					list[count] = NULL;
-				}
-	        } while (FindNextFile(h, &data));
-	        FindClose(h);
-	    }
-		free(directory);
-	} while (queue_count-- && (directory = queue[queue_count]));
+	
+	while (queued && (dir = queue[--queued])) {
+		wchar_t spec[MAX_PATH * 2];
+		swprintf(spec, MAX_PATH * 2, L"%ls/*", dir);
+		
+		struct _wfinddata64_t file;
+		intptr_t handle = _wfindfirst64(spec, &file);
+		
+		if (handle < 0) return NULL;
+		
+		do {
+			if (!wcscmp(L".", file.name) || !wcscmp(L"..", file.name))
+				continue;
+			if (file.attrib & _A_SUBDIR) {
+				queue = realloc(queue, ++queued * sizeof *queue);
+				wchar_t *next = malloc(MAX_PATH * 2);
+				swprintf(next, MAX_PATH * 2, L"%ls/%ls", dir, file.name);
+				queue[queued - 1] = next;
+				continue;
+			}
+			list = realloc(list, (++count + 1) * sizeof *list);
+			wchar_t *entry = malloc(MAX_PATH * 2);
+			swprintf(entry, MAX_PATH * 2, L"%ls/%ls", dir, file.name);
+			list[count - 1] = platform_normalize_path(entry);
+		} while (!_wfindnext64(handle, &file));
+		free(dir);
+	}
 	if (countp) *countp = count;
+	list[count] = NULL;
 	return list;
 }
 
