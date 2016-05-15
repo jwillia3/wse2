@@ -2395,7 +2395,7 @@ WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show) {
 	argv = CommandLineToArgvW(GetCommandLine(), &argc);
 	if (argc>1) {
 		for (int i = 1; i < argc; i++) {
-			if (i > 1) new_tab(TAB.buf = newb());
+			if (i > 1) new_tab(newb());
 			platform_normalize_path(argv[i]);
 			load_file(argv[i]);
 		}
