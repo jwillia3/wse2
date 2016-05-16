@@ -1,5 +1,7 @@
 /* vim: set noexpandtab:tabstop=8 */
 #include <math.h>
+#include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <wchar.h>
 #include "conf.h"
@@ -29,6 +31,7 @@ static wchar_t	font_spec[4096];
 
 void nice_colours_bg(void *colourp);
 void nice_colours_fg(void *colourp);
+void load_scheme(wchar_t *filename);
 static struct	field fields[] = {
 		{L"bg", Color, &conf.bg, nice_colours_bg},
 		{L"bg2", Color, &conf.bg2},
@@ -76,6 +79,47 @@ static struct	field fields[] = {
 		{L"alpha", Float, &global.alpha},
 		{L"gamma", Float, &global.gamma},
 		{L"shell", String, &global.shell},
+		
+		{L"load-scheme", String, &scheme.filename, .exec=load_scheme},
+		{L"black", Color, &scheme.color[0]},
+		{L"red", Color, &scheme.color[1]},
+		{L"dark-red", Color, &scheme.color[1]},
+		{L"green", Color, &scheme.color[2]},
+		{L"dark-green", Color, &scheme.color[2]},
+		{L"brown", Color, &scheme.color[3]},
+		{L"gold", Color, &scheme.color[3]},
+		{L"amber", Color, &scheme.color[3]},
+		{L"dark-amber", Color, &scheme.color[3]},
+		{L"dark-yellow", Color, &scheme.color[3]},
+		{L"blue", Color, &scheme.color[4]},
+		{L"dark-blue", Color, &scheme.color[4]},
+		{L"purple", Color, &scheme.color[5]},
+		{L"dark-purple", Color, &scheme.color[5]},
+		{L"magenta", Color, &scheme.color[5]},
+		{L"dark-magenta", Color, &scheme.color[5]},
+		{L"cyan", Color, &scheme.color[6]},
+		{L"dark-cyan", Color, &scheme.color[6]},
+		{L"teal", Color, &scheme.color[6]},
+		{L"dark-teal", Color, &scheme.color[6]},
+		{L"light-grey", Color, &scheme.color[7]},
+		{L"silver", Color, &scheme.color[7]},
+		{L"dark-grey", Color, &scheme.color[8]},
+		{L"light-red", Color, &scheme.color[9]},
+		{L"bright-red", Color, &scheme.color[9]},
+		{L"light-green", Color, &scheme.color[10]},
+		{L"bright-green", Color, &scheme.color[10]},
+		{L"yellow", Color, &scheme.color[11]},
+		{L"light-yellow", Color, &scheme.color[11]},
+		{L"bright-yellow", Color, &scheme.color[11]},
+		{L"light-blue", Color, &scheme.color[12]},
+		{L"bright-blue", Color, &scheme.color[12]},
+		{L"light-magenta", Color, &scheme.color[13]},
+		{L"bright-magenta", Color, &scheme.color[13]},
+		{L"light-purple", Color, &scheme.color[13]},
+		{L"bright-purple", Color, &scheme.color[13]},
+		{L"bright-cyan", Color, &scheme.color[14]},
+		{L"light-cyan", Color, &scheme.color[14]},
+		{L"white", Color, &scheme.color[15]},
 		{0}
 		};
 defglobals() {
@@ -91,6 +135,30 @@ defperfile() {
 	file.usebom = 0;
 	file.usecrlf = 0;
 	return 0;
+}
+static unsigned rgb(uint8_t r, uint8_t g, uint8_t b) {
+	return 0xff000000 + (r << 16) + (g << 8) + b;
+}
+static void defscheme() {
+	scheme = (struct scheme){
+		.filename = L"",
+		.color[0] = rgb(0, 0, 0),
+		.color[1] = rgb(194, 54, 33),
+		.color[2] = rgb(37, 188, 36),
+		.color[3] = rgb(173, 173, 39),
+		.color[4] = rgb(73, 46, 225),
+		.color[5] = rgb(211, 56, 211),
+		.color[6] = rgb(51, 187, 200),
+		.color[7] = rgb(203, 204, 205),
+		.color[8] = rgb(129, 131, 131),
+		.color[9] = rgb(252,57,31),
+		.color[10] = rgb(49, 231, 34),
+		.color[11] = rgb(234, 236, 35),
+		.color[12] = rgb(88, 51, 255),
+		.color[13] = rgb(249, 53, 248),
+		.color[14] = rgb(20, 240, 240),
+		.color[15] = rgb(233, 235, 235),
+	};
 }
 
 static
@@ -112,22 +180,14 @@ static
 defconfig() {
 	memset(conf.style, 0, sizeof conf.style);
 	conf.bg = RGB(255,255,255);
-	conf.bg2 = RGB(245,245,245);
-	conf.fg = RGB(64,64,64);
-	conf.selbg = RGB(240,240,255);
-	conf.isearchbg = RGB(255,255,0);
-	conf.bookmarkbg = RGB(255,200,255);
-	conf.active_tab = conf.bg;
-	conf.inactive_tab = conf.bg2;
-	conf.saved_file = conf.fg;
-	conf.unsaved_file = RGB(255, 0, 0);
+	nice_colours_bg(&conf.bg);
 	
-	wcscpy(conf.fontname, L"Courier New");
+	wcscpy(conf.fontname, L"Consolas");
 	conf.fontweight = 0;
 	conf.fontitalic = 0;
 	conf.fontsz = 12.0;
 	conf.fontasp = 0.0;
-	conf.leading = 1.125;
+	conf.leading = 1.25;
 	*conf.fontfeatures = 0;
 	*font_spec = 0;
 	wcscpy(conf.ui_font_name, L"Consolas");
@@ -172,7 +232,7 @@ configfont(wchar_t *spec) {
 	}
 	
 	if (!*conf.fontname)
-		wcscpy(conf.fontname, L"Courier new");
+		wcscpy(conf.fontname, L"Consolas");
 
 }
 
@@ -278,6 +338,24 @@ void nice_colours_bg(void *colourp) {
 	conf.inactive_tab = hsv_to_rgb(0, 0, v);
 	
 }
+void load_scheme(wchar_t *filename) {
+	FILE *file = _wfopen(filename, L"r");
+	if (!file) return;
+	char buf[1024];
+	int current_colour = -1;
+	int r, g, b;
+	char ignored;
+	
+	while (fgets(buf, sizeof buf, file)) {
+		if (2 == sscanf(buf, "[Color%dIntense%c", &current_colour, &ignored) && ignored==']') current_colour += 8;
+		else if (1 == sscanf(buf, "[Color%d]", &current_colour));
+		else if (3 == sscanf(buf, "Color=%d,%d,%d", &r, &g, &b)) {
+			if (current_colour >= 0 && current_colour < 16)
+				scheme.color[current_colour] = rgb(r, g, b);
+		}
+	}
+	fclose(file);
+}
 
 static unsigned
 getcolor(wchar_t *arg, unsigned colour) {
@@ -300,15 +378,12 @@ getcolor(wchar_t *arg, unsigned colour) {
 	} else if (3 == swscanf(arg, L"%lf %lf %lf", &h,&s,&v)
 	 || 3 == swscanf(arg, L"hsl %lf %lf %lf", &h,&s,&v))
 		return hsv_to_rgb(h,s,v);
-	else if (swscanf(arg, L"rgb %d %d %d", &r,&g,&b)
-	  || swscanf(arg, L"%02x%02x%02x", &r, &g, &b)) {
+	else if (3 == swscanf(arg, L"rgb %d %d %d", &r,&g,&b)
+	  || 3 == swscanf(arg, L"%02x%02x%02x", &r, &g, &b)) {
 		return 0xff000000+(r<<16)+(g<<8)+b;
-	} else if (1 == swscanf(arg, L"%ls", name)) {
-		for (struct field *f = fields; f->name; f++)
-			if (f->type == Color && !wcscmp(f->name, name))
-				return *(unsigned*)f->ptr;
-		return 0;
-	}
+	} else for (struct field *f = fields; f->name; f++)
+		if (f->type == Color && !wcscmp(f->name, arg))
+			return *(unsigned*)f->ptr;
 	return colour;
 }
 
@@ -382,6 +457,8 @@ configline(int ln, wchar_t *s) {
 	
 	case String:
 		wcscpy(cf->ptr, arg);
+		if (cf->exec)
+			cf->exec(cf->ptr);
 		return 1;
 	
 	case Keyword:
@@ -414,6 +491,7 @@ loadconfig(wchar_t *fn) {
 	buf=decodeutf8(utf,utf+sz);
 	free(utf);
 	
+	defscheme();
 	defconfig();
 	deflang();
 	confset[nconfs]=conf;
@@ -459,6 +537,7 @@ config() {
 		return 1;
 	}
 	configfile=L"";
+	defscheme();
 	defconfig();
 	deflang();
 	confset[nconfs++]=conf;

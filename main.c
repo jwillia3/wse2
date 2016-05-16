@@ -2253,4 +2253,4 @@ WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show) {
  * Creates a console when compiled for conosle.
  * Ignored otherwise.
  */
- main() { return WinMain(0,0,0,0); }
+// main() { return WinMain(0,0,0,0); }

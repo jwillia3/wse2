@@ -60,6 +60,11 @@ struct lang {
 	int		autoClose;
 } lang;
 
+struct scheme {
+	wchar_t		filename[128];
+	unsigned	color[16];
+} scheme;
+
 wchar_t		*configfile;
 int		nconfs;
 int		curconf;
