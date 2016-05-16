@@ -923,11 +923,13 @@ int _act(Buf *b, int action) {
 		return config();
 	
 	case PrevConfig:
+		if (nconfs == 0) return 0;
 		curconf = curconf? curconf-1: nconfs-1;
 		selectconfig(curconf);
 		return 1;
 	
 	case NextConfig:
+		if (nconfs == 0) return 0;
 		curconf = abs(curconf+1) % nconfs;
 		selectconfig(curconf);
 		return 1;
