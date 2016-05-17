@@ -1807,10 +1807,10 @@ wm_find() {
 
 void scroll_by_birdseye(int x, int y) {
 	float total_height = height - tab_bar_height - additional_bars;
-	float each_line = total_height / NLINES;
+	float each_line = min(1.0f, total_height / NLINES);
 	int selected_line = y / each_line + 1;
 	int half_screen = (BOT - top) / 2;
-	top = max(1, selected_line - half_screen);
+	top = sat(1, selected_line - half_screen, NLINES - vis + 1);
 	movecaret();
 	InvalidateRect(w, 0, 0);
 }
