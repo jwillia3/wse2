@@ -82,6 +82,7 @@ int		status_bar_height = 24;
 int		tab_bar_height = 24;
 int		isearch_bar_height = 24;
 int		additional_bars;
+int		birdseye_width = 128;
 struct tab_t {
 	Buf	*buf;
 	Loc	click;
@@ -93,6 +94,7 @@ struct tab_t {
 	int	tab_px_width;
 	int	total_margin;
 	BOOL	inhibit_auto_close;
+	bool	scrolling;
 	wchar_t	*filename;
 	wchar_t	file_directory[512];
 	wchar_t	file_basename[512];
@@ -489,7 +491,6 @@ alertabort(wchar_t *msg, wchar_t *re) {
 static
 movecaret() {
 	int		x,y;
-	SCROLLINFO	si;
 	
 	x = ind2px(LN, IND);
 	y = line2px(LN);
@@ -497,15 +498,6 @@ movecaret() {
 		y += TAB.line_height;
 	if (GetFocus()==w)
 		SetCaretPos(x, y);
-	
-	/* Set up the scroll bars */
-	si.cbSize = sizeof si;
-	si.fMask = SIF_ALL ^ SIF_TRACKPOS;
-	si.nMin = 1;
-	si.nMax = NLINES;
-	si.nPage = vis;
-	si.nPos = top;
-	SetScrollInfo(w, SB_VERT, &si, 1);
 	return 1;
 }
 
@@ -1493,7 +1485,7 @@ paintsel() {
 	return true;
 }
 
-blurtext(int fontno, int x, int y, wchar_t *txt, int n, uint32_t fg) {
+blurtext(Pg *gs, int fontno, int x, int y, wchar_t *txt, int n, uint32_t fg) {
 	wchar_t *p;
 	wchar_t *end = txt + n;
 	int margin = TAB.total_margin;
@@ -1539,7 +1531,7 @@ paintstatus() {
 
 #include "re.h"
 
-paintline(int x, int y, int line) {
+paintline(Pg *gs, int x, int y, int line) {
 	int	k,len,sect;
 	void	*txt = getb(TAB.buf,line,&len);
 	unsigned short *i = txt, *j = txt, *end = i + len;
@@ -1569,11 +1561,11 @@ paintline(int x, int y, int line) {
 			int style=conf.style[lang.kwd_color[k]].style;
 			
 			/* Draw the preceding section */
-			blurtext(0, x, y, i, j-i, conf.fg);
+			blurtext(gs, 0, x, y, i, j-i, conf.fg);
 			x=ind2px(line, j-txt);
 			
 			/* Then draw the keyword */
-			blurtext(style, x,y, j, sect,
+			blurtext(gs, style, x,y, j, sect,
 				conf.style[lang.kwd_color[k]].color);
 			i=j+=sect;
 			x=ind2px(line,j-txt);
@@ -1584,15 +1576,42 @@ paintline(int x, int y, int line) {
 			j++;
 	}
 	if (j>i)
-		blurtext(0, x,y, i, j-i, conf.fg);
+		blurtext(gs, 0, x,y, i, j-i, conf.fg);
 }
 
-paintlines(int first, int last) {
+paintlines(Pg *gs, int first, int last) {
 	int	line, _y=line2px(first);
 	
 	for (line=first; line<=last && line <= BOT; line++, _y += TAB.line_height)
-		paintline(TAB.total_margin,
+		paintline(gs, TAB.total_margin,
 			_y + (TAB.line_height-TAB.ascender_height)/2, line);
+}
+
+void paint_birdseye(Pg *full_canvas) {
+	PgPt a = pgPt(width - birdseye_width, tab_bar_height + 3.0f);
+	PgPt b = pgPt(width - 3.0f, height - additional_bars);
+	Pg *gs = pgSubsectionCanvas(full_canvas, pgRect(a, b));
+	float each_line = min(1.0f, (float)gs->height / NLINES);
+	float y = 0.0f;
+	float longest_line = 1;
+	for (int i = 1; i <= NLINES; i++)
+		longest_line = max(longest_line, lenb(TAB.buf, i));
+	pgFillRect(gs,
+		pgPt(0.0f, each_line * top),
+		pgPt(gs->width, each_line * BOT),
+		conf.selbg);
+	pgStrokeRect(gs,
+		pgPt(0.0f, each_line * top),
+		pgPt(gs->width, each_line * BOT),
+		3.0f,
+		conf.fg);
+	for (int i = 1; i <= NLINES; i++, y += each_line)
+		pgStrokeLine(gs,
+			pgPt(0, y),
+			pgPt(lenb(TAB.buf, i) / longest_line * gs->width, y),
+			each_line * 0.5f,
+			conf.fg);
+	pgFreeCanvas(gs);
 }
 
 void paint_normal_mode(PAINTSTRUCT *ps) {
@@ -1664,7 +1683,14 @@ void paint_normal_mode(PAINTSTRUCT *ps) {
 	}
 	
 	paintsel();
-	paintlines(first,last);
+	
+	Pg *code_canvas = pgSubsectionCanvas(gs, pgRect(pgPt(0.0f, 0.0f), pgPt(width - birdseye_width, height)));
+	paintlines(code_canvas, first,last);
+	pgFreeCanvas(code_canvas);
+	
+	paint_birdseye(gs);
+	
+	
 	paintstatus();
 	/* Get another DC to this window to draw
 	 * the status bar, which is probably outside
@@ -1748,39 +1774,6 @@ void paint(PAINTSTRUCT *ps) {
 		SRCCOPY);
 }
 
-wmscroll(int action) {
-	SCROLLINFO si;
-
-	switch (action) {
-
-	case SB_PAGEUP:
-		top = sat(1, top-vis+1, NLINES);
-		break;
-
-	case SB_LINEUP:
-		top = sat(1, top-1, NLINES);
-		break;
-
-	case SB_PAGEDOWN:
-		top = sat(1, BOT-1, NLINES);
-		break;
-
-	case SB_LINEDOWN:
-		top = sat(1, top+1, NLINES);
-		break;
-
-	case SB_THUMBTRACK:
-		si.cbSize = sizeof si;
-		si.fMask = SIF_TRACKPOS;
-		GetScrollInfo(w, SB_VERT, &si);
-		top = si.nTrackPos;
-		break;
-	}
-	
-	movecaret();
-	InvalidateRect(w, 0, 0);
-}
-
 wmwheel(int clicks) {
 	int	d, dy;
 
@@ -1812,7 +1805,24 @@ wm_find() {
 	return 0;
 }
 
+void scroll_by_birdseye(int x, int y) {
+	float total_height = height - tab_bar_height - additional_bars;
+	float each_line = total_height / NLINES;
+	int selected_line = y / each_line + 1;
+	int half_screen = (BOT - top) / 2;
+	top = max(1, selected_line - half_screen);
+	movecaret();
+	InvalidateRect(w, 0, 0);
+}
+
 void wm_click(int x, int y, bool left, bool middle, bool right) {
+	if (x >= width - birdseye_width) {
+		scroll_by_birdseye(x, y - tab_bar_height);
+		SetCapture(w);
+		TAB.scrolling = true;
+		return;
+	}
+	TAB.scrolling = false;
 	if (y < tab_bar_height) {
 		int selected = x / (width / tab_count);
 		if (middle) {
@@ -1836,6 +1846,11 @@ void wm_click(int x, int y, bool left, bool middle, bool right) {
 wm_drag(int x, int y) {
 	int	ln,ind;
 	Loc	olo, ohi, lo, hi;
+	
+	if (TAB.scrolling) {
+		scroll_by_birdseye(x, y - tab_bar_height);
+		return 0;
+	}
 	
 	if (!TAB.click.ln)
 		return 0;
@@ -1937,10 +1952,6 @@ WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 		wmwheel((short) HIWORD(wparam));
 		return 0;
 	
-	case WM_VSCROLL:
-		wmscroll((short) LOWORD(wparam));
-		return 0;
-	
 	case WM_LBUTTONDOWN:
 	case WM_MBUTTONDOWN:
 	case WM_RBUTTONDOWN:
@@ -1957,6 +1968,9 @@ WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 		return 0;
 		
 	case WM_LBUTTONUP:
+	case WM_MBUTTONUP:
+	case WM_RBUTTONUP:
+		TAB.scrolling = false;
 		TAB.click.ln=0;
 		if (sameloc(&CAR, &SEL))
 			SLN=0;
