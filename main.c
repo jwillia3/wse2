@@ -23,7 +23,7 @@
 #include <stdlib.h>
 #include <wchar.h>
 #pragma warning(pop)
-#include <pg/pg.h>
+#include <pg2/pg.h>
 #include "conf.h"
 #include "wse.h"
 #include "action.h"
@@ -134,7 +134,7 @@ line2px(int ln) {
 
 static
 charwidth(unsigned c) {
-	return font[0]->getCharWidth(font[0], c);
+	return pgGetCharWidth(font[0], c);
 }
 
 static
@@ -1482,14 +1482,13 @@ paintsel() {
 		PgRect r1 = pgRect(pgPt(TAB.total_margin, first_line_bottom), pgPt(end, last_line_top));
 		PgRect r2 = pgRect(pgPt(TAB.total_margin, last_line_top), pgPt(last_line_right, last_line_bottom));
 		
-		gs->clearSection(gs, r0, conf.selbg);
-		gs->clearSection(gs, r1, conf.selbg);
-		gs->clearSection(gs, r2, conf.selbg);
+		pgFillRect(gs, r0.a, r0.b, conf.selbg);
+		pgFillRect(gs, r1.a, r1.b, conf.selbg);
+		pgFillRect(gs, r2.a, r2.b, conf.selbg);
 	} else
-		gs->clearSection(gs,
-			pgRect(
-				pgPt(ind2px(lo.ln, lo.ind), line2px(lo.ln)),
-				pgPt(ind2px(hi.ln, hi.ind), line2px(hi.ln) + TAB.line_height)),
+		pgFillRect(gs,
+			pgPt(ind2px(lo.ln, lo.ind), line2px(lo.ln)),
+			pgPt(ind2px(hi.ln, hi.ind), line2px(hi.ln) + TAB.line_height),
 			conf.selbg);
 	return true;
 }
@@ -1498,7 +1497,7 @@ blurtext(int fontno, int x, int y, wchar_t *txt, int n, uint32_t fg) {
 	wchar_t *p;
 	wchar_t *end = txt + n;
 	int margin = TAB.total_margin;
-	int faux_bold = (fontno & 1) && font[fontno]->getWeight(font[fontno]) < 600;
+	int faux_bold = (fontno & 1) && pgGetFontWeight(font[fontno]) < 600;
 	PgMatrix ctm;
 	
 	PgPt at = pgPt(x, y);
@@ -1507,8 +1506,8 @@ blurtext(int fontno, int x, int y, wchar_t *txt, int n, uint32_t fg) {
 			at.x += TAB.tab_px_width - fmod(at.x - margin + TAB.tab_px_width, TAB.tab_px_width);
 		else {
 			if (faux_bold)
-				gs->fillChar(gs, font[fontno], pgPt(at.x + 1, at.y), *p, fg);
-			at.x += (int)gs->fillChar(gs, font[fontno], at, *p, fg);
+				pgFillChar(gs, font[fontno], at.x + 1, at.y, *p, fg);
+			at.x = (int)pgFillChar(gs, font[fontno], at.x, at.y, *p, fg);
 		}
 	}
 }
@@ -1521,7 +1520,7 @@ paintstatus() {
 	
 	float top = height - status_bar_height;
 	
-	gs->clearSection(gs, pgRect(pgPt(0, top), pgPt(width, height)), conf.fg);
+	pgFillRect(gs, pgPt(0, top), pgPt(width, height), conf.fg);
 
 	len=swprintf(buf, 1024, SLN? selmsg: noselmsg,
 		TAB.filename,
@@ -1532,10 +1531,10 @@ paintstatus() {
 		SLN==LN? abs(SIND-IND): abs(SLN-LN)+1,
 		SLN==LN? L"chars": L"lines");
 	
-	ui_font->scale(ui_font, conf.ui_font_small_size, 0.0f);
+	pgScaleFont(ui_font, conf.ui_font_small_size, 0.0f);
 	float x = 4;
-	float y = top + status_bar_height / 2.0f - ui_font->getEm(ui_font) / 2.0f;
-	gs->fillString(gs, ui_font, pgPt(x, y), buf, len, conf.bg);
+	float y = top + status_bar_height / 2.0f - pgGetFontEm(ui_font) / 2.0f;
+	pgFillString(gs, ui_font, x, y, buf, len, conf.bg);
 }
 
 #include "re.h"
@@ -1549,10 +1548,9 @@ paintline(int x, int y, int line) {
 	if (mode == ISEARCH_MODE) {
 		wchar_t *i = txt;
 		for (i = txt; *i && (i = wcsistr(i, isearch_input.text)); i += current_input->length)
-			gs->clearSection(gs,
-				pgRect(
-					pgPt(ind2px(line, i - txt), y - (TAB.line_height - TAB.ascender_height)/2),
-					pgPt(ind2px(line, i - txt + current_input->length), y - (TAB.line_height - TAB.ascender_height) / 2 + TAB.line_height)),
+			pgFillRect(gs,
+				pgPt(ind2px(line, i - txt), y - (TAB.line_height - TAB.ascender_height)/2),
+				pgPt(ind2px(line, i - txt + current_input->length), y - (TAB.line_height - TAB.ascender_height) / 2 + TAB.line_height),
 				conf.isearchbg);
 	}
 	
@@ -1604,10 +1602,9 @@ void paint_normal_mode(PAINTSTRUCT *ps) {
 	last = px2line(ps->rcPaint.bottom);
 	
 	/* Clear the background */
-	gs->clearSection(gs,
-		pgRect(
-			pgPt(ps->rcPaint.left-1, ps->rcPaint.top-1),
-			pgPt(ps->rcPaint.right+1, ps->rcPaint.bottom+1)),
+	pgFillRect(gs,
+		pgPt(ps->rcPaint.left-1, ps->rcPaint.top-1),
+		pgPt(ps->rcPaint.right+1, ps->rcPaint.bottom+1),
 		conf.bg);
 	
 	/* Draw odd line's background */
@@ -1615,55 +1612,54 @@ void paint_normal_mode(PAINTSTRUCT *ps) {
 		y=line2px(first);
 		for (i=first; i<=last; i++) {
 			if (i % 2)
-				gs->clearSection(gs,
-					pgRect(
-						pgPt(0, y),
-						pgPt(width, y + TAB.line_height)),
+				pgFillRect(gs,
+					pgPt(0, y),
+					pgPt(width, y + TAB.line_height),
 					conf.bg2);
 			y += TAB.line_height;
 		}
 	}
 	
 	/* Clear the gutters */
-	gs->clearSection(gs, pgRect(pgPt(0, 0), pgPt(TAB.total_margin - 3, height)), conf.gutterbg);
-	gs->clearSection(gs, pgRect(pgPt(width - TAB.total_margin + 3, 0), pgPt(width, height)), conf.gutterbg);
+	pgFillRect(gs,
+		pgPt(0, 0),
+		pgPt(TAB.total_margin - 3, height),
+		conf.gutterbg);
+	pgFillRect(gs,
+		pgPt(width - TAB.total_margin + 3, 0),
+		pgPt(width, height),
+		conf.gutterbg);
 	
 	/* Draw bookmark line's background */
 	y=line2px(first);
 	for (i=first; i<=last; i++) {
 		if (isbookmarked(TAB.buf, i))
-			gs->clearSection(gs, pgRect(pgPt(0, y), pgPt(width, y + TAB.line_height)), conf.bookmarkbg);
+			pgFillRect(gs,
+				pgPt(0, y),
+				pgPt(width, y + TAB.line_height),
+				conf.bookmarkbg);
 		y += TAB.line_height;
 	}
 	
 	// Draw the tabs
-	gs->clearSection(gs, pgRect(pgPt(0, 0), pgPt(width, tab_bar_height)), conf.gutterbg);
+	pgFillRect(gs, pgPt(0, 0), pgPt(width, tab_bar_height), conf.gutterbg);
 	
-	ui_font->scale(ui_font, conf.ui_font_small_size * dpi / 72.0f, 0.0f);
+	pgScaleFont(ui_font, conf.ui_font_small_size * dpi / 72.0f, 0.0f);
 	for (int i = 0; i < tab_count; i++) {
 		float left = (width / tab_count) * i;
 		float right = (width / tab_count) * (i + 1);
 		
 		uint32_t colour = i == current_tab ? conf.active_tab : conf.inactive_tab;
-		gs->clearSection(gs, pgRect(pgPt(left, 0), pgPt(right, tab_bar_height)), colour);
-		gs->clearSection(gs, pgRect(pgPt(right - 1, 0), pgPt(right, tab_bar_height)), 0);
+		pgFillRect(gs, pgPt(left, 0), pgPt(right, tab_bar_height), colour);
+		pgFillRect(gs, pgPt(right - 1, 0), pgPt(right, tab_bar_height), 0);
 		
-		float measured = 0.0;
-		int length = 0;
-		wchar_t *name = tabs[i].filename;
-		if (wcsrchr(name, '/'))
-			name = wcsrchr(name, '/') + 1;
-		for (wchar_t *p = name; *p; p++) {
-			float px = ui_font->getCharWidth(ui_font, *p);
-			if (measured + px >= (right - left) - 6.0f) break;
-			measured += px;
-			length++;
-		}
+		wchar_t *name = wcsrchr(tabs[i].filename, '/') ? wcsrchr(tabs[i].filename, '/') + 1 : tabs[i].filename;
+		float measured = pgGetStringWidth(ui_font, name, -1);
 		float x_offset = 3.5f + left + (right - left) / 2.0f - measured / 2.0f;
-		float y_offset = tab_bar_height / 2.0f - ui_font->getEm(ui_font) / 2.0f;
-		gs->fillString(gs, ui_font,
-			pgPt(x_offset, y_offset),
-			name, length,
+		float y_offset = tab_bar_height / 2.0f - pgGetFontEm(ui_font) / 2.0f;
+		pgFillString(gs, ui_font,
+			x_offset, y_offset,
+			name, -1,
 			tabs[i].buf->changes ? conf.unsaved_file : conf.saved_file);
 	}
 	
@@ -1696,43 +1692,46 @@ void paint_isearch_mode(PAINTSTRUCT *ps) {
 	
 	paint_normal_mode(ps);
 	
-	gs->clearSection(gs, pgRect(pgPt(0, top), pgPt(width, top + isearch_bar_height)), conf.fg);
+	pgFillRect(gs, pgPt(0, top), pgPt(width, top + isearch_bar_height), conf.fg);
 	
-	ui_font->scale(ui_font, conf.ui_font_small_size, 0.0f);
+	pgScaleFont(ui_font, conf.ui_font_small_size, 0.0f);
 	float x_offset = 32.0f;
-	float y_offset = top + isearch_bar_height / 2.0f - ui_font->getEm(ui_font) / 2.0f;
-	gs->fillString(gs, ui_font, pgPt(x_offset, y_offset),
+	float y_offset = top + isearch_bar_height / 2.0f - pgGetFontEm(ui_font) / 2.0f;
+	pgFillString(gs, ui_font,
+		x_offset, y_offset,
 		isearch_input.text,
 		isearch_input.length,
 		conf.bg);
 }
 
 void paint_fuzzy_search_mode(PAINTSTRUCT *ps) {
-	gs->clearSection(gs, pgRect(pgPt(0, 0), pgPt(width, height)), conf.fg);
+	pgFillRect(gs, pgPt(0, 0), pgPt(width, height), conf.fg);
 	
 	float x_offset = width * 1.0f / 4.0f;
 	float y = tab_bar_height;
-	ui_font->scale(ui_font, conf.ui_font_large_size * dpi / 72.0f, 0.0f);
+	pgScaleFont(ui_font, conf.ui_font_large_size * dpi / 72.0f, 0.0f);
 	
 	wchar_t *item_text = wcsstr(fuzzy_search_input.text, TAB.file_directory) ?
 		fuzzy_search_input.text + wcslen(TAB.file_directory) :
 		fuzzy_search_input.text;
 	
-	gs->fillString(gs, ui_font, pgPt(x_offset, y),
+	pgFillString(gs, ui_font,
+		x_offset, y,
 		item_text, wcslen(item_text),
 		conf.bg);
-	y += ui_font->getEm(ui_font);
+	y += pgGetFontEm(ui_font);
 
-	ui_font->scale(ui_font, conf.ui_font_small_size * dpi / 72.0f, 0.0f);
-	float em = ui_font->getEm(ui_font);
+	pgScaleFont(ui_font, conf.ui_font_small_size * dpi / 72.0f, 0.0f);
+	float em = pgGetFontEm(ui_font);
 	float leading = em * 0.0125f;
-	for (wchar_t **p = fuzzy_search_files; p && *p; p++, y += em + leading * 2)
-		gs->fillString(gs, ui_font, pgPt(x_offset, y + leading),
+	for (wchar_t **p = fuzzy_search_files; p && *p && y < height; p++, y += em + leading * 2)
+		pgFillString(gs, ui_font,
+			x_offset, y + leading,
 			*p, -1, conf.bg);
 }
 
 void paint(PAINTSTRUCT *ps) {
-	gs->identity(gs);
+	pgIdentity(gs);
 	
 	if (mode == NORMAL_MODE) paint_normal_mode(ps);
 	else if (mode == ISEARCH_MODE) paint_isearch_mode(ps);
@@ -1925,9 +1924,9 @@ WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 				NULL,
 				0);
 		}
-		gs->width = width + 3 & ~3;
-		gs->height = height;
-		((PgBitmapCanvas*)gs)->data = double_buffer_data;
+		gs->bmp = NULL;
+		pgResizeCanvas(gs, width + 3 & ~3, height);
+		gs->bmp = double_buffer_data;
 		recalculate_text_metrics();
 		movecaret();
 		SelectObject(double_buffer_dc, double_buffer_bmp);
@@ -2085,16 +2084,16 @@ static void reserve_vertical_space(int amount) {
 static void recalculate_text_metrics() {
 	float sy = conf.fontsz * TAB.magnification * dpi / 72.f;
 	float sx = sy * conf.fontasp;
-	font[0]->scale(font[0], sy, sx);
-	font[1]->scale(font[1], sy, sx);
-	font[2]->scale(font[2], sy, sx);
-	font[3]->scale(font[3], sy, sx);
+	pgScaleFont(font[0], sx, sy);
+	pgScaleFont(font[1], sx, sy);
+	pgScaleFont(font[2], sx, sy);
+	pgScaleFont(font[3], sx, sy);
 	
-	TAB.ascender_height = font[0]->getAscender(font[0])
-		- font[0]->getDescender(font[0])
-		+ font[0]->getLeading(font[0]);
+	TAB.ascender_height = pgGetFontAscender(font[0]) -
+		pgGetFontDescender(font[0]) +
+		pgGetFontLineGap(font[0]);
 	TAB.line_height = TAB.ascender_height * conf.leading;
-	TAB.em = font[0]->getCharWidth(font[0], 'M');
+	TAB.em = pgGetCharWidth(font[0], 'M');
 	TAB.tab_px_width = TAB.em * file.tabc;
 	
 	TAB.total_margin = conf.fixed_margin +
@@ -2113,38 +2112,36 @@ configfont() {
 	char	features[128];
 	
 	if (ui_font) ui_font->free(ui_font);
-	ui_font = pgOpenFont(conf.ui_font_name, 400, false, 0);
+	ui_font = pgOpenFont(conf.ui_font_name, 400, false);
 		
 	if (font[0]) font[0]->free(font[0]);
 	if (font[1]) font[1]->free(font[1]);
 	if (font[2]) font[2]->free(font[2]);
 	if (font[3]) font[3]->free(font[3]);
 	
-	font[0] = pgOpenFont(conf.fontname, conf.fontweight, conf.fontitalic, 0);
+	font[0] = pgOpenFont(conf.fontname, conf.fontweight, conf.fontitalic);
 	if (!font[0])
-		font[0] = pgOpenFont(L"Courier New", 400, false, 0);
+		font[0] = pgOpenFont(L"Consolas", 400, false);
 	
-	PgFontWeight weight = font[0]->getWeight(font[0]);
-	PgFontStretch stretch = 0;
-	const wchar_t *family = font[0]->getFamily(font[0]);
-	bool italic = font[0]->isItalic(font[0]);
+	int weight = pgGetFontWeight(font[0]);
+	const wchar_t *family = pgGetFontFamilyName(font[0]);
+	bool italic = pgIsFontItalic(font[0]);
 	
-	font[1] = pgOpenFont(family, min(weight + 300, 900), italic, stretch);
-	font[2] = pgOpenFont(family, weight, !italic, stretch);
-	font[3] = pgOpenFont(family, min(weight + 300, 900), !italic, stretch);
+	font[1] = pgOpenFont(family, min(weight + 300, 900), italic);
+	font[2] = pgOpenFont(family, weight, !italic);
+	font[3] = pgOpenFont(family, min(weight + 300, 900), !italic);
 	
-	if (!font[1]) font[1] = pgOpenFont(family, weight, italic, stretch);
-	if (!font[2]) font[2] = pgOpenFont(family, weight, italic, stretch);
-	if (!font[3]) font[3] = pgOpenFont(family, weight, italic, stretch);
+	if (!font[1]) font[1] = pgOpenFont(family, weight, italic);
+	if (!font[2]) font[2] = pgOpenFont(family, weight, italic);
+	if (!font[3]) font[3] = pgOpenFont(family, weight, italic);
 	
 	
 	for (i = 0; conf.fontfeatures[i]; i++)
 		features[i] = conf.fontfeatures[i];
 	features[i] = 0;
 	
-	for (i = 0; i < 4; i++)
-		font[i]->useFeatures(font[i], features);
-	
+	for (int i = 0; i < 4; i++)
+		pgSetFontFeatures(font[i], (uint32_t*)(void*)features);
 	recalculate_text_metrics();
 	return 1;
 }
@@ -2154,7 +2151,8 @@ reinitconfig() {
 	RECT	rt;
 	wchar_t	*s;
 	
-	pgSetGamma(global.gamma);
+	if (gs)
+		pgSetGamma(gs, global.gamma);
 	configfont();
 	reinitlang();
 }
