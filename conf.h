@@ -43,6 +43,8 @@ struct {
 	int		line_width;
 	double		alpha;
 	double		gamma;
+	double		gfx_flatness;
+	double		gfx_subsamples;
 	wchar_t		shell[128];
 } global;
 

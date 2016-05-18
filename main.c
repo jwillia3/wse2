@@ -2211,8 +2211,11 @@ reinitconfig() {
 	RECT	rt;
 	wchar_t	*s;
 	
-	if (gs)
+	if (gs) {
 		pgSetGamma(gs, global.gamma);
+		gs->flatness = max(1.000f, min(global.gfx_flatness, 2.000f));
+		gs->subsamples = max(1.0f, min(global.gfx_subsamples, 16.000f));
+	}
 	configfont();
 	reinitlang();
 }
