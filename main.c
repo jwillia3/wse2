@@ -276,33 +276,6 @@ static int compare_symbol(const void *a, const void *b) {
 	return wcscmp(((struct symbol_t*)a)[0].name, ((struct symbol_t*)b)[0].name);
 }
 
-
-//static void run_program(wchar_t *binary, wchar_t **argv) {
-//	wchar_t final[0x8000];
-//	int length = 0;
-//	for (int i = 0; argv[i]; i++) {
-//		if (i) final[length++] = ' ';
-//		final[length++] = '"';
-//		for (int j = 0; argv[i][j]; j++) {
-//			if (argv[i][j] == '"') final[length++] = '\\';
-//			final[length++] = argv[i][j];
-//		}
-//		final[length++] = '"';
-//	}
-//	final[length] = 0;
-//	
-//	STARTUPINFO startup_info = { sizeof startup_info, };
-//	PROCESS_INFORMATION process_info;
-//	bool ok = CreateProcess(binary, final, NULL, NULL, FALSE,
-//0,
-////	DETACHED_PROCESS,
-//		NULL, NULL, &startup_info, &process_info);
-//	if (ok) {
-//		CloseHandle(process_info.hProcess);
-//		CloseHandle(process_info.hThread);
-//	}
-//}
-
 static void run_program(wchar_t *commandline) {
 	STARTUPINFO startup_info = { sizeof startup_info, };
 	PROCESS_INFORMATION process_info;
@@ -313,7 +286,6 @@ static void run_program(wchar_t *commandline) {
 		CloseHandle(process_info.hProcess);
 		CloseHandle(process_info.hThread);
 	}
-	
 }
 
 static void reload_symbols(wchar_t *directory) {
@@ -321,44 +293,45 @@ static void reload_symbols(wchar_t *directory) {
 		return;
 	
 	// Call ctags to generate symbols
-	wchar_t commandline[0x8000];
-	swprintf(commandline, 0x8000, L"cmd /c ctags -xR %ls >%ls/tags", directory, directory);
-	run_program(commandline);
-	
-	// Clear symbols
-	for (int i = 0; i < symbol_count; i++) {
-		free(symbols[i].name);
-		free(symbols[i].file_spec);
-	}
-	symbol_count = 0;
-	
-	// Load the tags file
-	wchar_t tags_filename[MAX_PATH];
-	wsprintf(tags_filename, L"%ls/tags", directory);
-	FILE *file = _wfopen(tags_filename, L"r");
-	if (file) {
-		char line[256];
-		wchar_t name[256];
-		char type[256];
-		int line_number;
-		wchar_t filename[256];
-		wchar_t file_spec[MAX_PATH * 2];
-		while (fgets(line, sizeof line, file)) {
-			if (4 != sscanf(line, "%ls\t%s\t%d\t%ls\t", name, type, &line_number, filename))
-				continue;
-			GetFullPathName(filename, MAX_PATH * 2, file_spec, NULL);
-			swprintf(file_spec, MAX_PATH * 2, L"%ls:%d", file_spec, line_number);
-			symbols = realloc(symbols, (symbol_count + 2) * sizeof *symbols);
-			symbols[symbol_count++] = (struct symbol_t){
-				.name = wcsdup(name),
-				.file_spec = platform_normalize_path(wcsdup(file_spec)),
-			};
-		}
-		symbols[symbol_count] = (struct symbol_t){0,};
-		qsort(symbols, symbol_count, sizeof *symbols, compare_symbol);
-		fclose(file);
-		unlink("tags");
-	}
+//	wchar_t commandline[0x8000];
+//	swprintf(commandline, 0x8000, L"cmd /c ctags -xR %ls >%ls/tags", directory, directory);
+//	run_program(commandline);
+//	
+//	// Clear symbols
+//	for (int i = 0; i < symbol_count; i++) {
+//		free(symbols[i].name);
+//		free(symbols[i].file_spec);
+//	}
+//	symbol_count = 0;
+//	
+//	// Load the tags file
+//	wchar_t tags_filename[MAX_PATH];
+//	wsprintf(tags_filename, L"%ls/tags", directory);
+//	FILE *file = _wfopen(tags_filename, L"r");
+//	if (file) {
+//		char line[256];
+//		wchar_t name[256];
+//		char type[256];
+//		int line_number;
+//		wchar_t filename[256];
+//		wchar_t file_spec[MAX_PATH * 2];
+//		while (fgets(line, sizeof line, file)) {
+//			if (4 != sscanf(line, "%ls\t%s\t%d\t%ls\t", name, type, &line_number, filename))
+//				continue;
+//			GetFullPathName(filename, MAX_PATH * 2, file_spec, NULL);
+//			swprintf(file_spec, MAX_PATH * 2, L"%ls:%d", file_spec, line_number);
+//			symbols = realloc(symbols, (symbol_count + 2) * sizeof *symbols);
+//			symbols[symbol_count++] = (struct symbol_t){
+//				.name = wcsdup(name),
+//				.file_spec = platform_normalize_path(wcsdup(file_spec)),
+//			};
+//		}
+//		symbols[symbol_count] = (struct symbol_t){0,};
+//		if (symbol_count)
+//			qsort(symbols, symbol_count, sizeof *symbols, compare_symbol);
+//		fclose(file);
+//		unlink("tags");
+//	}
 }
 
 
