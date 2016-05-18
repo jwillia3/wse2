@@ -531,7 +531,7 @@ config() {
 	platform_bindir(path);
 	platform_normalize_path(path);
 	
-	wcscpy(wcsrchr(path, L'/')+1, L"wse.conf");
+	wcscat(path, L"/wse.conf");
 	if (loadconfig(path)) {
 		configfile=wcsdup(path);
 		return 1;

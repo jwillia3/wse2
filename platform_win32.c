@@ -93,8 +93,13 @@ platform_readfile(void *f, void *buf, int sz) {
 
 wchar_t*
 platform_bindir(wchar_t *path) {
-    GetModuleFileName(0, path, 256);
-    return path;
+	GetModuleFileName(0, path, 256);
+	*wcsrchr(path, L'\\') = 0;
+	return path;
+}
+
+void platform_cd(wchar_t *path) {
+	SetCurrentDirectory(path);
 }
 
 wchar_t *
