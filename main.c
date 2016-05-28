@@ -1504,23 +1504,46 @@ paintsel() {
 	return true;
 }
 
-blurtext(Pg *gs, int fontno, int x, int y, wchar_t *txt, int n, uint32_t fg) {
+void blurtext(Pg *gs, int style, int x, int y, wchar_t *txt, int n, uint32_t fg) {
+	int fontno      = style % 4;
+	bool underline  = style & UNDERLINE_STYLE;
+	bool caps       = style & (ALL_CAPS_STYLE | SMALL_CAPS_STYLE);
+	bool small_caps = style & SMALL_CAPS_STYLE;
 	wchar_t *p;
 	wchar_t *end = txt + n;
 	int margin = TAB.total_margin;
 	int faux_bold = (fontno & 1) && pgGetFontWeight(font[fontno]) < 600;
-	PgMatrix ctm;
+	float ctm_d = font[fontno]->ctm.d;
 	
 	PgPt at = pgPt(x, y);
+	float underline_y = at.y + pgGetFontAscender(font[fontno]) +
+		1.5f * pgGetFontHeight(font[fontno]) / 10.0f;
+	
 	for (p = txt; p < end; p++) {
 		if (*p == '\t')
 			at.x += TAB.tab_px_width - fmod(at.x - margin + TAB.tab_px_width, TAB.tab_px_width);
 		else {
+			int c = caps ? towupper(*p) : *p;
+			float push = 0;
+			float start_x = at.x;
+			
+			font[fontno]->ctm.d = ctm_d;
+			if (small_caps && c != *p) {
+				push = pgGetFontAscender(font[fontno]) - pgGetFontXHeight(font[fontno]);
+				font[fontno]->ctm.d *= pgGetFontXHeight(font[fontno]) / pgGetFontAscender(font[fontno]);
+			}
+			
 			if (faux_bold)
-				pgFillChar(gs, font[fontno], at.x + 1, at.y, *p, fg);
-			at.x = (int)pgFillChar(gs, font[fontno], at.x, at.y, *p, fg);
+				pgFillChar(gs, font[fontno], at.x + 1, at.y + push, c, fg);
+			at.x = (int)pgFillChar(gs, font[fontno], at.x, at.y + push, c, fg);
+			if (underline)
+				pgStrokeLine(gs,
+					pgPt(start_x, underline_y),
+					pgPt(at.x, underline_y),
+					pgGetFontHeight(font[fontno]) / 10.0f, fg);
 		}
 	}
+	font[fontno]->ctm.d = ctm_d;
 }
 
 paintstatus() {
@@ -1580,12 +1603,11 @@ paintline(Pg *gs, int x, int y, int line) {
 			int style=conf.style[lang.kwd_color[k]].style;
 			
 			/* Draw the preceding section */
-			blurtext(gs, 0, x, y, i, j-i, conf.fg);
+			blurtext(gs, conf.default_style, x, y, i, j-i, conf.fg);
 			x=ind2px(line, j-txt);
 			
 			/* Then draw the keyword */
-			blurtext(gs, style, x,y, j, sect,
-				conf.style[lang.kwd_color[k]].color);
+			blurtext(gs, style, x,y, j, sect, conf.style[lang.kwd_color[k]].color);
 			i=j+=sect;
 			x=ind2px(line,j-txt);
 		} else  if (*j && brktbl[*j] != 1) { /* Skip spaces or word */
@@ -1595,7 +1617,7 @@ paintline(Pg *gs, int x, int y, int line) {
 			j++;
 	}
 	if (j>i)
-		blurtext(gs, 0, x,y, i, j-i, conf.fg);
+		blurtext(gs, conf.default_style, x,y, i, j-i, conf.fg);
 }
 
 paintlines(Pg *gs, int first, int last) {

@@ -1,7 +1,14 @@
 /* vim: set noexpandtab:tabstop=8 */
 #define	KWD_MAX		128
+enum style_flag {
+	BOLD_STYLE       = 1,
+	ITALIC_STYLE     = 2,
+	UNDERLINE_STYLE  = 4,
+	ALL_CAPS_STYLE   = 8,
+	SMALL_CAPS_STYLE = 16,
+};
 struct textstyle {
-	int		style;
+	enum style_flag	style;
 	unsigned	color;
 };
 struct conf {		
@@ -16,6 +23,7 @@ struct conf {
 	int		isearchbg;
 	int		bookmarkbg;
 	int		gutterbg;
+	int		default_style;
 	struct textstyle style[8];
 	int		fixed_margin;
 	int		center;

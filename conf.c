@@ -32,6 +32,7 @@ static wchar_t	font_spec[4096];
 void nice_colours_bg(void *colourp);
 void nice_colours_fg(void *colourp);
 void load_scheme(wchar_t *filename);
+void expand_font(wchar_t *spec);
 static struct	field fields[] = {
 		{L"bg", Color, &conf.bg, nice_colours_bg},
 		{L"bg2", Color, &conf.bg2},
@@ -60,7 +61,7 @@ static struct	field fields[] = {
 		{L"ui_font_small_size", Float, &conf.ui_font_small_size},
 		{L"ui_font_large_size", Float, &conf.ui_font_large_size},
 		
-		{L"font", String, font_spec},
+		{L"font", String, font_spec, expand_font},
 				
 		{L"ext", String, &lang.ext},
 		{L"comment", String, &lang.comment},
@@ -104,6 +105,7 @@ static struct	field fields[] = {
 		{L"teal", Color, &scheme.color[6]},
 		{L"dark-teal", Color, &scheme.color[6]},
 		{L"light-grey", Color, &scheme.color[7]},
+		{L"grey", Color, &scheme.color[7]},
 		{L"silver", Color, &scheme.color[7]},
 		{L"dark-grey", Color, &scheme.color[8]},
 		{L"light-red", Color, &scheme.color[9]},
@@ -192,6 +194,7 @@ defconfig() {
 	conf.fontsz = 12.0;
 	conf.fontasp = 0.0;
 	conf.leading = 1.25;
+	conf.default_style = 0;
 	*conf.fontfeatures = 0;
 	*font_spec = 0;
 	wcscpy(conf.ui_font_name, L"Consolas");
@@ -202,8 +205,7 @@ defconfig() {
 	return 1;
 }
 
-static
-configfont(wchar_t *spec) {
+static void expand_font(wchar_t *spec) {
 	wchar_t *part = wcstok(spec, L" \t,/");
 	*conf.fontname = 0;
 	*conf.fontfeatures = 0;
@@ -224,6 +226,12 @@ configfont(wchar_t *spec) {
 			conf.fontitalic = 1;
 		else if (!wcsicmp(part, L"bold")) /* bold weight */
 			conf.fontweight = 700;
+		else if (!wcsicmp(part, L"underline"))
+			conf.default_style ^= UNDERLINE_STYLE;
+		else if (!wcsicmp(part, L"small-caps"))
+			conf.default_style ^= SMALL_CAPS_STYLE;
+		else if (!wcsicmp(part, L"all-caps"))
+			conf.default_style ^= ALL_CAPS_STYLE;
 		else if (*part == '+' && wcslen(part) == 5)
 			wcscat(conf.fontfeatures, part+1);
 		else { /* part of font name */
@@ -249,7 +257,6 @@ directive(wchar_t *s) {
 		s++;
 	
 	if (!*s) {
-		configfont(font_spec);
 		confset[nconfs++]=conf;
 		defconfig();
 	}
@@ -439,16 +446,22 @@ configline(int ln, wchar_t *s) {
 	
 	case Style:
 		style = (struct textstyle*)cf->ptr;
-		style->style = 0;
+		style->style = conf.default_style;
 		for (;;) {
 			while (iswspace(*arg))
 				arg++;
 			if (!wcsncmp(arg, L"bold", 4))
-				arg+=4, style->style |= 1;
+				arg+=4, style->style ^= BOLD_STYLE;
 			else if (!wcsncmp(arg, L"italics", 7))
-				arg+=7, style->style |= 2;
+				arg+=7, style->style ^= ITALIC_STYLE;
 			else if (!wcsncmp(arg, L"italic", 6))
-				arg+=6, style->style |= 2;
+				arg+=6, style->style ^= ITALIC_STYLE;
+			else if (!wcsncmp(arg, L"underline", 9))
+				arg+=9, style->style ^= UNDERLINE_STYLE;
+			else if (!wcsncmp(arg, L"all-caps", 8))
+				arg+=8, style->style ^= ALL_CAPS_STYLE;
+			else if (!wcsncmp(arg, L"small-caps", 10))
+				arg+=10, style->style ^= SMALL_CAPS_STYLE;
 			else
 				break;
 		}
