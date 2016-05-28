@@ -223,7 +223,7 @@ static int getindent(Buf *b, int ln) {
 	int	i;
 	
 	txt=getb(b, ln, 0);
-	for (i=0; iswspace(txt[i]); i++);
+	for (i=0; iswspace(txt[i]) && txt[i] != 12; i++);
 	return ind2col(b, ln, i);
 }
 
