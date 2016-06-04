@@ -1538,8 +1538,9 @@ void blurtext(Pg *gs, int style, int x, int y, wchar_t *txt, int n, uint32_t fg)
 			
 			font[fontno]->ctm.d = ctm_d;
 			if (small_caps && c != *p) {
-				push = pgGetFontAscender(font[fontno]) - pgGetFontXHeight(font[fontno]);
-				font[fontno]->ctm.d *= pgGetFontXHeight(font[fontno]) / pgGetFontAscender(font[fontno]);
+				float x_height = pgGetFontCapHeight(font[fontno]);
+				push = pgGetFontAscender(font[fontno]) - x_height;
+				font[fontno]->ctm.d *= x_height / pgGetFontAscender(font[fontno]);
 			}
 			
 			if (faux_bold)
