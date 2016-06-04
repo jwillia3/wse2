@@ -1488,10 +1488,9 @@ paintsel() {
 		int last_line_top = line2px(hi.ln);
 		int last_line_bottom = last_line_top + TAB.line_height;
 		int last_line_right = ind2px(hi.ln, hi.ind);
-		int end = width - TAB.total_margin;
 		
-		PgRect r0 = pgRect(pgPt(first_line_left, first_line_top), pgPt(end, first_line_bottom));
-		PgRect r1 = pgRect(pgPt(TAB.total_margin, first_line_bottom), pgPt(end, last_line_top));
+		PgRect r0 = pgRect(pgPt(first_line_left, first_line_top), pgPt(width, first_line_bottom + 0.5f));
+		PgRect r1 = pgRect(pgPt(TAB.total_margin, first_line_bottom), pgPt(width, last_line_top + 0.5f));
 		PgRect r2 = pgRect(pgPt(TAB.total_margin, last_line_top), pgPt(last_line_right, last_line_bottom));
 		
 		pgFillRect(gs, r0.a, r0.b, conf.selbg);
