@@ -37,6 +37,9 @@ struct conf {
 	int		fontitalic;
 	double		leading;
 	
+	wchar_t		backing_font[128][8];
+	int		nbacking_fonts;
+	
 	wchar_t		ui_font_name[128];
 	double		ui_font_small_size;
 	double		ui_font_large_size;

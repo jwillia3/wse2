@@ -29,11 +29,13 @@ struct field {
 };
 
 static wchar_t	font_spec[4096];
+static wchar_t	backing_font_spec[256*128];
 
 void nice_colours_bg(void *colourp);
 void nice_colours_fg(void *colourp);
 void load_scheme(wchar_t *filename);
 void expand_font(wchar_t *spec);
+static void expand_backing_fonts(wchar_t *spec);
 static struct	field fields[] = {
 		{L"bg", Color, &conf.bg, nice_colours_bg},
 		{L"bg2", Color, &conf.bg2},
@@ -63,7 +65,8 @@ static struct	field fields[] = {
 		{L"ui_font_large_size", Float, &conf.ui_font_large_size},
 		
 		{L"font", String, font_spec, expand_font},
-				
+		{L"backing-fonts", String, backing_font_spec, expand_backing_fonts},
+		
 		{L"ext", String, &lang.ext},
 		{L"comment", String, &lang.comment},
 		{L"break", String, &lang.brk},
@@ -205,9 +208,31 @@ defconfig() {
 	conf.ui_font_large_size = 24.0;
 	conf.fixed_margin = 1;
 	conf.center = 1;
+	
+	wcscpy(conf.backing_font[0], L"Consolas");
+	wcscpy(conf.backing_font[1], L"Courier New");
+	wcscpy(conf.backing_font[2], L"Source Code Pro");
+	wcscpy(conf.backing_font[3], L"Dejavu Sans Mono");
+	conf.nbacking_fonts = 4;
 	return 1;
 }
 
+static void expand_backing_fonts(wchar_t *spec) {
+	wchar_t *start = spec;
+	conf.nbacking_fonts = 0;
+	while (1) {
+		wchar_t *separator = start + wcscspn(start, L",");
+		wchar_t *end = separator;
+		while (end > start && iswspace(end[-1])) end--;
+		wcsncpy(conf.backing_font[conf.nbacking_fonts], start, end - start);
+		conf.backing_font[conf.nbacking_fonts][end - start] = 0;
+		conf.nbacking_fonts++;
+		if (*separator) separator++;
+		while (iswspace(*separator)) separator++;
+		if (!*separator) break;
+		start = separator;
+	};
+}
 static void expand_font(wchar_t *spec) {
 	wchar_t *part = wcstok(spec, L" \t,/");
 	*conf.fontname = 0;

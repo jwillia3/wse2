@@ -78,6 +78,7 @@ HBITMAP		double_buffer_bmp;
 void		*double_buffer_data;
 PgFont		*ui_font;
 PgFont		*font[4];
+PgFont		*backing_fonts[8];
 int		status_bar_height = 24;
 int		tab_bar_height = 24;
 int		isearch_bar_height = 24;
@@ -1539,7 +1540,7 @@ void blurtext(Pg *gs, int style, int x, int y, wchar_t *txt, int n, uint32_t fg)
 	wchar_t *end = txt + n;
 	int margin = TAB.total_margin;
 	int faux_bold = (fontno & 1) && pgGetFontWeight(font[fontno]) < 600;
-	float ctm_d = font[fontno]->ctm.d;
+	
 	
 	PgPt at = pgPt(x, y);
 	float underline_y = at.y + pgGetFontAscender(font[fontno]) +
@@ -1549,36 +1550,44 @@ void blurtext(Pg *gs, int style, int x, int y, wchar_t *txt, int n, uint32_t fg)
 		if (*p == '\t')
 			at.x += TAB.tab_px_width - fmod(at.x - margin + TAB.tab_px_width, TAB.tab_px_width);
 		else {
+			PgFont *cur_font = font[fontno];
 			int c = caps ? towupper(*p) : *p;
 			float push = 0;
 			float start_x = at.x;
 			
 			if (c == 12) { // Form Feed
 				pgStrokeLine(gs,
-					pgPt(0.0f, at.y + pgGetFontHeight(font[fontno]) * 0.5f),
-					pgPt(gs->width, at.y + pgGetFontHeight(font[fontno]) * 0.5f),
+					pgPt(0.0f, at.y + pgGetFontHeight(cur_font) * 0.5f),
+					pgPt(gs->width, at.y + pgGetFontHeight(cur_font) * 0.5f),
 					2.0f, fg);
 				c = 0x21a1; // U+21A1 DOWNWARDS TWO HEADED ARROW
 			}
 			
-			font[fontno]->ctm.d = ctm_d;
+			if (!pgGetGlyph(cur_font, c))
+				for (int i = 0; i < conf.nbacking_fonts; i++)
+					if (backing_fonts[i] && pgGetGlyph(backing_fonts[i], c)) {
+						cur_font = backing_fonts[i];
+						break;
+					}
+			float ctm_d = cur_font->ctm.d;
+			
 			if (small_caps && c != *p) {
-				float x_height = pgGetFontCapHeight(font[fontno]);
-				push = pgGetFontAscender(font[fontno]) - x_height;
-				font[fontno]->ctm.d *= x_height / pgGetFontAscender(font[fontno]);
+				float x_height = pgGetFontCapHeight(cur_font);
+				push = pgGetFontAscender(cur_font) - x_height;
+				cur_font->ctm.d *= x_height / pgGetFontAscender(cur_font);
 			}
 			
 			if (faux_bold)
-				pgFillChar(gs, font[fontno], at.x + 1, at.y + push, c, fg);
-			at.x = (int)pgFillChar(gs, font[fontno], at.x, at.y + push, c, fg);
+				pgFillChar(gs, cur_font, at.x + 1, at.y + push, c, fg);
+			at.x = (int)pgFillChar(gs, cur_font, at.x, at.y + push, c, fg);
 			if (underline)
 				pgStrokeLine(gs,
 					pgPt(start_x, underline_y),
 					pgPt(at.x, underline_y),
-					pgGetFontHeight(font[fontno]) / 10.0f, fg);
+					pgGetFontHeight(cur_font) / 10.0f, fg);
+			cur_font->ctm.d = ctm_d;
 		}
 	}
-	font[fontno]->ctm.d = ctm_d;
 }
 
 paintstatus() {
@@ -2179,6 +2188,9 @@ static void recalculate_text_metrics() {
 	pgScaleFont(font[2], sx, sy);
 	pgScaleFont(font[3], sx, sy);
 	
+	for (int i = 0; i < conf.nbacking_fonts; i++)
+		if (backing_fonts[i]) pgScaleFont(backing_fonts[i], sx, sy);
+	
 	TAB.ascender_height = pgGetFontAscender(font[0]) -
 		pgGetFontDescender(font[0]) +
 		pgGetFontLineGap(font[0]);
@@ -2209,6 +2221,9 @@ configfont() {
 	if (font[2]) font[2]->free(font[2]);
 	if (font[3]) font[3]->free(font[3]);
 	
+	for (int i = 0; i < conf.nbacking_fonts; i++)
+		if (backing_fonts[i]) pgFreeFont(backing_fonts[i]);
+	
 	font[0] = pgOpenFont(conf.fontname, conf.fontweight, conf.fontitalic);
 	if (!font[0])
 		font[0] = pgOpenFont(L"Consolas", 400, false);
@@ -2220,6 +2235,9 @@ configfont() {
 	font[1] = pgOpenFont(family, min(weight + 300, 900), italic);
 	font[2] = pgOpenFont(family, weight, !italic);
 	font[3] = pgOpenFont(family, min(weight + 300, 900), !italic);
+	
+	for (int i = 0; i < conf.nbacking_fonts; i++)
+		backing_fonts[i] = pgOpenFont(conf.backing_font[i], 0, 0);
 	
 	if (!font[1]) font[1] = pgOpenFont(family, weight, italic);
 	if (!font[2]) font[2] = pgOpenFont(family, weight, italic);
