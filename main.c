@@ -833,6 +833,17 @@ act(int action) {
 	return ok;
 }
 
+struct replacement *check_replacement(Scanner scanner, struct replacement *replacements, int n) {
+	for (int j = 0; j < n; j++) {
+		Scanner s = scanner;
+		wchar_t *text = replacements[j].from;
+		int i = wcslen(text) - 1;
+		for ( ; i >= 0 && backward(&s) == text[i]; i--);
+		if (i < 0) return &replacements[j];
+	}
+	return NULL;
+}
+
 actins(int c) {
 	int	ok, wassel, onlines;
 	Loc	lo,hi;
@@ -870,6 +881,21 @@ actins(int c) {
 			_actins(TAB.buf, brace[1]);
 			act(MoveLeft);
 			record(TAB.buf, UndoGroup, 0, 2);
+		}
+	} else if (brktbl[c & 0xffff] && IND > 0) {
+		struct replacement *r = check_replacement(
+			getscanner(TAB.buf, LN, IND),
+			lang.replacements,
+			lang.nreplacements);
+		_actins(TAB.buf, c);
+		if (r) {
+			record(TAB.buf, UndoSwap, LN, LN);
+			gob(TAB.buf, LN, IND - wcslen(r->from) - 1);
+			for (int i = 0; i < r->from[i]; i++)
+				delb(TAB.buf);
+			for (int i = 0; i < r->to[i]; i++)
+				insb(TAB.buf, r->to[i]);
+			act(MoveRight);
 		}
 	} else if (!_actins(TAB.buf, c))
 		return 0;
