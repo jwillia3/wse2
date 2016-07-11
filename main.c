@@ -867,15 +867,7 @@ actins(int c) {
 			record(TAB.buf, UndoGroup, 0, 2);
 		} else if (txt[IND] == c)
 			act(MoveRight);
-		else if (c == '{') {
-			_actins(TAB.buf, c);
-			_act(TAB.buf, BreakLine);
-			_act(TAB.buf, BreakLine);
-			_actins(TAB.buf, brace[1]);
-			_act(TAB.buf, MoveUp);
-			_actins(TAB.buf, '\t');
-			record(TAB.buf, UndoGroup, 0, 5);
-		} else if (closing)
+		else if (closing)
 			_actins(TAB.buf, c);
 		else {
 			_actins(TAB.buf, c);
