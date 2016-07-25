@@ -83,7 +83,7 @@ int		status_bar_height = 24;
 int		tab_bar_height = 24;
 int		isearch_bar_height = 24;
 int		additional_bars;
-int		birdseye_width = 128;
+int		birdseye_width = 0;
 struct tab_t {
 	Buf	*buf;
 	Loc	click;
@@ -723,7 +723,6 @@ act(int action) {
 	case MoveSof:
 	case MoveEof:
 		snap();
-		invd(BOT,BOT+1);
 		break;
 	
 	case DeleteChar:
@@ -826,7 +825,6 @@ act(int action) {
 	case CloseTab:
 		close_tab();
 		break;
-	
 	default:
 		invdafter(top);
 	}
@@ -1512,11 +1510,11 @@ paintsel() {
 		PgRect r1 = pgRect(pgPt(TAB.total_margin, first_line_bottom), pgPt(width, last_line_top + 0.5f));
 		PgRect r2 = pgRect(pgPt(TAB.total_margin, last_line_top), pgPt(last_line_right, last_line_bottom));
 		
-		pgFillRect(gs, r0.a, r0.b, conf.selbg);
-		pgFillRect(gs, r1.a, r1.b, conf.selbg);
-		pgFillRect(gs, r2.a, r2.b, conf.selbg);
+		pgClearSection(gs, r0.a, r0.b, conf.selbg);
+		pgClearSection(gs, r1.a, r1.b, conf.selbg);
+		pgClearSection(gs, r2.a, r2.b, conf.selbg);
 	} else
-		pgFillRect(gs,
+		pgClearSection(gs,
 			pgPt(ind2px(lo.ln, lo.ind), line2px(lo.ln)),
 			pgPt(ind2px(hi.ln, hi.ind), line2px(hi.ln) + TAB.line_height),
 			conf.selbg);
@@ -1590,7 +1588,7 @@ paintstatus() {
 	
 	float top = height - status_bar_height;
 	
-	pgFillRect(gs, pgPt(0, top), pgPt(width, height), conf.fg);
+	pgClearSection(gs, pgPt(0, top), pgPt(width, height), conf.fg);
 
 	len=swprintf(buf, 1024, SLN? selmsg: noselmsg,
 		TAB.filename,
@@ -1618,7 +1616,7 @@ paintline(Pg *gs, int x, int y, int line) {
 	if (mode == ISEARCH_MODE) {
 		wchar_t *i = txt;
 		for (i = txt; *i && (i = wcsistr(i, isearch_input.text)); i += current_input->length)
-			pgFillRect(gs,
+			pgClearSection(gs,
 				pgPt(ind2px(line, i - txt), y - (TAB.line_height - TAB.ascender_height)/2),
 				pgPt(ind2px(line, i - txt + current_input->length), y - (TAB.line_height - TAB.ascender_height) / 2 + TAB.line_height),
 				conf.isearchbg);
@@ -1673,7 +1671,7 @@ void paint_birdseye(Pg *full_canvas) {
 	float longest_line = 1;
 	for (int i = 1; i <= NLINES; i++)
 		longest_line = max(longest_line, lenb(TAB.buf, i));
-	pgFillRect(gs,
+	pgClearSection(gs,
 		pgPt(0.0f, each_line * top),
 		pgPt(gs->width, each_line * BOT),
 		conf.selbg);
@@ -1698,7 +1696,7 @@ void paint_normal_mode(PAINTSTRUCT *ps) {
 	last = px2line(ps->rcPaint.bottom);
 	
 	/* Clear the background */
-	pgFillRect(gs,
+	pgClearSection(gs,
 		pgPt(ps->rcPaint.left-1, ps->rcPaint.top-1),
 		pgPt(ps->rcPaint.right+1, ps->rcPaint.bottom+1),
 		conf.bg);
@@ -1708,7 +1706,7 @@ void paint_normal_mode(PAINTSTRUCT *ps) {
 		y=line2px(first);
 		for (i=first; i<=last; i++) {
 			if (i % 2)
-				pgFillRect(gs,
+				pgClearSection(gs,
 					pgPt(0, y),
 					pgPt(width, y + TAB.line_height),
 					conf.bg2);
@@ -1717,11 +1715,11 @@ void paint_normal_mode(PAINTSTRUCT *ps) {
 	}
 	
 	/* Clear the gutters */
-	pgFillRect(gs,
+	pgClearSection(gs,
 		pgPt(0, 0),
 		pgPt(TAB.total_margin - 3, height),
 		conf.gutterbg);
-	pgFillRect(gs,
+	pgClearSection(gs,
 		pgPt(width - TAB.total_margin + 3, 0),
 		pgPt(width, height),
 		conf.gutterbg);
@@ -1730,7 +1728,7 @@ void paint_normal_mode(PAINTSTRUCT *ps) {
 	y=line2px(first);
 	for (i=first; i<=last; i++) {
 		if (isbookmarked(TAB.buf, i))
-			pgFillRect(gs,
+			pgClearSection(gs,
 				pgPt(0, y),
 				pgPt(width, y + TAB.line_height),
 				conf.bookmarkbg);
@@ -1738,7 +1736,7 @@ void paint_normal_mode(PAINTSTRUCT *ps) {
 	}
 	
 	// Draw the tabs
-	pgFillRect(gs, pgPt(0, 0), pgPt(width, tab_bar_height), conf.gutterbg);
+	pgClearSection(gs, pgPt(0, 0), pgPt(width, tab_bar_height), conf.gutterbg);
 	
 	pgScaleFont(ui_font, conf.ui_font_small_size * dpi / 72.0f, 0.0f);
 	for (int i = 0; i < tab_count; i++) {
@@ -1746,8 +1744,8 @@ void paint_normal_mode(PAINTSTRUCT *ps) {
 		float right = (width / tab_count) * (i + 1);
 		
 		uint32_t colour = i == current_tab ? conf.active_tab : conf.inactive_tab;
-		pgFillRect(gs, pgPt(left, 0), pgPt(right, tab_bar_height), colour);
-		pgFillRect(gs, pgPt(right - 1, 0), pgPt(right, tab_bar_height), 0);
+		pgClearSection(gs, pgPt(left, 0), pgPt(right, tab_bar_height), colour);
+		pgClearSection(gs, pgPt(right - 1, 0), pgPt(right, tab_bar_height), 0);
 		
 		wchar_t *name = wcsrchr(tabs[i].filename, '/') ? wcsrchr(tabs[i].filename, '/') + 1 : tabs[i].filename;
 		float measured = pgGetStringWidth(ui_font, name, -1);
@@ -1761,12 +1759,13 @@ void paint_normal_mode(PAINTSTRUCT *ps) {
 	
 	paintsel();
 	
-	Pg *code_canvas = pgSubsectionCanvas(gs, pgRect(pgPt(0.0f, 0.0f), pgPt(width - birdseye_width, height)));
-	paintlines(code_canvas, first,last);
-	pgFreeCanvas(code_canvas);
-	
-	paint_birdseye(gs);
-	
+	if (birdseye_width) {
+		Pg *code_canvas = pgSubsectionCanvas(gs, pgRect(pgPt(0.0f, 0.0f), pgPt(width - birdseye_width, height)));
+		paintlines(code_canvas, first,last);
+		pgFreeCanvas(code_canvas);
+		paint_birdseye(gs);
+	} else
+		paintlines(gs, first,last);
 	
 	paintstatus();
 	/* Get another DC to this window to draw
@@ -1795,7 +1794,7 @@ void paint_isearch_mode(PAINTSTRUCT *ps) {
 	
 	paint_normal_mode(ps);
 	
-	pgFillRect(gs, pgPt(0, top), pgPt(width, top + isearch_bar_height), conf.fg);
+	pgClearSection(gs, pgPt(0, top), pgPt(width, top + isearch_bar_height), conf.fg);
 	
 	pgScaleFont(ui_font, conf.ui_font_small_size, 0.0f);
 	float x_offset = 32.0f;
@@ -1808,7 +1807,7 @@ void paint_isearch_mode(PAINTSTRUCT *ps) {
 }
 
 void paint_fuzzy_search_mode(PAINTSTRUCT *ps) {
-	pgFillRect(gs, pgPt(0, 0), pgPt(width, height), conf.fg);
+	pgClearSection(gs, pgPt(0, 0), pgPt(width, height), conf.fg);
 	
 	float x_offset = width * 1.0f / 4.0f;
 	float y = tab_bar_height;
@@ -1959,7 +1958,26 @@ WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 
 	case WM_PAINT:
 		BeginPaint(hwnd, &ps);
+		#ifdef TIME_PAINTING
+			LARGE_INTEGER start, end, frequency;
+			QueryPerformanceCounter(&start);
+		#endif
 		paint(&ps);
+		#ifdef TIME_PAINTING
+			QueryPerformanceCounter(&end);
+			QueryPerformanceFrequency(&frequency);
+			char startPosition[64];
+			char endPosition[64];
+			char positionDifference[64];
+			sprintf(startPosition, "(%d, %d)", ps.rcPaint.left, ps.rcPaint.top);
+			sprintf(endPosition, "(%d, %d)", ps.rcPaint.right, ps.rcPaint.bottom);
+			sprintf(positionDifference, "(%d, %d)",
+				ps.rcPaint.right - ps.rcPaint.left,
+				ps.rcPaint.bottom - ps.rcPaint.top);
+			printf("%-12s - %-12s %-12s %6.4fs\n",
+				startPosition, endPosition, positionDifference,
+				(double)(end.QuadPart - start.QuadPart) / frequency.QuadPart);
+		#endif
 		EndPaint(hwnd, &ps);
 		return 0;
 	
