@@ -204,8 +204,8 @@ defconfig() {
 	*conf.fontfeatures = 0;
 	*font_spec = 0;
 	wcscpy(conf.ui_font_name, L"Consolas");
-	conf.ui_font_small_size = 12.0;
-	conf.ui_font_large_size = 24.0;
+	conf.ui_font_small_size = 9.0;
+	conf.ui_font_large_size = 18.0;
 	conf.fixed_margin = 1;
 	conf.center = 1;
 	

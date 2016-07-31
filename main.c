@@ -1599,7 +1599,7 @@ paintstatus() {
 		SLN==LN? abs(SIND-IND): abs(SLN-LN)+1,
 		SLN==LN? L"chars": L"lines");
 	
-	pgScaleFont(ui_font, conf.ui_font_small_size, 0.0f);
+	pgScaleFont(ui_font, conf.ui_font_small_size * dpi / 72.0f, 0.0f);
 	float x = 4;
 	float y = top + status_bar_height / 2.0f - pgGetFontEm(ui_font) / 2.0f;
 	pgFillString(gs, ui_font, x, y, buf, len, conf.bg);
@@ -1796,7 +1796,7 @@ void paint_isearch_mode(PAINTSTRUCT *ps) {
 	
 	pgClearSection(gs, pgPt(0, top), pgPt(width, top + isearch_bar_height), conf.fg);
 	
-	pgScaleFont(ui_font, conf.ui_font_small_size, 0.0f);
+	pgScaleFont(ui_font, conf.ui_font_small_size * dpi / 72.0f, 0.0f);
 	float x_offset = 32.0f;
 	float y_offset = top + isearch_bar_height / 2.0f - pgGetFontEm(ui_font) / 2.0f;
 	pgFillString(gs, ui_font,
@@ -2212,6 +2212,10 @@ static void recalculate_text_metrics() {
 			(conf.center && global.line_width * TAB.em < width?
 				(width - global.line_width * TAB.em) / 2:
 				0);
+	float small_line_height = conf.ui_font_small_size * dpi / 72.0f * 1.5f;
+	isearch_bar_height = small_line_height;
+	status_bar_height = small_line_height;
+	tab_bar_height = small_line_height;
 	reserve_vertical_space(0);
 	fix_caret();
 }
