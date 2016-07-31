@@ -110,11 +110,9 @@ enc_cp1252(unsigned char *buf, wchar_t *src, int len) {
 static wchar_t*
 dec_utf8(unsigned char *src, int sz) {
 	wchar_t *dst;
-	if (!memcmp(src, "\xef\xbb\xbf", 3)) {
-		src+=3;
-		file.usebom = 1;
-	}
-	dst = decodeutf8(src, src+sz);
+	int skip = !memcmp(src, "\xef\xbb\xbf", 3) ? 3 : 0;
+	file.usebom = skip;
+	dst = decodeutf8(src+skip, src+sz-skip);
 	free(src);
 	return dst;
 }
