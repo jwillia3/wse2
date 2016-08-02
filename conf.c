@@ -366,6 +366,7 @@ void nice_colours_bg(void *colourp) {
 	double		h,s,v;
 	
 	rgb_to_hsv(colour, &h, &s, &v);
+	conf.bg = colour;
 	conf.bg2 = colour;
 	conf.gutterbg = hsv_to_rgb(h, s, v);
 	conf.selbg = hsv_to_rgb(h, s, v >= .5? v - .1: v + .2);
@@ -381,19 +382,27 @@ void load_scheme(wchar_t *filename) {
 	FILE *file = _wfopen(filename, L"r");
 	if (!file) return;
 	char buf[1024];
-	int current_colour = -1;
+	int current_colour = -10;
 	int r, g, b;
 	char ignored;
-	
 	while (fgets(buf, sizeof buf, file)) {
 		if (2 == sscanf(buf, "[Color%dIntense%c", &current_colour, &ignored) && ignored==']') current_colour += 8;
 		else if (1 == sscanf(buf, "[Color%d]", &current_colour));
+		else if (!memcmp(buf, "[Background]", 12)) current_colour = -2;
+		else if (!memcmp(buf, "[Foreground]", 12)) current_colour = -1;
 		else if (3 == sscanf(buf, "Color=%d,%d,%d", &r, &g, &b)) {
+			unsigned colour_value = rgb(r, g, b);
 			if (current_colour >= 0 && current_colour < 16)
-				scheme.color[current_colour] = rgb(r, g, b);
+				scheme.color[current_colour] = colour_value;
+			else if (current_colour == -1)
+				scheme.fg = colour_value;
+			else if (current_colour == -2)
+				scheme.bg = colour_value;
 		}
 	}
 	fclose(file);
+	nice_colours_bg(&scheme.bg);
+	nice_colours_fg(&scheme.fg);
 }
 
 static unsigned

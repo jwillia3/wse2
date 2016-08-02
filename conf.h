@@ -81,6 +81,8 @@ struct lang {
 struct scheme {
 	wchar_t		filename[128];
 	unsigned	color[16];
+	unsigned	bg;
+	unsigned	fg;
 } scheme;
 
 wchar_t		*configfile;
