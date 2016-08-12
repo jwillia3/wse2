@@ -110,6 +110,17 @@ int		tab_count;
 int		current_tab;
 struct symbol_t *symbols;
 int		symbol_count;
+wchar_t		altgr[65536] = {
+			['H']  = 0x2190,	// ←
+			['J']  = 0x2193,	// ↓
+			['K']  = 0x2191,	// ↑
+			['L']  = 0x2192,	// →
+			[VK_OEM_COMMA] = 0x27e8,	// ⟨
+			[VK_OEM_PERIOD] = 0x27e9,	// ⟩
+			[VK_OEM_5] = 0x03bb,	// λ
+			['9'] = 0x201c,	// “
+			['0'] = 0x201d,	// ”
+		};
 
 FINDREPLACE	fr = {
 			sizeof fr, 0, 0,
@@ -832,17 +843,6 @@ act(int action) {
 	return ok;
 }
 
-struct replacement *check_replacement(Scanner scanner, struct replacement *replacements, int n) {
-	for (int j = 0; j < n; j++) {
-		Scanner s = scanner;
-		wchar_t *text = replacements[j].from;
-		int i = wcslen(text) - 1;
-		for ( ; i >= 0 && backward(&s) == text[i]; i--);
-		if (i < 0) return &replacements[j];
-	}
-	return NULL;
-}
-
 actins(int c) {
 	int	ok, wassel, onlines;
 	Loc	lo,hi;
@@ -873,22 +873,9 @@ actins(int c) {
 			act(MoveLeft);
 			record(TAB.buf, UndoGroup, 0, 2);
 		}
-	} else if (brktbl[c & 0xffff] && IND > 0) {
-		struct replacement *r = check_replacement(
-			getscanner(TAB.buf, LN, IND),
-			lang.replacements,
-			lang.nreplacements);
+	} else if (brktbl[c & 0xffff] && IND > 0)
 		_actins(TAB.buf, c);
-		if (r) {
-			record(TAB.buf, UndoSwap, LN, LN);
-			gob(TAB.buf, LN, IND - wcslen(r->from) - 1);
-			for (int i = 0; i < r->from[i]; i++)
-				delb(TAB.buf);
-			for (int i = 0; i < r->to[i]; i++)
-				insb(TAB.buf, r->to[i]);
-			act(MoveRight);
-		}
-	} else if (!_actins(TAB.buf, c))
+	else if (!_actins(TAB.buf, c))
 		return 0;
 	
 	invd(LN, LN);
@@ -1135,9 +1122,18 @@ int wmsyskeydown(int c) {
 		
 	int	ctl = GetAsyncKeyState(VK_CONTROL) & 0x8000;
 	int	shift = GetAsyncKeyState(VK_SHIFT) & 0x8000;
+	bool	altgr_char = false;
 	
+	if (GetAsyncKeyState(VK_RMENU) & 0x8000 && altgr[c]) {
+		altgr_char = true;
+		c = altgr[c];
+	}
+		
 	if (mode == ISEARCH_MODE || mode == FUZZY_SEARCH_MODE)
 		return !wmkey_input(c, true, ctl, shift);
+	
+	if (altgr_char)
+		return wmchar(c);
 	
 	switch (c) {
 	case 13: // Alt + Return

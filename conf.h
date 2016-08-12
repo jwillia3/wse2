@@ -71,11 +71,6 @@ struct lang {
 	wchar_t		cmdwrapper[128];
 	int		nkwd;
 	int		autoClose;
-	struct replacement {
-		wchar_t	from[128];
-		wchar_t	to[128];
-	}		replacements[256];
-	int		nreplacements;
 } lang;
 
 struct scheme {

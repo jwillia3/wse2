@@ -18,7 +18,6 @@ enum {
 	Float,
 	String,
 	Keyword,
-	Replacement,
 };
 
 struct field {
@@ -74,8 +73,6 @@ static struct	field fields[] = {
 		{L"auto-close", Boolean, &lang.autoClose},
 		{L"kwd", Keyword, 0},
 		{L"cmd_wrapper", String, &lang.cmdwrapper},
-		
-		{L"replace", Replacement, NULL},
 		
 		{L"tab_width", Int, &file.tabc},
 		{L"use_tabs", Boolean, &file.usetabs},
@@ -522,17 +519,6 @@ configline(int ln, wchar_t *s) {
 		wcscpy(lang.kwd_re[lang.nkwd], arg);
 		re_comp(lang.kwd_comp[lang.nkwd], arg, &lang.kwd_opt[lang.nkwd]);
 		lang.nkwd++;
-		return 1;
-	case Replacement:
-		wchar_t *separator = wcsstr(arg, L"\t");
-		if (!separator) separator = wcsstr(arg, L"::");
-		if (!separator) return 0;
-		*separator++ = 0;
-		if (*separator == ':') separator++;
-		
-		wcscpy(lang.replacements[lang.nreplacements].from, arg);
-		wcscpy(lang.replacements[lang.nreplacements].to, separator);
-		lang.nreplacements++;
 		return 1;
 	}
 	return 0;
