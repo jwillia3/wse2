@@ -111,15 +111,19 @@ int		current_tab;
 struct symbol_t *symbols;
 int		symbol_count;
 wchar_t		altgr[65536] = {
-			['H']  = 0x2190,	// ←
-			['J']  = 0x2193,	// ↓
-			['K']  = 0x2191,	// ↑
-			['L']  = 0x2192,	// →
-			[VK_OEM_COMMA] = 0x27e8,	// ⟨
-			[VK_OEM_PERIOD] = 0x27e9,	// ⟩
-			[VK_OEM_5] = 0x03bb,	// λ
-			['9'] = 0x201c,	// “
-			['0'] = 0x201d,	// ”
+			['H']           = 0x2190,	// ←
+			['J']           = 0x2193,	// ↓
+			['K']           = 0x2191,	// ↑
+			['L']           = 0x2192,	// →
+			['X']           = 0x00d7,	// ×
+			['1']           = 0x2260,	// ≠
+			[VK_OEM_4]      = 0x27e8,	// ⟨
+			[VK_OEM_5]      = 0x27e9,	// ⟩
+			[VK_OEM_5]      = 0x03bb,	// λ
+			[VK_OEM_COMMA]  = 0x2264,	// ≤
+			[VK_OEM_PERIOD] = 0x2265,	// ≥
+			['9']           = 0x201c,	// “
+			['0']           = 0x201d,	// ”
 		};
 
 FINDREPLACE	fr = {
