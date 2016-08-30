@@ -58,6 +58,7 @@ static struct	field fields[] = {
 		{L"style8", Style, &conf.style[7]},
 		{L"fixed_margin", Int, &conf.fixed_margin},
 		{L"center", Boolean, &conf.center},
+		{L"minimap", Boolean, &conf.minimap},
 		
 		{L"ui_font", String, &conf.ui_font_name},
 		{L"ui_font_small_size", Float, &conf.ui_font_small_size},
@@ -205,6 +206,7 @@ defconfig() {
 	conf.ui_font_large_size = 18.0;
 	conf.fixed_margin = 1;
 	conf.center = 1;
+	conf.minimap = 1;
 	
 	wcscpy(conf.backing_font[0], L"Consolas");
 	wcscpy(conf.backing_font[1], L"Courier New");

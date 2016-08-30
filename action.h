@@ -68,6 +68,7 @@ enum {
 	EditConfig,
 	
 	ToggleTransparency,
+	ToggleMinimap,
 	
 	NewTab,
 	NextTab,

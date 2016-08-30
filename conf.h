@@ -27,6 +27,7 @@ struct conf {
 	struct textstyle style[8];
 	int		fixed_margin;
 	int		center;
+	int		minimap;
 	
 	/* Font specifications */
 	wchar_t		fontname[128];

@@ -83,7 +83,7 @@ int		status_bar_height = 24;
 int		tab_bar_height = 24;
 int		isearch_bar_height = 24;
 int		additional_bars;
-int		birdseye_width = 0;
+int		minimap_width = 128;
 struct tab_t {
 	Buf	*buf;
 	Loc	click;
@@ -118,7 +118,7 @@ wchar_t		altgr[65536] = {
 			['X']           = 0x00d7,	// ×
 			['1']           = 0x2260,	// ≠
 			[VK_OEM_4]      = 0x27e8,	// ⟨
-			[VK_OEM_5]      = 0x27e9,	// ⟩
+			[VK_OEM_6]      = 0x27e9,	// ⟩
 			[VK_OEM_5]      = 0x03bb,	// λ
 			[VK_OEM_COMMA]  = 0x2264,	// ≤
 			[VK_OEM_PERIOD] = 0x2265,	// ≥
@@ -813,6 +813,10 @@ act(int action) {
 		transparent = !transparent;
 		SetLayeredWindowAttributes(w, 0, 255*(transparent?global.alpha:1), LWA_ALPHA);
 		break;
+	case ToggleMinimap:
+		conf.minimap = !conf.minimap;
+		invdafter(top);
+		break;
 	case RaiseFontMagnification:
 		TAB.magnification += 0.05f;
 		configfont();
@@ -1173,6 +1177,9 @@ int wmsyskeydown(int c) {
 		break;
 	case 'J':
 		act(JoinLine);
+		return true;
+	case 'M':
+		act(ToggleMinimap);
 		return true;
 	case 'N':
 		new_file();
@@ -1662,8 +1669,8 @@ paintlines(Pg *gs, int first, int last) {
 			_y + (TAB.line_height-TAB.ascender_height)/2, line);
 }
 
-void paint_birdseye(Pg *full_canvas) {
-	PgPt a = pgPt(width - birdseye_width, tab_bar_height + 3.0f);
+void paint_minimap(Pg *full_canvas) {
+	PgPt a = pgPt(width - minimap_width, tab_bar_height + 3.0f);
 	PgPt b = pgPt(width - 3.0f, height - additional_bars);
 	Pg *gs = pgSubsectionCanvas(full_canvas, pgRect(a, b));
 	float each_line = min(1.0f, (float)gs->height / NLINES);
@@ -1759,11 +1766,11 @@ void paint_normal_mode(PAINTSTRUCT *ps) {
 	
 	paintsel();
 	
-	if (birdseye_width) {
-		Pg *code_canvas = pgSubsectionCanvas(gs, pgRect(pgPt(0.0f, 0.0f), pgPt(width - birdseye_width, height)));
+	if (conf.minimap) {
+		Pg *code_canvas = pgSubsectionCanvas(gs, pgRect(pgPt(0.0f, 0.0f), pgPt(width - minimap_width, height)));
 		paintlines(code_canvas, first,last);
 		pgFreeCanvas(code_canvas);
-		paint_birdseye(gs);
+		paint_minimap(gs);
 	} else
 		paintlines(gs, first,last);
 	
@@ -1881,7 +1888,7 @@ wm_find() {
 	return 0;
 }
 
-void scroll_by_birdseye(int x, int y) {
+void scroll_by_minimap(int x, int y) {
 	float total_height = height - tab_bar_height - additional_bars;
 	float each_line = min(1.0f, total_height / NLINES);
 	int selected_line = y / each_line + 1;
@@ -1892,8 +1899,8 @@ void scroll_by_birdseye(int x, int y) {
 }
 
 void wm_click(int x, int y, bool left, bool middle, bool right) {
-	if (x >= width - birdseye_width) {
-		scroll_by_birdseye(x, y - tab_bar_height);
+	if (x >= width - minimap_width) {
+		scroll_by_minimap(x, y - tab_bar_height);
 		SetCapture(w);
 		TAB.scrolling = true;
 		return;
@@ -1924,7 +1931,7 @@ wm_drag(int x, int y) {
 	Loc	olo, ohi, lo, hi;
 	
 	if (TAB.scrolling) {
-		scroll_by_birdseye(x, y - tab_bar_height);
+		scroll_by_minimap(x, y - tab_bar_height);
 		return 0;
 	}
 	
