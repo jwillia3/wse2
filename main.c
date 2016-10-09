@@ -1304,10 +1304,9 @@ wmchar(int c) {
 	case 11: /* ^K */
 		return shift ? act(DeleteLine) : 0;
 	
-	case 12: /* ^L Form Feed */
-		actins(12);
-		return act(BreakLine);
-		
+	case 12: /* ^L */
+		return 0;
+	
 	case 13: /* ^M Enter */
 		if (shift)
 			return act(SpaceBelow);
@@ -1551,14 +1550,6 @@ void blurtext(Pg *gs, int style, int x, int y, wchar_t *txt, int n, uint32_t fg)
 			int c = caps ? towupper(*p) : *p;
 			float push = 0;
 			float start_x = at.x;
-			
-			if (c == 12) { // Form Feed
-				pgStrokeLine(gs,
-					pgPt(0.0f, at.y + pgGetFontHeight(cur_font) * 0.5f),
-					pgPt(gs->width, at.y + pgGetFontHeight(cur_font) * 0.5f),
-					2.0f, fg);
-				c = 0x21a1; // U+21A1 DOWNWARDS TWO HEADED ARROW
-			}
 			
 			if (!pgGetGlyph(cur_font, c))
 				for (int i = 0; i < conf.nbacking_fonts; i++)
