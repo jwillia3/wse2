@@ -39,11 +39,11 @@ static struct	field fields[] = {
 		{L"bg", Color, &conf.bg, nice_colours_bg},
 		{L"bg2", Color, &conf.bg2},
 		{L"fg", Color, &conf.fg, nice_colours_fg},
-		{L"active_tab", Color, &conf.active_tab},
-		{L"inactive_tab", Color, &conf.inactive_tab},
-		{L"saved_file", Color, &conf.saved_file},
-		{L"unsaved_file", Color, &conf.unsaved_file},
-		{L"gutter_bg", Color, &conf.gutterbg},
+		{L"gutter", Color, &conf.gutterbg},
+		{L"chrome_bg", Color, &conf.chrome_bg},
+		{L"chrome_fg", Color, &conf.chrome_fg},
+		{L"chrome_accent_bg", Color, &conf.chrome_accent_bg},
+		{L"chrome_accent_fg", Color, &conf.chrome_accent_fg},
 		{L"select", Color, &conf.selbg},
 		{L"isearch", Color, &conf.isearchbg},
 		{L"bookmark", Color, &conf.bookmarkbg},
@@ -356,25 +356,25 @@ void nice_colours_fg(unsigned *colour) {
 	conf.fg = *colour;
 	for (i = 0; i < 8; i++)
 		conf.style[i].color = conf.fg;
-	conf.saved_file = hsv_to_rgb(0, 0, v);
-	conf.unsaved_file = hsv_to_rgb(0, 1, 1);
 }
 void nice_colours_bg(void *colourp) {
 	unsigned	colour = *(unsigned*)colourp;
-	double		h,s,v;
+	double		h,s,v, fg_v;
 	
 	rgb_to_hsv(colour, &h, &s, &v);
+	fg_v = v >= .5? v - .5: v + .5;
 	conf.bg = colour;
 	conf.bg2 = colour;
 	conf.gutterbg = hsv_to_rgb(h, s, v);
 	conf.selbg = hsv_to_rgb(h, s, v >= .5? v - .1: v + .2);
 	conf.isearchbg = hsv_to_rgb(h, s, v >= .5? v - .25: v + .25);
 	conf.bookmarkbg = hsv_to_rgb(fmod(h + 90, 360), s < 0.125f ? 0.125f : s * 0.25f, v);
-	conf.fg = hsv_to_rgb(h, s, v >= .5? v - .5: v + .5);
+	conf.fg = hsv_to_rgb(h, s, fg_v);
 	nice_colours_fg(&conf.fg);
-	conf.active_tab = hsv_to_rgb(0, 0, v);
-	conf.inactive_tab = hsv_to_rgb(0, 0, v);
-	
+	conf.chrome_bg = hsv_to_rgb(0, 0, v);
+	conf.chrome_fg = hsv_to_rgb(0, 0, fg_v);
+	conf.chrome_accent_bg = hsv_to_rgb(10, .5, v);
+	conf.chrome_accent_fg = hsv_to_rgb(10, 1, fg_v);
 }
 void load_scheme(wchar_t *filename) {
 	FILE *file = _wfopen(filename, L"r");

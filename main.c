@@ -84,6 +84,7 @@ int		tab_bar_height = 24;
 int		isearch_bar_height = 24;
 int		additional_bars;
 int		minimap_width = 128;
+int		tab_width;
 struct tab_t {
 	Buf	*buf;
 	Loc	click;
@@ -137,6 +138,7 @@ WNDCLASSEX	wc = {
 			0, 0, 0, 0, 0, 0, 0,
 			0, L"Window", 0 };
 
+static void recalculate_tab_width();
 static void recalculate_text_metrics();
 static void reserve_vertical_space(int amount);
 
@@ -256,6 +258,7 @@ int new_tab(Buf *b) {
 	};
 	current_tab = tab_count;
 	reinitconfig();
+	recalculate_tab_width();
 	return tab_count++;
 }
 void close_tab() {
@@ -274,6 +277,7 @@ void close_tab() {
 		return;
 	}
 	switch_tab(current_tab);
+	recalculate_tab_width();
 }
 
 
@@ -1586,8 +1590,6 @@ paintstatus() {
 	int	len;
 	
 	float top = height - status_bar_height;
-	
-	pgClearSection(gs, pgPt(0, top), pgPt(width, height), conf.fg);
 
 	len=swprintf(buf, 1024, SLN? selmsg: noselmsg,
 		TAB.filename,
@@ -1598,10 +1600,11 @@ paintstatus() {
 		SLN==LN? abs(SIND-IND): abs(SLN-LN)+1,
 		SLN==LN? L"chars": L"lines");
 	
-	pgScaleFont(ui_font, global.ui_font_small_size* dpi / 72.0f, 0.0f);
+	pgScaleFont(ui_font, global.ui_font_small_size * dpi / 72.0f, 0.0f);
 	float x = 4;
 	float y = top + status_bar_height / 2.0f - pgGetFontEm(ui_font) / 2.0f;
-	pgFillString(gs, ui_font, x, y, buf, len, conf.bg);
+	pgClearSection(gs, pgPt(0, top), pgPt(width, height), conf.chrome_bg);
+	pgFillString(gs, ui_font, x, y, buf, len, conf.chrome_fg);
 }
 
 #include "re.h"
@@ -1737,14 +1740,28 @@ void paint_normal_mode(PAINTSTRUCT *ps) {
 	// Draw the tabs
 	pgClearSection(gs, pgPt(0, 0), pgPt(width, tab_bar_height), conf.gutterbg);
 	
-	pgScaleFont(ui_font, global.ui_font_small_size* dpi / 72.0f, 0.0f);
+	pgScaleFont(ui_font, global.ui_font_small_size * dpi / 72.0f, 0.0f);
 	for (int i = 0; i < tab_count; i++) {
-		float left = (width / tab_count) * i;
-		float right = (width / tab_count) * (i + 1);
+		float left = tab_width * i;
+		float right = tab_width * (i + 1);
+		float radius = 16;
 		
-		uint32_t colour = i == current_tab ? conf.active_tab : conf.inactive_tab;
-		pgClearSection(gs, pgPt(left, 0), pgPt(right, tab_bar_height), colour);
-		pgClearSection(gs, pgPt(right - 1, 0), pgPt(right, tab_bar_height), 0);
+		uint32_t colour = i == current_tab ? conf.chrome_accent_bg : conf.chrome_bg;
+		
+		PgPath *path = pgNewPath();
+		pgMove(path, pgPt(left, tab_bar_height));
+		pgLine(path, pgPt(left, radius));
+		pgQuad(path,
+			pgPt(left, 0),
+			pgPt(left + radius, 0));
+		pgLine(path, pgPt(right - radius, 0));
+		pgQuad(path,
+			pgPt(right, 0),
+			pgPt(right, radius));
+		pgLine(path, pgPt(right, tab_bar_height));
+		pgFillPath(gs, path, colour);
+		pgStrokePath(gs, path, 2.5f, 0);
+		pgFreePath(path);
 		
 		wchar_t *name = wcsrchr(tabs[i].filename, '/') ? wcsrchr(tabs[i].filename, '/') + 1 : tabs[i].filename;
 		float measured = pgGetStringWidth(ui_font, name, -1);
@@ -1753,7 +1770,7 @@ void paint_normal_mode(PAINTSTRUCT *ps) {
 		pgFillString(gs, ui_font,
 			x_offset, y_offset,
 			name, -1,
-			tabs[i].buf->changes ? conf.unsaved_file : conf.saved_file);
+			tabs[i].buf->changes ? conf.chrome_accent_fg : conf.chrome_fg);
 	}
 	
 	paintsel();
@@ -1899,7 +1916,7 @@ void wm_click(int x, int y, bool left, bool middle, bool right) {
 	}
 	TAB.scrolling = false;
 	if (y < tab_bar_height) {
-		int selected = x / (width / tab_count);
+		int selected = x / tab_width;
 		if (middle) {
 			int old_tab = current_tab;
 			switch_tab(selected);
@@ -2189,6 +2206,10 @@ static void reserve_vertical_space(int amount) {
 	vis = (height - tab_bar_height - additional_bars) / TAB.line_height;
 }
 
+static void recalculate_tab_width() {
+	pgScaleFont(ui_font, global.ui_font_small_size * dpi / 72.0f, 0.0f);
+	tab_width = min(width / (tab_count ? tab_count : 1), 32 * pgGetCharWidth(ui_font, 'M'));
+}
 static void recalculate_text_metrics() {
 	float sy = conf.fontsz * TAB.magnification * dpi / 72.f;
 	float sx = sy * conf.fontasp;
@@ -2217,6 +2238,7 @@ static void recalculate_text_metrics() {
 	tab_bar_height = small_line_height;
 	reserve_vertical_space(0);
 	fix_caret();
+	recalculate_tab_width();
 }
 
 static

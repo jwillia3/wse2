@@ -15,15 +15,15 @@ struct conf {
 	int		bg;
 	int		fg;
 	int		bg2;
-	int		active_tab;
-	int		inactive_tab;
-	int		saved_file;
-	int		unsaved_file;
 	int		selbg;
 	int		isearchbg;
 	int		bookmarkbg;
 	int		gutterbg;
 	int		default_style;
+	int		chrome_bg;
+	int		chrome_fg;
+	int		chrome_accent_bg;
+	int		chrome_accent_fg;
 	struct textstyle style[8];
 		
 	/* Font specifications */
