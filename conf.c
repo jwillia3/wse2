@@ -56,13 +56,6 @@ static struct	field fields[] = {
 		{L"style6", Style, &conf.style[5]},
 		{L"style7", Style, &conf.style[6]},
 		{L"style8", Style, &conf.style[7]},
-		{L"fixed_margin", Int, &conf.fixed_margin},
-		{L"center", Boolean, &conf.center},
-		{L"minimap", Boolean, &conf.minimap},
-		
-		{L"ui_font", String, &conf.ui_font_name},
-		{L"ui_font_small_size", Float, &conf.ui_font_small_size},
-		{L"ui_font_large_size", Float, &conf.ui_font_large_size},
 		
 		{L"font", String, font_spec, expand_font},
 		{L"backing-fonts", String, backing_font_spec, expand_backing_fonts},
@@ -86,6 +79,12 @@ static struct	field fields[] = {
 		{L"gfx-flatness", Float, &global.gfx_flatness},
 		{L"gfx-subsamples", Float, &global.gfx_subsamples},
 		{L"shell", String, &global.shell},
+		{L"fixed_margin", Int, &global.fixed_margin},
+		{L"center", Boolean, &global.center},
+		{L"minimap", Boolean, &global.minimap},
+		{L"ui_font", String, &global.ui_font_name},
+		{L"ui_font_small_size", Float, &global.ui_font_small_size},
+		{L"ui_font_large_size", Float, &global.ui_font_large_size},
 		
 		{L"load-scheme", String, &scheme.filename, .exec=load_scheme},
 		{L"black", Color, &scheme.color[0]},
@@ -137,6 +136,12 @@ defglobals() {
 	global.gfx_flatness = 1.01f;
 	global.gfx_subsamples = 3.0f;
 	wcscpy(global.shell, L"cmd");
+	global.fixed_margin = 0;
+	global.center = 1;
+	global.minimap = 0;
+	wcscpy(global.ui_font_name, L"Consolas");
+	global.ui_font_small_size = 14;
+	global.ui_font_large_size = 18;
 	return 0;
 }
 defperfile() {
@@ -201,12 +206,6 @@ defconfig() {
 	conf.default_style = 0;
 	*conf.fontfeatures = 0;
 	*font_spec = 0;
-	wcscpy(conf.ui_font_name, L"Consolas");
-	conf.ui_font_small_size = 9.0;
-	conf.ui_font_large_size = 18.0;
-	conf.fixed_margin = 1;
-	conf.center = 1;
-	conf.minimap = 1;
 	
 	wcscpy(conf.backing_font[0], L"Consolas");
 	wcscpy(conf.backing_font[1], L"Courier New");

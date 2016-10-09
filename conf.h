@@ -25,10 +25,7 @@ struct conf {
 	int		gutterbg;
 	int		default_style;
 	struct textstyle style[8];
-	int		fixed_margin;
-	int		center;
-	int		minimap;
-	
+		
 	/* Font specifications */
 	wchar_t		fontname[128];
 	wchar_t		fontfeatures[128];
@@ -40,10 +37,6 @@ struct conf {
 	
 	wchar_t		backing_font[128][8];
 	int		nbacking_fonts;
-	
-	wchar_t		ui_font_name[128];
-	double		ui_font_small_size;
-	double		ui_font_large_size;
 } conf;
 struct file {
 	int		tabc;
@@ -58,6 +51,12 @@ struct {
 	double		gfx_flatness;
 	double		gfx_subsamples;
 	wchar_t		shell[128];
+	int		fixed_margin;
+	int		center;
+	int		minimap;
+	wchar_t		ui_font_name[128];
+	double		ui_font_small_size;
+	double		ui_font_large_size;
 } global;
 
 struct lang {

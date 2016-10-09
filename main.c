@@ -474,6 +474,7 @@ settitle(int mod) {
 		*TAB.filename_extension? L".": L"",
 		TAB.filename_extension);
 	SetWindowText(w, all);
+	invdafter(1);
 }
 
 static
@@ -814,7 +815,7 @@ act(int action) {
 		SetLayeredWindowAttributes(w, 0, 255*(transparent?global.alpha:1), LWA_ALPHA);
 		break;
 	case ToggleMinimap:
-		conf.minimap = !conf.minimap;
+		global.minimap = !global.minimap;
 		invdafter(top);
 		break;
 	case RaiseFontMagnification:
@@ -1597,7 +1598,7 @@ paintstatus() {
 		SLN==LN? abs(SIND-IND): abs(SLN-LN)+1,
 		SLN==LN? L"chars": L"lines");
 	
-	pgScaleFont(ui_font, conf.ui_font_small_size * dpi / 72.0f, 0.0f);
+	pgScaleFont(ui_font, global.ui_font_small_size* dpi / 72.0f, 0.0f);
 	float x = 4;
 	float y = top + status_bar_height / 2.0f - pgGetFontEm(ui_font) / 2.0f;
 	pgFillString(gs, ui_font, x, y, buf, len, conf.bg);
@@ -1736,7 +1737,7 @@ void paint_normal_mode(PAINTSTRUCT *ps) {
 	// Draw the tabs
 	pgClearSection(gs, pgPt(0, 0), pgPt(width, tab_bar_height), conf.gutterbg);
 	
-	pgScaleFont(ui_font, conf.ui_font_small_size * dpi / 72.0f, 0.0f);
+	pgScaleFont(ui_font, global.ui_font_small_size* dpi / 72.0f, 0.0f);
 	for (int i = 0; i < tab_count; i++) {
 		float left = (width / tab_count) * i;
 		float right = (width / tab_count) * (i + 1);
@@ -1757,7 +1758,7 @@ void paint_normal_mode(PAINTSTRUCT *ps) {
 	
 	paintsel();
 	
-	if (conf.minimap) {
+	if (global.minimap) {
 		Pg *code_canvas = pgSubsectionCanvas(gs, pgRect(pgPt(0.0f, 0.0f), pgPt(width - minimap_width, height)));
 		paintlines(code_canvas, first,last);
 		pgFreeCanvas(code_canvas);
@@ -1794,7 +1795,7 @@ void paint_isearch_mode(PAINTSTRUCT *ps) {
 	
 	pgClearSection(gs, pgPt(0, top), pgPt(width, top + isearch_bar_height), conf.fg);
 	
-	pgScaleFont(ui_font, conf.ui_font_small_size * dpi / 72.0f, 0.0f);
+	pgScaleFont(ui_font, global.ui_font_small_size* dpi / 72.0f, 0.0f);
 	float x_offset = 32.0f;
 	float y_offset = top + isearch_bar_height / 2.0f - pgGetFontEm(ui_font) / 2.0f;
 	pgFillString(gs, ui_font,
@@ -1809,7 +1810,7 @@ void paint_fuzzy_search_mode(PAINTSTRUCT *ps) {
 	
 	float x_offset = width * 1.0f / 4.0f;
 	float y = tab_bar_height;
-	pgScaleFont(ui_font, conf.ui_font_large_size * dpi / 72.0f, 0.0f);
+	pgScaleFont(ui_font, global.ui_font_large_size * dpi / 72.0f, 0.0f);
 	
 	wchar_t *item_text = wcsstr(fuzzy_search_input.text, TAB.file_directory) ?
 		fuzzy_search_input.text + wcslen(TAB.file_directory) :
@@ -1821,7 +1822,7 @@ void paint_fuzzy_search_mode(PAINTSTRUCT *ps) {
 		conf.bg);
 	y += pgGetFontEm(ui_font);
 
-	pgScaleFont(ui_font, conf.ui_font_small_size * dpi / 72.0f, 0.0f);
+	pgScaleFont(ui_font, global.ui_font_small_size* dpi / 72.0f, 0.0f);
 	float em = pgGetFontEm(ui_font);
 	float leading = em * 0.0125f;
 	for (wchar_t **p = fuzzy_search_files; p && *p && y < height; p++, y += em + leading * 2)
@@ -2206,11 +2207,11 @@ static void recalculate_text_metrics() {
 	TAB.em = pgGetCharWidth(font[0], 'M');
 	TAB.tab_px_width = TAB.em * file.tabc;
 	
-	TAB.total_margin = conf.fixed_margin +
-			(conf.center && global.line_width * TAB.em < width?
+	TAB.total_margin = global.fixed_margin +
+			(global.center && global.line_width * TAB.em < width?
 				(width - global.line_width * TAB.em) / 2:
 				0);
-	float small_line_height = conf.ui_font_small_size * dpi / 72.0f * 1.5f;
+	float small_line_height = global.ui_font_small_size* dpi / 72.0f * 1.5f;
 	isearch_bar_height = small_line_height;
 	status_bar_height = small_line_height;
 	tab_bar_height = small_line_height;
@@ -2226,7 +2227,7 @@ configfont() {
 	char	features[128];
 	
 	if (ui_font) ui_font->free(ui_font);
-	ui_font = pgOpenFont(conf.ui_font_name, 400, false);
+	ui_font = pgOpenFont(global.ui_font_name, 400, false);
 		
 	if (font[0]) font[0]->free(font[0]);
 	if (font[1]) font[1]->free(font[1]);

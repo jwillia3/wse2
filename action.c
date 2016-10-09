@@ -1,7 +1,7 @@
 /* vim: set noexpandtab:tabstop=8 */
 /*
  *		Actions
- * These routines are the middle level between the low-level
+a * These routines are the middle level between the low-level
  * buffer operations in and the direct user interface
  * manipulation routines. For example, when the user strikes
  * a key, the UI level will change the title bar to mark the
