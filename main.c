@@ -111,21 +111,6 @@ int		tab_count;
 int		current_tab;
 struct symbol_t *symbols;
 int		symbol_count;
-wchar_t		altgr[65536] = {
-			['H']           = 0x2190,	// ←
-			['J']           = 0x2193,	// ↓
-			['K']           = 0x2191,	// ↑
-			['L']           = 0x2192,	// →
-			['X']           = 0x00d7,	// ×
-			['1']           = 0x2260,	// ≠
-			[VK_OEM_4]      = 0x27e8,	// ⟨
-			[VK_OEM_6]      = 0x27e9,	// ⟩
-			[VK_OEM_5]      = 0x03bb,	// λ
-			[VK_OEM_COMMA]  = 0x2264,	// ≤
-			[VK_OEM_PERIOD] = 0x2265,	// ≥
-			['9']           = 0x201c,	// “
-			['0']           = 0x201d,	// ”
-		};
 
 FINDREPLACE	fr = {
 			sizeof fr, 0, 0,
@@ -1137,9 +1122,15 @@ int wmsyskeydown(int c) {
 	int	shift = GetAsyncKeyState(VK_SHIFT) & 0x8000;
 	bool	altgr_char = false;
 	
-	if (GetAsyncKeyState(VK_RMENU) & 0x8000 && altgr[c]) {
-		altgr_char = true;
-		c = altgr[c];
+	if (GetAsyncKeyState(VK_RMENU) & 0x8000) {
+		unsigned key = MapVirtualKey(c, MAPVK_VK_TO_CHAR);
+		unsigned shifted = global.shift_altgr[key];
+		unsigned normal = global.altgr[key];
+		unsigned final = shift ? shifted : normal;
+		if (final) {
+			altgr_char = true;
+			c = final;
+		}
 	}
 		
 	if (mode == ISEARCH_MODE || mode == FUZZY_SEARCH_MODE)

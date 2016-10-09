@@ -18,6 +18,8 @@ enum {
 	Float,
 	String,
 	Keyword,
+	AltGr,
+	ShiftAltGr,
 };
 
 struct field {
@@ -85,6 +87,9 @@ static struct	field fields[] = {
 		{L"ui_font", String, &global.ui_font_name},
 		{L"ui_font_small_size", Float, &global.ui_font_small_size},
 		{L"ui_font_large_size", Float, &global.ui_font_large_size},
+		
+		{L"altgr", AltGr, NULL},
+		{L"shift-altgr", ShiftAltGr, NULL},
 		
 		{L"load-scheme", String, &scheme.filename, .exec=load_scheme},
 		{L"black", Color, &scheme.color[0]},
@@ -520,6 +525,17 @@ configline(int ln, wchar_t *s) {
 		wcscpy(lang.kwd_re[lang.nkwd], arg);
 		re_comp(lang.kwd_comp[lang.nkwd], arg, &lang.kwd_opt[lang.nkwd]);
 		lang.nkwd++;
+		return 1;
+	
+	case ShiftAltGr:
+	case AltGr:
+		while (*arg && iswspace(*arg)) arg++;
+		if (*arg) {
+			wchar_t from = *arg++;
+			while (*arg && iswspace(*arg)) arg++;
+			wchar_t to = *arg;
+			(cf->type == AltGr ? global.altgr : global.shift_altgr)[toupper(from)] = to;
+		}
 		return 1;
 	}
 	return 0;
