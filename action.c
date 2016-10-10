@@ -740,7 +740,9 @@ int _act(Buf *b, int action) {
 		if (sel)
 			_act(b, DeleteSelection);
 		record(b, UndoDelete, LN, LN);
-		return dellb(b, LN);
+		dellb(b, LN);
+		gob(b, LN, IND);
+		break;
 	
 	case BreakLine:
 		if (sel)
