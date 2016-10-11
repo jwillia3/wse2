@@ -204,6 +204,12 @@ int _actreplaceall(Buf *b, wchar_t *query, wchar_t *repl, int down, int sens) {
 	return n;
 }
 
+int is_formatting_space(const wchar_t *txt) {
+	int count = 0;
+	while (txt[count] == ' ') count++;
+	return count > 1;
+}
+
 int _actins(Buf *b, int c) {
 	if (SLN)
 		_act(b, DeleteSelection);
@@ -211,6 +217,8 @@ int _actins(Buf *b, int c) {
 		return _act(b, BreakLine);
 	
 	record(b, UndoSwap, LN, LN);
+	if (!overwrite && is_formatting_space(getb(b, LN, 0) + IND))
+		delb(b);
 	return instabb(b, c);
 }
 
