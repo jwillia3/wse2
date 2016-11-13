@@ -44,8 +44,11 @@ static struct	field fields[] = {
 		{L"gutter", Color, &conf.gutterbg},
 		{L"chrome_bg", Color, &conf.chrome_bg},
 		{L"chrome_fg", Color, &conf.chrome_fg},
-		{L"chrome_accent_bg", Color, &conf.chrome_accent_bg},
-		{L"chrome_accent_fg", Color, &conf.chrome_accent_fg},
+		{L"chrome_active_bg", Color, &conf.chrome_active_bg},
+		{L"chrome_active_fg", Color, &conf.chrome_active_fg},
+		{L"chrome_inactive_bg", Color, &conf.chrome_inactive_bg},
+		{L"chrome_inactive_fg", Color, &conf.chrome_inactive_fg},
+		{L"chrome_alert_fg", Color, &conf.chrome_alert_fg},
 		{L"select", Color, &conf.selbg},
 		{L"isearch", Color, &conf.isearchbg},
 		{L"bookmark", Color, &conf.bookmarkbg},
@@ -376,10 +379,14 @@ void nice_colours_bg(void *colourp) {
 	conf.bookmarkbg = hsv_to_rgb(fmod(h + 90, 360), s < 0.125f ? 0.125f : s * 0.25f, v);
 	conf.fg = hsv_to_rgb(h, s, fg_v);
 	nice_colours_fg(&conf.fg);
-	conf.chrome_bg = hsv_to_rgb(0, 0, v);
+	
 	conf.chrome_fg = hsv_to_rgb(0, 0, fg_v);
-	conf.chrome_accent_bg = hsv_to_rgb(10, .5, v);
-	conf.chrome_accent_fg = hsv_to_rgb(10, 1, fg_v);
+	conf.chrome_bg = hsv_to_rgb(0, 0, v);
+	conf.chrome_inactive_bg = hsv_to_rgb(h, s, v);
+	conf.chrome_inactive_fg = hsv_to_rgb(h, s, v + (v < 0.5f ? 0.1f : -0.1f));
+	conf.chrome_active_bg = hsv_to_rgb(h, s, min(v + 0.2f, 1.0f));
+	conf.chrome_active_fg = hsv_to_rgb(h, s, v < 0.5f ? 1.0f : 0.0f);
+	conf.chrome_alert_fg = hsv_to_rgb(10, 1, 0.75f);
 }
 void load_scheme(wchar_t *filename) {
 	FILE *file = _wfopen(filename, L"r");

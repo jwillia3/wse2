@@ -22,8 +22,11 @@ struct conf {
 	int		default_style;
 	int		chrome_bg;
 	int		chrome_fg;
-	int		chrome_accent_bg;
-	int		chrome_accent_fg;
+	int		chrome_active_bg;
+	int		chrome_active_fg;
+	int		chrome_inactive_bg;
+	int		chrome_inactive_fg;
+	int		chrome_alert_fg;
 	struct textstyle style[8];
 		
 	/* Font specifications */

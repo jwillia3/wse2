@@ -1740,7 +1740,7 @@ void paint_normal_mode(PAINTSTRUCT *ps) {
 		float right = tab_width * (i + 1);
 		float radius = 16;
 		
-		uint32_t colour = i == current_tab ? conf.chrome_accent_bg : conf.chrome_bg;
+		uint32_t colour = i == current_tab ? conf.chrome_active_bg : conf.chrome_inactive_bg;
 		
 		PgPath *path = pgNewPath();
 		pgMove(path, pgPt(left, tab_bar_height));
@@ -1754,7 +1754,7 @@ void paint_normal_mode(PAINTSTRUCT *ps) {
 			pgPt(right, radius));
 		pgLine(path, pgPt(right, tab_bar_height));
 		pgFillPath(gs, path, colour);
-		pgStrokePath(gs, path, 2.5f, 0);
+		pgStrokePath(gs, path, 2.5f, 0xff000000);
 		pgFreePath(path);
 		
 		wchar_t *name = wcsrchr(tabs[i].filename, '/') ? wcsrchr(tabs[i].filename, '/') + 1 : tabs[i].filename;
@@ -1764,7 +1764,7 @@ void paint_normal_mode(PAINTSTRUCT *ps) {
 		pgFillString(gs, ui_font,
 			x_offset, y_offset,
 			name, -1,
-			tabs[i].buf->changes ? conf.chrome_accent_fg : conf.chrome_fg);
+			tabs[i].buf->changes ? conf.chrome_alert_fg : i == current_tab ? conf.chrome_active_fg : conf.chrome_inactive_fg);
 	}
 	
 	paintsel();
