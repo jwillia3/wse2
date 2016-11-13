@@ -730,6 +730,7 @@ act(int action) {
 	case MovePageDown:
 	case MoveSof:
 	case MoveEof:
+		invdafter(top);
 		snap();
 		break;
 	
@@ -1709,6 +1710,11 @@ void paint_normal_mode(PAINTSTRUCT *ps) {
 			y += TAB.line_height;
 		}
 	}
+	
+	pgClearSection(gs,
+		pgPt(0, line2px(LN)),
+		pgPt(width, line2px(LN) + TAB.line_height),
+		conf.current_line_bg);
 	
 	/* Clear the gutters */
 	pgClearSection(gs,

@@ -52,6 +52,7 @@ static struct	field fields[] = {
 		{L"select", Color, &conf.selbg},
 		{L"isearch", Color, &conf.isearchbg},
 		{L"bookmark", Color, &conf.bookmarkbg},
+		{L"current-line", Color, &conf.current_line_bg},
 		
 		{L"style1", Style, &conf.style[0]},
 		{L"style2", Style, &conf.style[1]},
@@ -381,6 +382,7 @@ void nice_colours_bg(void *colourp) {
 	conf.bg2 = colour;
 	conf.gutterbg = hsv_to_rgb(h, s, v);
 	conf.selbg = hsv_to_rgb(h, s, v >= .5? v - .1: v + .2);
+	conf.current_line_bg = hsv_to_rgb(h, s, v >= .5? v - .05: v + .1);
 	conf.isearchbg = hsv_to_rgb(h, s, v >= .5? v - .25: v + .25);
 	conf.bookmarkbg = hsv_to_rgb(fmod(h + 90, 360), s < 0.125f ? 0.125f : s * 0.25f, v);
 	conf.fg = hsv_to_rgb(h, s, fg_v);

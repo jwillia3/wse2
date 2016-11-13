@@ -18,6 +18,7 @@ struct conf {
 	int		selbg;
 	int		isearchbg;
 	int		bookmarkbg;
+	int		current_line_bg;
 	int		gutterbg;
 	int		default_style;
 	int		chrome_bg;
