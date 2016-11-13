@@ -42,13 +42,13 @@ static struct	field fields[] = {
 		{L"bg2", Color, &conf.bg2},
 		{L"fg", Color, &conf.fg, nice_colours_fg},
 		{L"gutter", Color, &conf.gutterbg},
-		{L"chrome_bg", Color, &conf.chrome_bg},
-		{L"chrome_fg", Color, &conf.chrome_fg},
-		{L"chrome_active_bg", Color, &conf.chrome_active_bg},
-		{L"chrome_active_fg", Color, &conf.chrome_active_fg},
-		{L"chrome_inactive_bg", Color, &conf.chrome_inactive_bg},
-		{L"chrome_inactive_fg", Color, &conf.chrome_inactive_fg},
-		{L"chrome_alert_fg", Color, &conf.chrome_alert_fg},
+		{L"chrome-bg", Color, &conf.chrome_bg},
+		{L"chrome-fg", Color, &conf.chrome_fg},
+		{L"chrome-active-bg", Color, &conf.chrome_active_bg},
+		{L"chrome-active-fg", Color, &conf.chrome_active_fg},
+		{L"chrome-inactive-bg", Color, &conf.chrome_inactive_bg},
+		{L"chrome-inactive-fg", Color, &conf.chrome_inactive_fg},
+		{L"chrome-alert-fg", Color, &conf.chrome_alert_fg},
 		{L"select", Color, &conf.selbg},
 		{L"isearch", Color, &conf.isearchbg},
 		{L"bookmark", Color, &conf.bookmarkbg},
@@ -63,6 +63,12 @@ static struct	field fields[] = {
 		{L"style8", Style, &conf.style[7]},
 		
 		{L"font", String, font_spec, expand_font},
+		{L"font-name", String, &conf.fontname},
+		{L"font-size", Float, &conf.fontsz},
+		{L"font-aspect", Float, &conf.fontasp},
+		{L"font-weight", Int, &conf.fontweight},
+		{L"font-italic", Boolean, &conf.fontitalic},
+		{L"line-height", Float, &conf.leading},
 		{L"backing-fonts", String, backing_font_spec, expand_backing_fonts},
 		
 		{L"ext", String, &lang.ext},
@@ -71,25 +77,25 @@ static struct	field fields[] = {
 		{L"brace", String, &lang.brace},
 		{L"auto-close", Boolean, &lang.autoClose},
 		{L"kwd", Keyword, 0},
-		{L"cmd_wrapper", String, &lang.cmdwrapper},
+		{L"cmd-wrapper", String, &lang.cmdwrapper},
 		
-		{L"tab_width", Int, &file.tabc},
-		{L"use_tabs", Boolean, &file.usetabs},
-		{L"use_bom", Boolean, &file.usebom},
-		{L"use_crlf", Boolean, &file.usecrlf},
+		{L"tab-width", Int, &file.tabc},
+		{L"use-tabs", Boolean, &file.usetabs},
+		{L"use-bom", Boolean, &file.usebom},
+		{L"use-crlf", Boolean, &file.usecrlf},
 		
-		{L"line_width", Int, &global.line_width},
+		{L"line-width", Int, &global.line_width},
 		{L"alpha", Float, &global.alpha},
 		{L"gamma", Float, &global.gamma},
 		{L"gfx-flatness", Float, &global.gfx_flatness},
 		{L"gfx-subsamples", Float, &global.gfx_subsamples},
 		{L"shell", String, &global.shell},
-		{L"fixed_margin", Int, &global.fixed_margin},
+		{L"fixed-margin", Int, &global.fixed_margin},
 		{L"center", Boolean, &global.center},
 		{L"minimap", Boolean, &global.minimap},
-		{L"ui_font", String, &global.ui_font_name},
-		{L"ui_font_small_size", Float, &global.ui_font_small_size},
-		{L"ui_font_large_size", Float, &global.ui_font_large_size},
+		{L"ui-font", String, &global.ui_font_name},
+		{L"ui-font-small-size", Float, &global.ui_font_small_size},
+		{L"ui-font-large-size", Float, &global.ui_font_large_size},
 		
 		{L"altgr", AltGr, NULL},
 		{L"shift-altgr", ShiftAltGr, NULL},
@@ -148,7 +154,7 @@ defglobals() {
 	global.center = 1;
 	global.minimap = 0;
 	wcscpy(global.ui_font_name, L"Consolas");
-	global.ui_font_small_size = 14;
+	global.ui_font_small_size = 12;
 	global.ui_font_large_size = 18;
 	return 0;
 }
@@ -566,6 +572,7 @@ loadconfig(wchar_t *fn) {
 	buf=decodeutf8(utf,utf+sz);
 	free(utf);
 	
+	defglobals();
 	defscheme();
 	defconfig();
 	deflang();
