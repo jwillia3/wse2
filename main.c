@@ -28,6 +28,9 @@
 #include "wse.h"
 #include "action.h"
 
+enum { MDT_EFFECTIVE_DPI = 0 };
+HRESULT (WINAPI *GetDpiForMonitor)(HMONITOR, int, unsigned*, unsigned*);
+
 #define	BOT	(top+vis)
 #define TAB	tabs[current_tab]
 
@@ -2090,9 +2093,16 @@ WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 	case WM_CREATE:
 		/* Get device resolution */
 		{
-			HDC hdc = GetDC(hwnd);
-			dpi = GetDeviceCaps(hdc, LOGPIXELSY);
-			ReleaseDC(hwnd, hdc);
+			HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+			unsigned tmpDpi;
+			if (GetDpiForMonitor && GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &tmpDpi, &tmpDpi) == S_OK) {
+				dpi = tmpDpi;
+			} else {
+				HDC hdc = GetDC(hwnd);
+				dpi = GetDeviceCaps(hdc, LOGPIXELSY);
+				ReleaseDC(hwnd, hdc);
+			}
+			CloseHandle(monitor);
 		}
 		return 0;
 
@@ -2302,8 +2312,8 @@ init() {
 	
 	if (shcore = LoadLibrary(L"shcore.dll")) {
 		HRESULT (*SetProcessDpiAwareness)(INT);
-		SetProcessDpiAwareness = (void*) GetProcAddress(shcore,
-			"SetProcessDpiAwareness");
+		SetProcessDpiAwareness = (void*) GetProcAddress(shcore, "SetProcessDpiAwareness");
+		GetDpiForMonitor = (void*) GetProcAddress(shcore, "GetDpiForMonitor");
 		if (SetProcessDpiAwareness)
 			SetProcessDpiAwareness(2);
 	}
