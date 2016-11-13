@@ -1902,7 +1902,7 @@ void scroll_by_minimap(int x, int y) {
 }
 
 void wm_click(int x, int y, bool left, bool middle, bool right) {
-	if (x >= width - minimap_width) {
+	if (global.minimap && x >= width - minimap_width) {
 		scroll_by_minimap(x, y - tab_bar_height);
 		SetCapture(w);
 		TAB.scrolling = true;
