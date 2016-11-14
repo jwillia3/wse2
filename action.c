@@ -1,7 +1,7 @@
 /* vim: set noexpandtab:tabstop=8 */
 /*
  *		Actions
-a * These routines are the middle level between the low-level
+ * These routines are the middle level between the low-level
  * buffer operations in and the direct user interface
  * manipulation routines. For example, when the user strikes
  * a key, the UI level will change the title bar to mark the
@@ -610,23 +610,17 @@ int _act(Buf *b, int action) {
 		}
 		
 		/* Skip spaces to a word */
-		if (isbrk(txt[IND])==2) {
+		if (isbrk(txt[IND])==2)
 			while (IND<len && isbrk(txt[IND])==2)
 				IND++;
-			return 1;
-		}
 		
 		/* Punctuation */
 		if (isbrk(txt[IND])==1)
-			while (IND<len && isbrk(txt[IND])==1)
-				IND++;
+			return _act(b, MoveRight);
 		else
 			/* Skip to the end of current word */
 			while (IND<len && !isbrk(txt[IND]))
 				IND++;
-		/* Skip spaces to the next */
-		while (IND<len && isbrk(txt[IND])==2)
-			IND++;
 		return 1;
 	
 	case MoveEnd:
@@ -828,7 +822,8 @@ int _act(Buf *b, int action) {
 		
 	case SelectWord:
 		SLN=0;
-		_act(b, MoveWordLeft);
+		if (IND > 0 && !isbrk(getb(b, LN, NULL)[IND - 1]))
+			_act(b, MoveWordLeft);
 		_act(b, StartSelection);
 		_act(b, MoveWordRight);
 		return 1;
