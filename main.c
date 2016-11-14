@@ -2353,8 +2353,8 @@ init() {
 		WS_OVERLAPPEDWINDOW|WS_VISIBLE,
 		CW_USEDEFAULT,
 		CW_USEDEFAULT,
-		1024,
-		800,
+		CW_USEDEFAULT,
+		CW_USEDEFAULT,
 		NULL, NULL, GetModuleHandle(0), NULL);
 	SetLayeredWindowAttributes(w, 0, 255, LWA_ALPHA);
 	reinitconfig();
