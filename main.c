@@ -718,14 +718,17 @@ act(int action) {
 		/* The selection monitor handles updates */
 		break;
 	
-	case MoveUp:
-	case MoveDown:
 	case MoveLeft:
 	case MoveRight:
 	case MoveWordLeft:
 	case MoveWordRight:
 	case MoveHome:
 	case MoveEnd:
+		invdafter(BOT);
+		snap();
+		break;
+	case MoveUp:
+	case MoveDown:
 	case MovePageUp:
 	case MovePageDown:
 	case MoveSof:
