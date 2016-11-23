@@ -1711,11 +1711,6 @@ void paint_normal_mode(PAINTSTRUCT *ps) {
 		}
 	}
 	
-	pgClearSection(gs,
-		pgPt(0, line2px(LN)),
-		pgPt(width, line2px(LN) + TAB.line_height),
-		conf.current_line_bg);
-	
 	/* Clear the gutters */
 	pgClearSection(gs,
 		pgPt(0, 0),
@@ -1725,6 +1720,11 @@ void paint_normal_mode(PAINTSTRUCT *ps) {
 		pgPt(width - TAB.total_margin + 3, 0),
 		pgPt(width, height),
 		conf.gutterbg);
+	
+	pgClearSection(gs,
+		pgPt(0, line2px(LN)),
+		pgPt(width, line2px(LN) + TAB.line_height),
+		conf.current_line_bg);
 	
 	/* Draw bookmark line's background */
 	y=line2px(first);
