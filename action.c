@@ -183,9 +183,10 @@ int _actreplace(Buf *b, wchar_t *query, wchar_t *repl, int down, int sens) {
 	src=malloc((len+1) * sizeof(wchar_t));
 	_subst(src, &m, repl);
 
+	Undo *oldtop = b->undo;
 	_act(b, DeleteSelection);
 	record(b, UndoSwap, LN, LN);
-	record(b, UndoGroup, 0, 2);
+	record(b, UndoGroup, 0, undosuntil(b, oldtop));
 		
 	for (txt=src; *txt; txt++)
 		instabb(b, *txt);
@@ -196,11 +197,12 @@ int _actreplace(Buf *b, wchar_t *query, wchar_t *repl, int down, int sens) {
 }
 
 int _actreplaceall(Buf *b, wchar_t *query, wchar_t *repl, int down, int sens) {
+	Undo	*oldtop = b->undo;
 	int	n;
 	for (n=0; autoreplace(); n++);
 	if (!n)
 		return n;
-	record(b, UndoGroup, 0, n);
+	record(b, UndoGroup, 0, undosuntil(b, oldtop));
 	return n;
 }
 
@@ -301,6 +303,7 @@ static int autoindent(Buf *b, int ln, int lvl) {
 }
 
 static int pastetext(Buf *b, wchar_t *txt) {
+	Undo 	*oldtop = b->undo;
 	wchar_t	*s;
 	int	len, n, sel;
 	int	lf;
@@ -319,7 +322,7 @@ static int pastetext(Buf *b, wchar_t *txt) {
 	if (!txt[lf]) {
 		record(b, UndoSwap, LN, LN);
 		if (sel)
-			record(b, UndoGroup, 0, 2);
+			record(b, UndoGroup, 0, undosuntil(b, oldtop));
 		for (s=txt; s < txt+lf; s++)
 			instabb(b, *s);
 		return 1;
@@ -354,7 +357,7 @@ static int pastetext(Buf *b, wchar_t *txt) {
 	
 	gob(b, LN + n-1, len);
 	join(b, LN, LN+1, 0);
-	record(b, UndoGroup, 0, 3 + sel);
+	record(b, UndoGroup, 0, undosuntil(b, oldtop));
 	return 1;
 }
 
@@ -441,6 +444,7 @@ static int delbetween(Buf *b, int ln, int lo, int hi) {
 }
 
 static int join(Buf *b, int lo, int hi, int space) {
+	Undo 	*oldtop = b->undo;
 	wchar_t	*txt;
 	int	oldind, i;
 	
@@ -448,6 +452,7 @@ static int join(Buf *b, int lo, int hi, int space) {
 		return 0;
 	
 	for (i=0; i<hi-lo; i++) {
+		Undo	*oldtop = b->undo;
 		txt = getb(b, lo+1, 0);
 		oldind = IND;
 		
@@ -465,7 +470,7 @@ static int join(Buf *b, int lo, int hi, int space) {
 		
 		gob(b, lo, oldind);
 		record(b, UndoDelete, lo+1, lo+1);
-		record(b, UndoGroup, 0, 2);
+		record(b, UndoGroup, 0, undosuntil(b, oldtop));
 		dellb(b, lo+1);
 	}
 	
@@ -473,7 +478,7 @@ static int join(Buf *b, int lo, int hi, int space) {
 		SLN=lo;
 		SIND=0;
 		_act(b, MoveEnd);
-		record(b, UndoGroup, 0, hi-lo);
+		record(b, UndoGroup, 0, undosuntil(b, oldtop));
 	}
 	return 1;
 }
@@ -520,6 +525,7 @@ static int skiptabspaces(Buf *b, wchar_t *txt, int ln, int ind, int dir) {
 }
 
 int _act(Buf *b, int action) {
+	Undo		*oldtop = b->undo;
 	int		indent, n, len, sel, oldln, oldind;
 	int		undos;
 	Loc		lo, hi;
@@ -652,7 +658,7 @@ int _act(Buf *b, int action) {
 		gob(b, hi.ln, hi.ind - (lo.ln == hi.ln? 2: 1));
 		_act(b, DeleteChar);
 		gob(b, oldln, oldind);
-		record(b, UndoGroup, 0, 2);
+		record(b, UndoGroup, 0, undosuntil(b, oldtop));
 		return 1;
 	
 	case ToggleOverwrite:
@@ -725,7 +731,7 @@ int _act(Buf *b, int action) {
 		oldind=IND;
 		record(b, UndoInsert, oldln, oldln);
 		record(b, UndoInsert, oldln+2, oldln+2);
-		record(b, UndoGroup, 0, 2);
+		record(b, UndoGroup, 0, undosuntil(b, oldtop));
 		
 		inslb(b, oldln, L"", 0);
 		gob(b, oldln, 0);
@@ -752,7 +758,7 @@ int _act(Buf *b, int action) {
 		
 		record(b, UndoSwap, LN, LN);
 		record(b, UndoInsert, LN+1, LN+1);
-		record(b, UndoGroup, 0, 2);
+		record(b, UndoGroup, 0, undosuntil(b, oldtop));
 		
 		txt = getb(b, LN, &len) + IND;
 		inslb(b, LN+1, txt, len-IND);
@@ -790,7 +796,7 @@ int _act(Buf *b, int action) {
 		inslb(b, oldln-1, txt, len);
 				
 		record(b, UndoDelete, oldln+1, oldln+1);
-		record(b, UndoGroup, 0, 2);
+		record(b, UndoGroup, 0, undosuntil(b, oldtop));
 		gob(b, oldln-1, IND);
 		dellb(b, oldln+1);
 		gob(b, oldln-1, oldind);
@@ -809,7 +815,7 @@ int _act(Buf *b, int action) {
 		inslb(b, oldln, txt, len);
 		
 		record(b, UndoDelete, oldln+2, oldln+2);
-		record(b, UndoGroup, 0, 2);
+		record(b, UndoGroup, 0, undosuntil(b, oldtop));
 		gob(b, oldln+1, oldind);
 		return dellb(b, oldln+2);
 	
@@ -853,7 +859,7 @@ int _act(Buf *b, int action) {
 				if (!delprefix(b, lo.ln, hi.ln, L" "))
 					break;
 			if (i) {
-				record(b, UndoGroup,0,i);
+				record(b, UndoGroup,0, undosuntil(b, oldtop));
 				return 1;
 			}
 			return delprefix(b, lo.ln, hi.ln, L"\t");
@@ -895,7 +901,7 @@ int _act(Buf *b, int action) {
 		gob(b, lo.ln, lo.ind);
 		if (join(b, LN, LN+1, 0))
 			undos++;
-		record(b, UndoGroup, 0, undos);
+		record(b, UndoGroup, 0, undosuntil(b, oldtop));
 		return 1;
 	
 	case CutSelection:

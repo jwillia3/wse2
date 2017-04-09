@@ -1,4 +1,5 @@
 /* vim: set noexpandtab:tabstop=8 */
+#include <stdint.h>
 typedef struct Codec	Codec;
 typedef struct Line	Line;
 typedef struct Buf	Buf;
@@ -47,6 +48,7 @@ struct Undo {
 	Loc	car;
 	Undo	*grp;
 	Undo	*next;
+	uint64_t timestamp;
 };
 
 struct	Buf {
@@ -95,6 +97,7 @@ int		addbookmark(Buf *b, int line),
 		isbookmarked(Buf *b, int line);
 
 Codec*		setcodec(wchar_t *name);
+uint64_t	platform_time_ms();
 wchar_t		*platform_normalize_path(wchar_t *filename);
 wchar_t 	**platform_list_directory(wchar_t *directory, int *countp);
 void		*platform_openfile(wchar_t *name, int write, int *sz);
@@ -119,7 +122,10 @@ wchar_t		*copysel(Buf *b);
 
 int		record(Buf *b, int type, int lo, int hi),
 		undo(Buf *b, Undo **stk),
-		clearundo(Buf *b, Undo **stk);
+		clearundo(Buf *b, Undo **stk),
+		undosuntil(Buf *b, Undo *mark);
+Undo		*topundo(Buf *b);
+		
 		
 int		load(Buf *b, wchar_t *fn, wchar_t *encoding),
 		save(Buf *b, wchar_t *fn);

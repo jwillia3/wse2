@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <wchar.h>
 #include "wse.h"
+#include "conf.h"
 
 static Undo *push(Undo **stk, Undo *u) {
 	u->next=*stk;
@@ -74,7 +75,7 @@ static void modify(Buf *b, int undoing) {
 		alertchange(1);
 }
 
-int _record(Buf *b, Undo **stk, int type, int lo, int hi) {
+int _record(Buf *b, Undo **stk, int type, int lo, int hi, uint64_t timestamp) {
 	
 	Undo	*u, *tmp;
 	int	i;
@@ -92,6 +93,7 @@ int _record(Buf *b, Undo **stk, int type, int lo, int hi) {
 	u->hi=hi;
 	u->car=CAR;
 	u->grp=0;
+	u->timestamp=timestamp;
 	
 	
 	switch (type) {
@@ -124,7 +126,20 @@ int _record(Buf *b, Undo **stk, int type, int lo, int hi) {
 int record(Buf *b, int type, int lo, int hi) {
 	clearundo(b, &b->redo);
 	modify(b, 0);
-	return _record(b, &b->undo, type, lo, hi);
+	
+	Undo		last = b->undo ? *b->undo : (Undo){.type = -1};
+	uint64_t	now = platform_time_ms();
+	uint64_t	last_timestamp = b->undo ? b->undo->timestamp : 0;
+	int		should_collapse =
+				(now - last.timestamp < global.undo_time) &&
+				type == last.type &&
+				last.lo <= lo && hi <= last.hi;
+	if (should_collapse) {
+		b->undo->timestamp = now;
+		return 0;
+	}
+	
+	return _record(b, &b->undo, type, lo, hi, now);
 }
 
 int undo(Buf *b, Undo **stk) {
@@ -145,7 +160,7 @@ int undo(Buf *b, Undo **stk) {
 	/* Add inverse to opposite stack */
 	ostk = (stk==&b->undo)? &b->redo: &b->undo;
 	if (u->type != UndoGroup)
-		_record(b, ostk, invmap[u->type], u->lo, u->hi);
+		_record(b, ostk, invmap[u->type], u->lo, u->hi, 0);
 	
 	switch (u->type) {
 	
@@ -166,7 +181,7 @@ int undo(Buf *b, Undo **stk) {
 		move(stk, &u->grp, u->hi);
 		for (i=0; i<u->hi; i++)
 			undo(b, stk);
-		_record(b, ostk, UndoGroup, 0, u->hi);
+		_record(b, ostk, UndoGroup, 0, u->hi, 0);
 		break;
 		
 	}
@@ -199,6 +214,13 @@ int clearundo(Buf *b, Undo **stk) {
 		clearundo(b, &u->grp);
 	}
 	return 1;
+}
+
+int undosuntil(Buf *b, Undo *mark) {
+	int	n = 0;
+	for (Undo *u = b->undo; u && u != mark; u = u->next)
+		n++;
+	return n;
 }
 
 #include <stdio.h>

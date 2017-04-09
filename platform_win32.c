@@ -11,6 +11,14 @@
 #include <wchar.h>
 #include "wse.h"
 
+uint64_t platform_time_ms() {
+	SYSTEMTIME systime;
+	FILETIME	filetime;
+	GetSystemTime(&systime);
+	SystemTimeToFileTime(&systime, &filetime);
+	return (((uint64_t)filetime.dwHighDateTime << 32) + filetime.dwLowDateTime) / 10000;
+}
+
 wchar_t *platform_normalize_path(wchar_t *filename) {
 	for (wchar_t *p = filename; *p; p++)
 		if (*p == '\\')

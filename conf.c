@@ -97,6 +97,7 @@ static struct	field fields[] = {
 		{L"ui-font", String, &global.ui_font_name},
 		{L"ui-font-small-size", Float, &global.ui_font_small_size},
 		{L"ui-font-large-size", Float, &global.ui_font_large_size},
+		{L"undo-time", Int, &global.undo_time},
 		
 		{L"altgr", AltGr, NULL},
 		{L"shift-altgr", ShiftAltGr, NULL},
@@ -154,6 +155,7 @@ defglobals() {
 	global.fixed_margin = 0;
 	global.center = 1;
 	global.minimap = 0;
+	global.undo_time = 600;
 	wcscpy(global.ui_font_name, L"Consolas");
 	global.ui_font_small_size = 12;
 	global.ui_font_large_size = 18;
