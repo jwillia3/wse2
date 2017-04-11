@@ -856,11 +856,11 @@ actins(int c) {
 	onlines=NLINES;
 	wassel=ordersel(TAB.buf, &lo, &hi);
 	
+	txt = getb(TAB.buf, LN, 0);
 	brace = wcschr(lang.brace, c);
 	if (brace && lang.autoClose && !TAB.inhibit_auto_close) {
 		BOOL closing = brace - lang.brace & 1;
 		
-		txt = getb(TAB.buf, LN, 0);
 		if (!closing && ordersel(TAB.buf, &lo, &hi)) {
 			act(EndSelection);
 			gob(TAB.buf, lo.ln, lo.ind);
@@ -868,7 +868,7 @@ actins(int c) {
 			gob(TAB.buf, hi.ln, hi.ind+1);
 			_actins(TAB.buf, brace[1]);
 			record(TAB.buf, UndoGroup, 0, 2);
-		} else if (txt[IND] == c)
+		} else if (lang.typeover && txt[IND] == c)
 			act(MoveRight);
 		else if (closing)
 			_actins(TAB.buf, c);
@@ -878,7 +878,9 @@ actins(int c) {
 			act(MoveLeft);
 			record(TAB.buf, UndoGroup, 0, 2);
 		}
-	} else if (brktbl[c & 0xffff] && IND > 0)
+	} else if (lang.typeover && brktbl[c & 0xffff] && txt[IND] == c)
+		act(MoveRight);
+	else if (brktbl[c & 0xffff] && IND > 0)
 		_actins(TAB.buf, c);
 	else if (!_actins(TAB.buf, c))
 		return 0;

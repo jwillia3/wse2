@@ -78,6 +78,7 @@ struct lang {
 	wchar_t		cmdwrapper[128];
 	int		nkwd;
 	int		autoClose;
+	int		typeover;
 } lang;
 
 struct scheme {

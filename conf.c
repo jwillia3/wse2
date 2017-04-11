@@ -77,6 +77,7 @@ static struct	field fields[] = {
 		{L"break", String, &lang.brk},
 		{L"brace", String, &lang.brace},
 		{L"auto-close", Boolean, &lang.autoClose},
+		{L"type-over", Boolean, &lang.typeover},
 		{L"kwd", Keyword, 0},
 		{L"cmd-wrapper", String, &lang.cmdwrapper},
 		
@@ -205,6 +206,7 @@ deflang() {
 	memset(lang.kwd_opt,0,sizeof lang.kwd_opt);
 	wcscpy(lang.cmdwrapper, L"cmd /c %ls & pause >nul");
 	lang.autoClose = 1;
+	lang.typeover = 1;
 	lang.nkwd=0;
 }
 
