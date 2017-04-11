@@ -108,18 +108,21 @@ insb(Buf *b, int c) {
 	return 1;
 }
 
-delb(Buf *b) {
+delatb(Buf *b, int index) {
 	Line	*l;
 	int	i;
 
 	l = b->dat + (LN-1);
-	if (IND==l->len)
+	if (index >= l->len)
 		return 0;
 	
-	for (i=IND; i < l->len; i++)
+	for (i=index; i < l->len; i++)
 		l->dat[i] = l->dat[i+1];
 	l->dat[--l->len];
 	return 1;
+}
+delb(Buf *b) {
+	return delatb(b, IND);
 }
 
 lenb(Buf *b, int ln) {

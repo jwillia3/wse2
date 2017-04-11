@@ -142,6 +142,7 @@ void		freeb(Buf *b);
 int		inslb(Buf *b, int ln, wchar_t *txt, int len),
 		insb(Buf *b, int c),
 		delb(Buf *b),
+		delatb(Buf *b, int index),
 		dellb(Buf *b, int ln),
 		gob(Buf *b, int ln, int col),
 		lenb(Buf *b, int ln),

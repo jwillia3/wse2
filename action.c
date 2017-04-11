@@ -206,10 +206,14 @@ int _actreplaceall(Buf *b, wchar_t *query, wchar_t *repl, int down, int sens) {
 	return n;
 }
 
-int is_formatting_space(const wchar_t *txt) {
-	int count = 0;
-	while (txt[count] == ' ') count++;
-	return count > 1;
+int delete_formatting_space(Buf *b, const wchar_t *txt, int start) {
+	int i;
+	for (i = start; txt[i] && !(txt[i] == ' ' && txt[i + 1] == ' '); i++);
+	if (txt[i]) {
+		delatb(b, i);
+		return 1;
+	}
+	return 0;
 }
 
 int _actins(Buf *b, int c) {
@@ -219,8 +223,8 @@ int _actins(Buf *b, int c) {
 		return _act(b, BreakLine);
 	
 	record(b, UndoSwap, LN, LN);
-	if (!overwrite && is_formatting_space(getb(b, LN, 0) + IND))
-		delb(b);
+	if (!overwrite)
+		delete_formatting_space(b, getb(b, LN, 0), IND);
 	return instabb(b, c);
 }
 
