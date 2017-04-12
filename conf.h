@@ -17,9 +17,10 @@ struct conf {
 	int		bg2;
 	int		selbg;
 	int		isearchbg;
-	int		bookmarkbg;
+	int		bookmarkfg;
 	int		current_line_bg;
 	int		gutterbg;
+	int		gutterfg;
 	int		default_style;
 	int		chrome_bg;
 	int		chrome_fg;
@@ -56,6 +57,7 @@ struct {
 	double		gfx_subsamples;
 	wchar_t		shell[128];
 	int		fixed_margin;
+	int		line_numbers;
 	int		center;
 	int		minimap;
 	int		undo_time;

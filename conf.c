@@ -41,7 +41,8 @@ static struct	field fields[] = {
 		{L"bg", Color, &conf.bg, nice_colours_bg},
 		{L"bg2", Color, &conf.bg2},
 		{L"fg", Color, &conf.fg, nice_colours_fg},
-		{L"gutter", Color, &conf.gutterbg},
+		{L"gutter-bg", Color, &conf.gutterbg},
+		{L"gutter-fg", Color, &conf.gutterbg},
 		{L"chrome-bg", Color, &conf.chrome_bg},
 		{L"chrome-fg", Color, &conf.chrome_fg},
 		{L"chrome-active-bg", Color, &conf.chrome_active_bg},
@@ -51,7 +52,7 @@ static struct	field fields[] = {
 		{L"chrome-alert-fg", Color, &conf.chrome_alert_fg},
 		{L"select", Color, &conf.selbg},
 		{L"isearch", Color, &conf.isearchbg},
-		{L"bookmark", Color, &conf.bookmarkbg},
+		{L"bookmark-fg", Color, &conf.bookmarkfg},
 		{L"current-line", Color, &conf.current_line_bg},
 		
 		{L"style1", Style, &conf.style[0]},
@@ -95,6 +96,7 @@ static struct	field fields[] = {
 		{L"fixed-margin", Int, &global.fixed_margin},
 		{L"center", Boolean, &global.center},
 		{L"minimap", Boolean, &global.minimap},
+		{L"line-numbers", Boolean, &global.line_numbers},
 		{L"ui-font", String, &global.ui_font_name},
 		{L"ui-font-small-size", Float, &global.ui_font_small_size},
 		{L"ui-font-large-size", Float, &global.ui_font_large_size},
@@ -156,6 +158,7 @@ defglobals() {
 	global.fixed_margin = 0;
 	global.center = 1;
 	global.minimap = 0;
+	global.line_numbers = 1;
 	global.undo_time = 600;
 	wcscpy(global.ui_font_name, L"Consolas");
 	global.ui_font_small_size = 12;
@@ -388,7 +391,7 @@ void nice_colours_bg(void *colourp) {
 	conf.selbg = hsv_to_rgb(h, s, v >= .5? v - .1: v + .2);
 	conf.current_line_bg = hsv_to_rgb(h, s, v >= .5? v - .05: v + .1);
 	conf.isearchbg = hsv_to_rgb(h, s, v >= .5? v - .25: v + .25);
-	conf.bookmarkbg = hsv_to_rgb(fmod(h + 90, 360), s < 0.125f ? 0.125f : s * 0.25f, v);
+	conf.bookmarkfg = hsv_to_rgb(fmod(h + 90, 360), s < 0.5f ? 0.5f : s * 0.25f, fg_v);
 	conf.fg = hsv_to_rgb(h, s, fg_v);
 	nice_colours_fg(&conf.fg);
 	

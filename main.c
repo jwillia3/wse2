@@ -1725,22 +1725,10 @@ void paint_normal_mode(PAINTSTRUCT *ps) {
 		pgPt(width - TAB.total_margin + 3, 0),
 		pgPt(width, height),
 		conf.gutterbg);
-	
 	pgClearSection(gs,
 		pgPt(0, line2px(LN)),
 		pgPt(width, line2px(LN) + TAB.line_height),
 		conf.current_line_bg);
-	
-	/* Draw bookmark line's background */
-	y=line2px(first);
-	for (i=first; i<=last; i++) {
-		if (isbookmarked(TAB.buf, i))
-			pgClearSection(gs,
-				pgPt(0, y),
-				pgPt(width, y + TAB.line_height),
-				conf.bookmarkbg);
-		y += TAB.line_height;
-	}
 	
 	// Draw the tabs
 	pgClearSection(gs, pgPt(0, 0), pgPt(width, tab_bar_height), conf.gutterbg);
@@ -1779,6 +1767,17 @@ void paint_normal_mode(PAINTSTRUCT *ps) {
 	}
 	
 	paintsel();
+	
+	if (global.line_numbers)
+		for (int line = first; line < last; line++) {
+			bool		is_bookmarked = isbookmarked(TAB.buf, line);
+			unsigned	color = is_bookmarked ? conf.bookmarkfg : conf.fg;
+			wchar_t		buf[16];
+			wsprintf(buf, L"%c%6d  ", is_bookmarked ? 0x2665 : ' ', line);
+			float		width = pgGetStringWidth(font[0], buf, -1);
+			float		x = TAB.total_margin - width;
+			pgFillString(gs, font[0], x, line2px(line), buf, -1, color);
+		}
 	
 	if (global.minimap) {
 		Pg *code_canvas = pgSubsectionCanvas(gs, pgRect(pgPt(0.0f, 0.0f), pgPt(width - minimap_width, height)));
