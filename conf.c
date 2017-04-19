@@ -423,7 +423,7 @@ void load_scheme(wchar_t *filename) {
 				scheme.fg = colour_value;
 			else if (current_colour == -2)
 				scheme.bg = colour_value;
-		}
+		} else current_colour = -10;
 	}
 	fclose(file);
 	nice_colours_bg(&scheme.bg);
