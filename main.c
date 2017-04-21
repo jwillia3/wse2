@@ -878,12 +878,9 @@ actins(int c) {
 			act(MoveLeft);
 			record(TAB.buf, UndoGroup, 0, 2);
 		}
-	} else if (lang.typeover && brktbl[c & 0xffff] && txt[IND] == c)
+	} else if (lang.typeover && brktbl[c & 0xffff] && txt[IND] == c && !iswspace(c))
 		act(MoveRight);
-	else if (brktbl[c & 0xffff] && IND > 0)
-		_actins(TAB.buf, c);
-	else if (!_actins(TAB.buf, c))
-		return 0;
+	else _actins(TAB.buf, c);
 	
 	invd(LN, LN);
 	generalinvd(onlines, wassel, &lo, &hi);
