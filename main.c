@@ -867,7 +867,6 @@ actins(int c) {
 			_actins(TAB.buf, c);
 			gob(TAB.buf, hi.ln, hi.ind+1);
 			_actins(TAB.buf, brace[1]);
-			record(TAB.buf, UndoGroup, 0, 2);
 		} else if (lang.typeover && txt[IND] == c)
 			act(MoveRight);
 		else if (closing)
@@ -876,7 +875,6 @@ actins(int c) {
 			_actins(TAB.buf, c);
 			_actins(TAB.buf, brace[1]);
 			act(MoveLeft);
-			record(TAB.buf, UndoGroup, 0, 2);
 		}
 	} else if (lang.typeover && brktbl[c & 0xffff] && txt[IND] == c && !iswspace(c))
 		act(MoveRight);
