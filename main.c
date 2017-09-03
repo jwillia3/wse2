@@ -88,6 +88,9 @@ int		isearch_bar_height = 24;
 int		additional_bars;
 int		minimap_width = 128;
 int		tab_width;
+float		cursor_phase;
+float		fps = 10.0f;
+int		last_cursor_line;
 struct tab_t {
 	Buf	*buf;
 	Loc	click;
@@ -513,30 +516,13 @@ alertabort(wchar_t *msg, wchar_t *re) {
 	MessageBox(w, buf, L"Expression Error", MB_OK);
 }
 
-/* This does NOT snap the caret into view because the
- * scrolling routines need to use it
- */
-static
-movecaret() {
-	int		x,y;
-	
-	x = ind2px(LN, IND);
-	y = line2px(LN);
-	if (y > height-TAB.line_height)
-		y += TAB.line_height;
-	if (GetFocus()==w)
-		SetCaretPos(x, y);
-	return 1;
-}
-
 static
 snap() {
 	if (LN < top)
 		top=sat(1, LN-1, NLINES);
 	else if (BOT <= LN)
 		top=sat(1, LN-vis+1, NLINES-vis+1);
-	else
-		return movecaret();
+	else return 0;
 	invdafter(top);
 	return 0;
 }
@@ -658,13 +644,6 @@ act(int action) {
 	
 	case ExitEditor:
 		SendMessage(w, WM_CLOSE,0,0);
-		break;
-	
-	case ToggleOverwrite:
-		DestroyCaret();
-		CreateCaret(w, 0, overwrite? TAB.em: 0, TAB.line_height);
-		movecaret();
-		ShowCaret(w);
 		break;
 	
 	case SpawnEditor:
@@ -1499,6 +1478,24 @@ int wmkey(int c) {
 }
 
 paintsel() {
+	if (GetFocus() == w) {
+		float p0 = 0.10f, p1 = 1.0f, p2 = 1.0f, p3 = 1.0f, p4 = 1.0f, p5 = 0.10f;
+	
+		float q = TAB.line_height * 0.5f *
+			(pow(1.0f - cursor_phase, 5) * p0 +
+			5 * cursor_phase * pow(1.0f - cursor_phase, 4) * p1 +
+			10 * pow(cursor_phase, 2.0f) * pow(1.0f - cursor_phase, 3) * p2 +
+			10 * pow(cursor_phase, 3.0f) * pow(1.0f - cursor_phase, 2) * p3 +
+			5 * pow(cursor_phase, 4.0f) * pow(1.0f - cursor_phase, 2) * p4 +
+			1 * pow(cursor_phase, 5.0f) * pow(1.0f - cursor_phase, 1) * p5);
+		
+		PgPt pt = pgPt(ind2px(LN, IND), line2px(LN) + TAB.line_height * 0.5f);
+		pgClearSection(gs,
+			pgAddPt(pt, pgPt(0.0f, -q)),
+			pgAddPt(pt, pgPt(TAB.em * (overwrite ? 1.0f : 0.5f), q)),
+			conf.fg);
+	}
+
 	if (!SLN)
 		return false;
 	
@@ -1524,6 +1521,7 @@ paintsel() {
 			pgPt(ind2px(lo.ln, lo.ind), line2px(lo.ln)),
 			pgPt(ind2px(hi.ln, hi.ind), line2px(hi.ln) + TAB.line_height),
 			conf.selbg);
+
 	return true;
 }
 
@@ -1615,7 +1613,7 @@ paintline(Pg *gs, int x, int y, int line) {
 		for (i = txt; *i && (i = wcsistr(i, isearch_input.text)); i += current_input->length)
 			pgClearSection(gs,
 				pgPt(ind2px(line, i - txt), y - (TAB.line_height - TAB.ascender_height)/2),
-				pgPt(ind2px(line, i - txt + current_input->length), y - (TAB.line_height - TAB.ascender_height) / 2 + TAB.line_height),
+				pgPt(ind2px(line, i - txt + current_input->length), y - (TAB.line_height - TAB.ascender_height) / 2.0f + TAB.line_height),
 				conf.isearchbg);
 	}
 	
@@ -1771,7 +1769,7 @@ void paint_normal_mode(PAINTSTRUCT *ps) {
 			wsprintf(buf, L"%c%6d  ", is_bookmarked ? 0x2665 : ' ', line);
 			float		width = pgGetStringWidth(font[0], buf, -1);
 			float		x = TAB.total_margin - width;
-			pgFillString(gs, font[0], x, line2px(line), buf, -1, color);
+			pgFillString(gs, font[0], x, line2px(line) + (TAB.line_height - TAB.ascender_height) / 2.0f, buf, -1, color);
 		}
 	
 	if (global.minimap) {
@@ -1875,7 +1873,6 @@ wmwheel(int clicks) {
 	if (vis<NLINES)
 		top = sat(1, top+dy, NLINES-vis+1);
 	
-	movecaret();
 	InvalidateRect(w, 0, 0);
 }
 
@@ -1902,7 +1899,6 @@ void scroll_by_minimap(int x, int y) {
 	int selected_line = y / each_line + 1;
 	int half_screen = (BOT - top) / 2;
 	top = sat(1, selected_line - half_screen, NLINES - vis + 1);
-	movecaret();
 	InvalidateRect(w, 0, 0);
 }
 
@@ -1957,13 +1953,6 @@ wm_drag(int x, int y) {
 	return 1;
 }
 
-void fix_caret() {
-	if (GetFocus() != w) return;
-	CreateCaret(w, 0, overwrite? TAB.em: 0, TAB.line_height);
-	movecaret();
-	ShowCaret(w);
-}
-
 LRESULT CALLBACK
 WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 	PAINTSTRUCT ps;
@@ -2009,15 +1998,7 @@ WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 	case WM_KEYDOWN:
 		wmkey(wparam);
 		return 0;
-	
-	
-	case WM_SETFOCUS:
-		fix_caret();
-		return 0;
-	
-	case WM_KILLFOCUS:
-		DestroyCaret();
-		return 0;
+
 	
 	case WM_SIZE:
 		width = (short) LOWORD(lparam);
@@ -2053,7 +2034,6 @@ WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 		pgResizeCanvas(gs, width + 3 & ~3, height);
 		gs->bmp = double_buffer_data;
 		recalculate_text_metrics();
-		movecaret();
 		SelectObject(double_buffer_dc, double_buffer_bmp);
 		ReleaseDC(hwnd, dc);
 		return 0;
@@ -2093,6 +2073,14 @@ WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 	
 	case WM_COMMAND:
 		act(LOWORD(wparam));
+		return 0;
+	
+	case WM_TIMER:
+		InvalidateRect(w, &(RECT){.top=line2px(LN), .bottom=line2px(LN+1), .left=0, .right=width}, FALSE);
+		InvalidateRect(w, &(RECT){.top=line2px(last_cursor_line), .bottom=line2px(last_cursor_line+1), .left=0, .right=width}, FALSE);
+		last_cursor_line = LN;
+		cursor_phase += 0.1f;
+		if (cursor_phase > 1.0f) cursor_phase = 0.0f;
 		return 0;
 	
 	case WM_CREATE:
@@ -2243,7 +2231,6 @@ static void recalculate_text_metrics() {
 	status_bar_height = small_line_height;
 	tab_bar_height = small_line_height;
 	reserve_vertical_space(0);
-	fix_caret();
 	recalculate_tab_width();
 }
 
@@ -2356,6 +2343,7 @@ init() {
 		CW_USEDEFAULT,
 		NULL, NULL, GetModuleHandle(0), NULL);
 	SetLayeredWindowAttributes(w, 0, 255, LWA_ALPHA);
+	SetTimer(w, 0, 1000 / fps, NULL);
 	reinitconfig();
 	fr.hwndOwner = w;
 }
