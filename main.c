@@ -1766,7 +1766,7 @@ void paint_normal_mode(PAINTSTRUCT *ps) {
 			bool		is_bookmarked = isbookmarked(TAB.buf, line);
 			unsigned	color = is_bookmarked ? conf.bookmarkfg : conf.fg;
 			wchar_t		buf[16];
-			wsprintf(buf, L"%c%6d  ", is_bookmarked ? 0x2665 : ' ', line);
+			wsprintf(buf, L"%c%6d  ", is_bookmarked ? '*' : ' ', line);
 			float		width = pgGetStringWidth(font[0], buf, -1);
 			float		x = TAB.total_margin - width;
 			pgFillString(gs, font[0], x, line2px(line) + (TAB.line_height - TAB.ascender_height) / 2.0f, buf, -1, color);
