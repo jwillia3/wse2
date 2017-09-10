@@ -781,13 +781,24 @@ int _act(Buf *b, int action) {
 		return join(b, LN, LN+1, 1);
 	
 	case DupLine:
-		txt = getb(b, LN, &len);
-		record(b, UndoInsert, LN+1, LN+1);
-		inslb(b, LN+1, txt, len);
+		if (!sel || SLN == LN) {
+			txt = getb(b, LN, &len);
+			record(b, UndoInsert, LN+1, LN+1);
+			inslb(b, LN+1, txt, len);
+		} else {
+			ordersel(b, &lo, &hi);
+			int count = hi.ln - lo.ln + 1;
+			record(b, UndoInsert, lo.ln + count, lo.ln + count * 2);
+			for (int i = 0; i < count; i++) {
+				int len;
+				wchar_t *txt = getb(b, lo.ln + i, &len);
+				inslb(b, lo.ln + count + i, txt, len);
+			}
+		}
 		return 1;
 	
 	case ClearLeft:
-		if (!sel || sel && SLN == LN) {
+		if (!sel || SLN == LN) {
 			int to_index = IND;
 			_act(b, EndSelection);
 			record(b, UndoSwap, LN, LN);
@@ -805,7 +816,7 @@ int _act(Buf *b, int action) {
 		}	
 		return 1;
 	case ClearRight:
-		if (!sel || sel && SLN == LN) {
+		if (!sel || SLN == LN) {
 			_act(b, EndSelection);
 			record(b, UndoSwap, LN, LN);
 			while (delb(b));
