@@ -89,7 +89,7 @@ int		additional_bars;
 int		minimap_width = 128;
 int		tab_width;
 float		cursor_phase;
-float		fps = 10.0f;
+INT_PTR		cursor_timer;
 int		last_cursor_line;
 struct tab_t {
 	Buf	*buf;
@@ -1492,7 +1492,7 @@ paintsel() {
 		PgPt pt = pgPt(ind2px(LN, IND), line2px(LN) + TAB.line_height * 0.5f);
 		pgClearSection(gs,
 			pgAddPt(pt, pgPt(0.0f, -q)),
-			pgAddPt(pt, pgPt(TAB.em * (overwrite ? 1.0f : 0.25f), q)),
+			pgAddPt(pt, pgPt(TAB.em * (overwrite ? global.cursor_overwrite_width : global.cursor_insert_width), q)),
 			conf.fg);
 	}
 
@@ -2294,6 +2294,8 @@ reinitconfig() {
 	}
 	configfont();
 	reinitlang();
+	KillTimer(w, cursor_timer);
+	cursor_timer = SetTimer(w, 0, 1000 / global.cursor_fps, NULL);
 }
 
 static
@@ -2343,7 +2345,6 @@ init() {
 		CW_USEDEFAULT,
 		NULL, NULL, GetModuleHandle(0), NULL);
 	SetLayeredWindowAttributes(w, 0, 255, LWA_ALPHA);
-	SetTimer(w, 0, 1000 / fps, NULL);
 	reinitconfig();
 	fr.hwndOwner = w;
 }

@@ -61,6 +61,9 @@ struct {
 	int		center;
 	int		minimap;
 	int		undo_time;
+	int		cursor_fps;
+	double		cursor_overwrite_width;
+	double		cursor_insert_width;
 	wchar_t		ui_font_name[128];
 	double		ui_font_small_size;
 	double		ui_font_large_size;
