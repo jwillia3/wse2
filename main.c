@@ -1281,7 +1281,7 @@ wmchar(int c) {
 		return act(JoinLine);
 
 	case 11: /* ^K */
-		return shift ? act(DeleteLine) : 0;
+		return shift ? act(DeleteLine) : act(ClearRight);
 	
 	case 12: /* ^L */
 		return 0;
@@ -1320,7 +1320,7 @@ wmchar(int c) {
 		return act(NewTab);
 	
 	case 21: /* ^U */
-		return 0;
+		return act(ClearLeft);
 	
 	case 22: /* ^V */
 		return act(PasteClipboard);
@@ -1492,7 +1492,7 @@ paintsel() {
 		PgPt pt = pgPt(ind2px(LN, IND), line2px(LN) + TAB.line_height * 0.5f);
 		pgClearSection(gs,
 			pgAddPt(pt, pgPt(0.0f, -q)),
-			pgAddPt(pt, pgPt(TAB.em * (overwrite ? 1.0f : 0.5f), q)),
+			pgAddPt(pt, pgPt(TAB.em * (overwrite ? 1.0f : 0.25f), q)),
 			conf.fg);
 	}
 

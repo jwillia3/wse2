@@ -26,6 +26,8 @@ enum {
 	BreakLine,
 	JoinLine,
 	DupLine,
+	ClearLeft,
+	ClearRight,
 	AscendLine,
 	DescendLine,
 	

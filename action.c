@@ -786,6 +786,41 @@ int _act(Buf *b, int action) {
 		inslb(b, LN+1, txt, len);
 		return 1;
 	
+	case ClearLeft:
+		if (!sel || sel && SLN == LN) {
+			int to_index = IND;
+			_act(b, EndSelection);
+			record(b, UndoSwap, LN, LN);
+			gob(b, LN, 0);
+			for (int i = 0; i < to_index; i++) delb(b);
+		} else {
+			int to_index = IND;
+			ordersel(b, &lo, &hi);
+			_act(b, EndSelection);
+			record(b, UndoSwap, lo.ln, hi.ln);
+			for (int i = lo.ln; i < hi.ln; i++) {
+				gob(b, i, 0);
+				for (int i = 0; i < to_index; i++) delb(b);
+			}
+		}	
+		return 1;
+	case ClearRight:
+		if (!sel || sel && SLN == LN) {
+			_act(b, EndSelection);
+			record(b, UndoSwap, LN, LN);
+			while (delb(b));
+		} else {
+			int from_index = IND;
+			ordersel(b, &lo, &hi);
+			_act(b, EndSelection);
+			record(b, UndoSwap, lo.ln, hi.ln);
+			for (int i = lo.ln; i < hi.ln; i++) {
+				gob(b, i, from_index);
+				while (delb(b));
+			}
+		}	
+		return 1;
+	
 	case AscendLine:
 		if (sel)
 			_act(b, EndSelection);
