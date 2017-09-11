@@ -2278,6 +2278,9 @@ configfont() {
 	
 	if (ui_font) ui_font->free(ui_font);
 	ui_font = pgOpenFont(global.ui_font_name, 400, false);
+	if (!ui_font) ui_font = pgOpenFont(conf.fontname, conf.fontweight, conf.fontitalic);
+	if (!ui_font) ui_font = pgOpenFont(L"Consolas", 400, false);
+	if (!ui_font) ui_font = pgOpenFont(L"Courier New", 400, false);
 		
 	if (font[0]) font[0]->free(font[0]);
 	if (font[1]) font[1]->free(font[1]);
@@ -2288,8 +2291,8 @@ configfont() {
 		if (backing_fonts[i]) pgFreeFont(backing_fonts[i]);
 	
 	font[0] = pgOpenFont(conf.fontname, conf.fontweight, conf.fontitalic);
-	if (!font[0])
-		font[0] = pgOpenFont(L"Consolas", 400, false);
+	if (!font[0]) font[0] = pgOpenFont(L"Consolas", 400, false);
+	if (!font[0]) font[0] = pgOpenFont(L"Courier New", 400, false);
 	
 	int weight = pgGetFontWeight(font[0]);
 	const wchar_t *family = pgGetFontFamilyName(font[0]);
