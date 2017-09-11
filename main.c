@@ -75,6 +75,8 @@ struct input_t	fuzzy_search_input = { .before_key = fuzzy_search_before_key, .af
 struct input_t	*current_input;
 wchar_t		**fuzzy_search_files;
 wchar_t		**all_fuzzy_search_files;
+unsigned	fuzzy_index;
+unsigned	fuzzy_count;
 Pg		*gs;
 HDC		double_buffer_dc;
 HBITMAP		double_buffer_bmp;
@@ -515,6 +517,16 @@ alertabort(wchar_t *msg, wchar_t *re) {
 		msg, re);
 	MessageBox(w, buf, L"Expression Error", MB_OK);
 }
+
+static void stop_cursor_blink() {
+        cursor_timer = 0;
+        KillTimer(w, cursor_timer);
+}
+static void start_cursor_blink() {
+        stop_cursor_blink();
+        cursor_timer = SetTimer(w, 0, 1000 / global.cursor_fps, NULL);
+}
+
 
 static
 snap() {
@@ -962,16 +974,22 @@ void filter_fuzzy_search_list(wchar_t **out, wchar_t **in, wchar_t *request) {
 	request = wcsdup(request);
 	separate_line_number(request);
 	*out = NULL;
+	int count = 0;
 	for ( ; *in; in++)
-		if (!*request || wcsistr(*in, request))
+		if (!*request || wcsistr(*in, request)) {
+			count++;
 			*out++ = *in +
 				(wcsstr(*in, TAB.file_directory) == 0 ?
 					wcslen(TAB.file_directory) + 1 :
 					0);
+		}
 	*out = NULL;
 	free(request);
+	fuzzy_count = count;
+	fuzzy_index = fuzzy_count ? fuzzy_index % fuzzy_count : 0;
 }
 void start_fuzzy_search(wchar_t *initial_text) {
+	stop_cursor_blink();
 	mode = FUZZY_SEARCH_MODE;
 	current_input = &fuzzy_search_input;
 	if (current_input->text)
@@ -1009,14 +1027,16 @@ bool fuzzy_search_before_key(struct input_t *input, int c, bool alt, bool ctl, b
 		} else if (fuzzy_search_files[0]) {
 			wchar_t spec[MAX_PATH + 1];
 			swprintf(spec, MAX_PATH + 1, L"%ls:%d",
-				fuzzy_search_files[0],
+				fuzzy_search_files[fuzzy_index],
 				separate_line_number(input->text));
 			load_file_in_new_tab(spec);
 		} else
 			load_file_in_new_tab(input->text);
+		start_cursor_blink();
 		invdafter(top);
 		return false;
 	} else if (c == 27) { // Escape
+		start_cursor_blink();
 		invdafter(top);
 		mode = NORMAL_MODE;
 		return false;
@@ -1094,6 +1114,18 @@ int wmkey_input(int c, bool alt, bool ctl, bool shift) {
 		break;
 	case VK_RIGHT:
 		if (alt) input_end(); else input_move(1);
+		break;
+	case VK_UP:
+		if (mode == FUZZY_SEARCH_MODE) {
+			fuzzy_index = fuzzy_index ? fuzzy_index - 1 : max(fuzzy_count - 1, 0);
+			invdafter(top);
+		}
+		break;
+	case VK_DOWN:
+		if (mode == FUZZY_SEARCH_MODE) {
+			fuzzy_index = fuzzy_index < fuzzy_count ? fuzzy_index + 1 : 0;
+			invdafter(top);
+		}
 		break;
 	}
 	return 1;
@@ -1820,29 +1852,34 @@ void paint_isearch_mode(PAINTSTRUCT *ps) {
 }
 
 void paint_fuzzy_search_mode(PAINTSTRUCT *ps) {
-	pgClearSection(gs, pgPt(0, 0), pgPt(width, height), conf.fg);
+	pgClearSection(gs, pgPt(0, 0), pgPt(width, height), conf.chrome_bg);
 	
+	pgScaleFont(ui_font, global.ui_font_large_size * dpi / 72.0f, 0.0f);
 	float x_offset = width * 1.0f / 4.0f;
 	float y = tab_bar_height;
-	pgScaleFont(ui_font, global.ui_font_large_size * dpi / 72.0f, 0.0f);
+	float em = pgGetFontEm(ui_font);
 	
 	wchar_t *item_text = wcsstr(fuzzy_search_input.text, TAB.file_directory) ?
 		fuzzy_search_input.text + wcslen(TAB.file_directory) :
 		fuzzy_search_input.text;
 	
+	pgClearSection(gs, pgPt(x_offset, y), pgPt(width, y + em), conf.chrome_active_bg);
 	pgFillString(gs, ui_font,
 		x_offset, y,
 		item_text, wcslen(item_text),
-		conf.bg);
+		conf.chrome_active_fg);
 	y += pgGetFontEm(ui_font);
 
 	pgScaleFont(ui_font, global.ui_font_small_size* dpi / 72.0f, 0.0f);
-	float em = pgGetFontEm(ui_font);
+	em = pgGetFontEm(ui_font);
 	float leading = em * 0.0125f;
-	for (wchar_t **p = fuzzy_search_files; p && *p && y < height; p++, y += em + leading * 2)
-		pgFillString(gs, ui_font,
-			x_offset, y + leading,
-			*p, -1, conf.bg);
+	pgFillString(gs, ui_font, x_offset - em, y, L">", -1, conf.chrome_active_fg);
+	for (int i = 0; i < fuzzy_count; i++) {
+		if (y >= height) break;
+		wchar_t *txt = fuzzy_search_files[(i + fuzzy_index) % fuzzy_count];
+		pgFillString(gs, ui_font, x_offset, y + leading, txt, -1, i ? conf.chrome_fg : conf.chrome_active_fg);
+		y += em + leading * 2;
+	}
 }
 
 void paint(PAINTSTRUCT *ps) {
@@ -2294,8 +2331,7 @@ reinitconfig() {
 	}
 	configfont();
 	reinitlang();
-	KillTimer(w, cursor_timer);
-	cursor_timer = SetTimer(w, 0, 1000 / global.cursor_fps, NULL);
+	start_cursor_blink();
 }
 
 static
