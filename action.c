@@ -710,20 +710,25 @@ int _act(Buf *b, int action) {
 		return 1;
 	
 	case SpaceAbove:
-		if (sel)
-			_act(b, DeleteSelection);
-		oldln=LN;
-		oldind=IND;
-		record(b, UndoInsert, oldln, oldln);
-		inslb(b, oldln, L"", 0);
-		gob(b,oldln,0);
-		autoindent(b, oldln, getindent(b, oldln+1));
+		if (sel) {
+			ordersel(b, &lo, &hi);
+			_act(b, EndSelection);
+			n = lo.ln;
+		} else
+			n = LN;
+		record(b, UndoInsert, n, n);
+		inslb(b, n, L"", 0);
+		gob(b, n, 0);
+		autoindent(b, n, getindent(b, n + 1));
 		_act(b, MoveEnd);
 		break;
 	
 	case SpaceBelow:
-		if (sel)
-			_act(b, DeleteSelection);
+		if (sel) {
+			ordersel(b, &lo, &hi);
+			_act(b, EndSelection);
+			gob(b, hi.ln, 0);
+		}
 		_act(b, MoveEnd);
 		_act(b, BreakLine);
 		break;

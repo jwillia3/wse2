@@ -1332,9 +1332,7 @@ wmchar(int c) {
 		return false;
 	
 	case 16: /* ^P */
-		if (shift)
-			return act(SpaceBoth);
-		return act(SpaceAbove);
+		return false;
 	
 	case 17: /* ^Q */
 		return act(CommentSelection);
