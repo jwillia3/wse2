@@ -219,12 +219,7 @@ deflang() {
 	lang.nkwd=0;
 }
 
-static
-defconfig() {
-	memset(conf.style, 0, sizeof conf.style);
-	conf.bg = RGB(255,255,255);
-	nice_colours_bg(&conf.bg);
-	
+static void def_font() {
 	wcscpy(conf.fontname, L"Consolas");
 	conf.fontweight = 0;
 	conf.fontitalic = 0;
@@ -233,8 +228,15 @@ defconfig() {
 	conf.leading = 1.25;
 	conf.default_style = 0;
 	*conf.fontfeatures = 0;
+}
+
+static
+defconfig() {
+	memset(conf.style, 0, sizeof conf.style);
+	conf.bg = RGB(255,255,255);
+	nice_colours_bg(&conf.bg);
+	def_font();
 	*font_spec = 0;
-	
 	wcscpy(conf.backing_font[0], L"Consolas");
 	wcscpy(conf.backing_font[1], L"Courier New");
 	wcscpy(conf.backing_font[2], L"Source Code Pro");
@@ -260,9 +262,10 @@ static void expand_backing_fonts(wchar_t *spec) {
 	};
 }
 static void expand_font(wchar_t *spec) {
+	def_font();
 	wchar_t *part = wcstok(spec, L" \t,/");
-	*conf.fontname = 0;
-	*conf.fontfeatures = 0;
+	wchar_t fontname[128];
+	*fontname = 0;
 	
 	while (part) {
 		wchar_t *end;
@@ -289,17 +292,14 @@ static void expand_font(wchar_t *spec) {
 		else if (*part == '+' && wcslen(part) == 5)
 			wcscat(conf.fontfeatures, part+1);
 		else { /* part of font name */
-			if (*conf.fontname)
-				wcscat(conf.fontname, L" ");
-			wcscat(conf.fontname, part);
+			if (*fontname)
+				wcscat(fontname, L" ");
+			wcscat(fontname, part);
 		}
 		
 		part = wcstok(NULL, L" \t,/");
 	}
-	
-	if (!*conf.fontname)
-		wcscpy(conf.fontname, L"Consolas");
-
+	if (*fontname) wcscpy(conf.fontname, fontname);
 }
 
 static
