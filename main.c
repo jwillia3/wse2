@@ -691,7 +691,7 @@ act(int action) {
 	
 	case DeleteLine:
 	case JoinLine:
-	case DupLine:
+	case Duplicate:
 	case BreakLine:
 		/* Line monitor will handle */
 		break;
@@ -1177,7 +1177,7 @@ int wmsyskeydown(int c) {
 		return act(CopySelection);
 	case 'D':
 		if (shift)
-			act(DupLine);
+			act(Duplicate);
 		else
 			return 0;
 		break;
@@ -1284,7 +1284,7 @@ wmchar(int c) {
 		return act(CopySelection);
 	
 	case 4: /* ^D */
-		return act(DupLine);
+		return act(Duplicate);
 		
 	case 5: /* ^E */
 		return act(MoveEnd);

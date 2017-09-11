@@ -785,11 +785,21 @@ int _act(Buf *b, int action) {
 		}
 		return join(b, LN, LN+1, 1);
 	
-	case DupLine:
-		if (!sel || SLN == LN) {
+	case Duplicate:
+		if (!sel) {
 			txt = getb(b, LN, &len);
 			record(b, UndoInsert, LN+1, LN+1);
 			inslb(b, LN+1, txt, len);
+		} else if (SLN == LN) {
+			int select_lo = SIND < IND;
+			txt = getb(b, LN, NULL);
+			record(b, UndoSwap, LN, LN);
+			ordersel(b, &lo, &hi);
+			gob(b, LN, lo.ind);
+			for (int i = lo.ind; i < hi.ind; i++)
+				insb(b, txt[i]);
+			if (select_lo) SIND = lo.ind, IND = hi.ind;
+			else IND = lo.ind, SIND = hi.ind;
 		} else {
 			ordersel(b, &lo, &hi);
 			int count = hi.ln - lo.ln + 1;

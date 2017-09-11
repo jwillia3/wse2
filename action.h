@@ -25,7 +25,7 @@ enum {
 	DeleteBraces,
 	BreakLine,
 	JoinLine,
-	DupLine,
+	Duplicate,
 	ClearLeft,
 	ClearRight,
 	AscendLine,
