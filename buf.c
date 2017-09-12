@@ -238,19 +238,29 @@ getscanner(Buf *b, int ln, int ind) {
 	scan.b = b;
 	return scan;
 }
+Scanner
+startscanner(Buf *b) {
+	return getscanner(b, 1, -1);
+}
+
+Scanner
+endscanner(Buf *b) {
+	return getscanner(b, b->nlines, lenb(b, b->nlines));
+}
+
 int
 forward(Scanner *scan) {
 	int len;
 	wchar_t *txt = getb(scan->b, scan->ln, &len);
 	
 	if (scan->ln < 1)
-		scan->ln = 1, scan->ind = 0;
-	if (scan->ind < 0)
-		scan->ind = 0;
-	if (scan->ind < len)
-		return scan->c = txt[scan->ind++];
+		scan->ln = 1, scan->ind = -1;
+	if (scan->ind < -1)
+		scan->ind = -1;
+	if (scan->ind < len - 1)
+		return scan->c = txt[++scan->ind];
 	if (scan->ln < scan->b->nlines)
-		return scan->ln++, scan->ind = 0, forward(scan);
+		return scan->ln++, scan->ind = -1, forward(scan);
 	scan->ln = scan->b->nlines + 1;
 	scan->ind = 0;
 	return scan->c = 0;
@@ -269,4 +279,23 @@ backward(Scanner *scan) {
 	if (scan->ind < 0)
 		return scan->ln--, scan->ind = lenb(scan->b, scan->ln), backward(scan);
 	return scan->c = txt[--scan->ind];
+}
+Scanner
+matchbrace(Scanner scan, bool allow_back, bool allow_forward) {
+	wchar_t c;
+	Scanner s = scan;
+	if ((c = closetbl[s.c]) && allow_forward)
+		while (forward(&s))
+			if (s.c == c) 		return s;
+			else if (closetbl[s.c])	s = matchbrace(s, false, true);
+			else if (opentbl[s.c])	break;
+			else;
+	s = scan;
+	if ((c = opentbl[s.c]) && allow_back)
+		while (backward(&s))
+			if (s.c == c) 		return s;
+			else if (opentbl[s.c]) 	s = matchbrace(s, true, false);
+			else if (closetbl[s.c])	break;
+			else;
+	return endscanner(s.b);
 }

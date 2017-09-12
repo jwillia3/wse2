@@ -15,6 +15,7 @@ struct conf {
 	int		bg;
 	int		fg;
 	int		bg2;
+	int		brace_fg;
 	int		selbg;
 	int		isearchbg;
 	int		bookmarkfg;
@@ -60,6 +61,7 @@ struct {
 	int		line_numbers;
 	int		center;
 	int		minimap;
+	int		match_braces;
 	int		undo_time;
 	int		cursor_fps;
 	double		cursor_overwrite_width;

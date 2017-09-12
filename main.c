@@ -110,6 +110,7 @@ struct tab_t {
 	wchar_t	file_basename[512];
 	wchar_t	filename_extension[512];
 	struct file file_settings;
+	Scanner	brace[4];
 } *tabs;
 struct symbol_t {
 	wchar_t *name;
@@ -621,6 +622,21 @@ spawn_cmd() {
 		CloseHandle(pi.hThread);
 	}
 }
+void highlight_brace() {
+	TAB.brace[2] = TAB.brace[0];
+	TAB.brace[3] = TAB.brace[1];
+	TAB.brace[0] = (Scanner){0};
+	TAB.brace[1] = (Scanner){0};
+	if (!global.match_braces) return;
+	Scanner start = getscanner(TAB.buf, LN, IND);
+	Scanner other = matchbrace(start, true, true);
+	if (other.c) {
+		TAB.brace[0] = start;
+		TAB.brace[1] = other;
+	}
+	for (int i = 0; i < 4; i++)
+		invd(TAB.brace[i].ln, TAB.brace[i].ln);
+}
 
 act(int action) {
 	
@@ -835,6 +851,8 @@ act(int action) {
 	default:
 		invdafter(top);
 	}
+	
+	highlight_brace(TAB);
 	generalinvd(onlines, wassel, &lo, &hi);
 	return ok;
 }
@@ -870,7 +888,8 @@ actins(int c) {
 	} else if (lang.typeover && brktbl[c & 0xffff] && txt[IND] == c && !iswspace(c))
 		act(MoveRight);
 	else _actins(TAB.buf, c);
-	
+
+	highlight_brace(TAB);
 	invd(LN, LN);
 	generalinvd(onlines, wassel, &lo, &hi);
 	return 1;
@@ -1274,11 +1293,8 @@ wmchar(int c) {
 		return act(MoveHome);
 	
 	case 2: /* ^B */
-		if (shift)
-			return act(DeleteBraces);
-		else
-			return act(SelectBraces);
-		return 0;
+		setsel(shift);
+		return act(MoveBrace);
 	
 	case 3: /* ^C */
 		return act(CopySelection);
@@ -1677,6 +1693,12 @@ paintline(Pg *gs, int x, int y, int line) {
 	}
 	if (j>i)
 		blurtext(gs, conf.default_style, x,y, i, j-i, conf.fg);
+
+	for (int i = 0; i < 2; i++)
+		if (line == TAB.brace[i].ln && TAB.brace[i].c)
+			blurtext(gs, BOLD_STYLE, ind2px(TAB.brace[i].ln, TAB.brace[i].ind),
+				line2px(TAB.brace[i].ln) + (TAB.line_height-TAB.ascender_height)/2,
+				&TAB.brace[i].c, 1, conf.brace_fg);
 }
 
 paintlines(Pg *gs, int first, int last) {

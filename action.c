@@ -487,31 +487,6 @@ static int join(Buf *b, int lo, int hi, int space) {
 	return 1;
 }
 
-static int matchbrace(Buf *b) {
-	Scanner cur = getscanner(b, LN, IND);
-	Scanner back = cur;
-	Scanner forth;
-	do {
-		int n = 1;
-		
-		while (!closetbl[backward(&back)])
-			if (back.ln < 1)
-				return 0;
-		forth = back;
-		forward(&forth);
-		while (forward(&forth) != closetbl[back.c] || --n)
-			if (forth.ln > NLINES)
-				return 0;
-			else if (forth.c == back.c)
-				n++;
-	} while (cur.ln > forth.ln || (cur.ln == forth.ln && cur.ind > forth.ind));
-	LN = back.ln;
-	IND = back.ind;
-	SLN = forth.ln;
-	SIND = forth.ind;
-	return 1;
-}
-
 static int skiptabspaces(Buf *b, wchar_t *txt, int ln, int ind, int dir) {
 	int col=ind2col(b, ln, ind);
 	int i;
@@ -648,22 +623,13 @@ int _act(Buf *b, int action) {
 	case MoveEof:
 		return gob(b, NLINES, lenb(b, NLINES));
 		
-	case SelectBraces:
-		return matchbrace(b);
-	case DeleteBraces:
-		oldln = LN;
-		oldind = IND;
-		if (!matchbrace(b))
-			return 0;
-		ordersel(b, &lo, &hi);
-		SLN = 0;
-		gob(b, lo.ln, lo.ind);
-		_act(b, DeleteChar);
-		gob(b, hi.ln, hi.ind - (lo.ln == hi.ln? 2: 1));
-		_act(b, DeleteChar);
-		gob(b, oldln, oldind);
-		record(b, UndoGroup, 0, undosuntil(b, oldtop));
+	case MoveBrace: {
+		Scanner s = matchbrace(getscanner(b, LN, IND), true, true);
+		if (s.c == 0) return 0;
+		LN = s.ln;
+		IND = s.ind;
 		return 1;
+		}
 	
 	case ToggleOverwrite:
 		return overwrite = !overwrite;

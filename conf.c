@@ -41,6 +41,7 @@ static struct	field fields[] = {
 		{L"bg", Color, &conf.bg, nice_colours_bg},
 		{L"bg2", Color, &conf.bg2},
 		{L"fg", Color, &conf.fg, nice_colours_fg},
+		{L"brace-fg", Color, &conf.brace_fg},
 		{L"gutter-bg", Color, &conf.gutterbg},
 		{L"gutter-fg", Color, &conf.gutterbg},
 		{L"chrome-bg", Color, &conf.chrome_bg},
@@ -97,6 +98,7 @@ static struct	field fields[] = {
 		{L"center", Boolean, &global.center},
 		{L"minimap", Boolean, &global.minimap},
 		{L"line-numbers", Boolean, &global.line_numbers},
+		{L"match-braces", Boolean, &global.match_braces},
 		{L"ui-font", String, &global.ui_font_name},
 		{L"ui-font-small-size", Float, &global.ui_font_small_size},
 		{L"ui-font-large-size", Float, &global.ui_font_large_size},
@@ -162,6 +164,7 @@ defglobals() {
 	global.center = 1;
 	global.minimap = 0;
 	global.line_numbers = 1;
+	global.match_braces = 1;
 	global.undo_time = 600;
 	global.cursor_fps = 30;
 	global.cursor_overwrite_width = 1.00f;
@@ -382,6 +385,9 @@ void nice_colours_fg(unsigned *colour) {
 	rgb_to_hsv(*colour, &h, &s, &v);
 	
 	conf.fg = *colour;
+	conf.brace_fg = hsv_to_rgb(fmod((h + 180), 360),
+		s >= 0.5 ? 1.0 - s : 0.5 + s,
+		max(min(v >= 0.5 ? v + 0.2 : v - 0.2, 1.0), 0.0));
 	for (i = 0; i < 8; i++)
 		conf.style[i].color = conf.fg;
 }

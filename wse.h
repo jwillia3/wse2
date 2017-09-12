@@ -1,4 +1,5 @@
 /* vim: set noexpandtab:tabstop=8 */
+#include <stdbool.h>
 #include <stdint.h>
 typedef struct Codec	Codec;
 typedef struct Line	Line;
@@ -28,8 +29,10 @@ struct	Codec {
 
 struct Scanner {
 	Buf	*b;
-	int	ln;
-	int	ind;
+	union {
+		Loc;
+		Loc loc;
+	};
 	wchar_t	c;
 };
 
@@ -151,6 +154,9 @@ int		inslb(Buf *b, int ln, wchar_t *txt, int len),
 		sat(int lo, int x, int hi),
 		forward(Scanner *scan),
 		backward(Scanner *scan);
-Scanner 	getscanner(Buf *b, int line, int ind);
+Scanner 	getscanner(Buf *b, int line, int ind),
+		endscanner(Buf *b),
+		startscanner(Buf *b),
+		matchbrace(Scanner scan, bool allow_back, bool allow_forward);
 		
 wchar_t*	getb(Buf *b, int ln, int *len);
