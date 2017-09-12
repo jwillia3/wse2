@@ -130,7 +130,7 @@ int record(Buf *b, int type, int lo, int hi) {
 	Undo		last = b->undo ? *b->undo : (Undo){.type = -1};
 	uint64_t	now = platform_time_ms();
 	uint64_t	last_timestamp = b->undo ? b->undo->timestamp : 0;
-	int		should_collapse =
+	int		should_collapse = (type == UndoSwap || type == UndoGroup) &&
 				(now - last.timestamp < global.undo_time) &&
 				type == last.type &&
 				last.lo <= lo && hi <= last.hi;
