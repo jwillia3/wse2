@@ -385,9 +385,7 @@ void nice_colours_fg(unsigned *colour) {
 	rgb_to_hsv(*colour, &h, &s, &v);
 	
 	conf.fg = *colour;
-	conf.brace_fg = hsv_to_rgb(fmod((h + 180), 360),
-		s >= 0.5 ? 1.0 - s : 0.5 + s,
-		max(min(v >= 0.5 ? v + 0.2 : v - 0.2, 1.0), 0.0));
+	conf.brace_fg = hsv_to_rgb(10, 1.0, 1.0);
 	for (i = 0; i < 8; i++)
 		conf.style[i].color = conf.fg;
 }
