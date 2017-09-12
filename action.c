@@ -761,7 +761,7 @@ int _act(Buf *b, int action) {
 			txt = getb(b, LN, NULL);
 			record(b, UndoSwap, LN, LN);
 			ordersel(b, &lo, &hi);
-			gob(b, LN, lo.ind);
+			gob(b, LN, hi.ind);
 			for (int i = lo.ind; i < hi.ind; i++)
 				insb(b, txt[i]);
 			if (select_lo) SIND = lo.ind, IND = hi.ind;
