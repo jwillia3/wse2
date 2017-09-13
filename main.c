@@ -1,4 +1,5 @@
 /* vim: set noexpandtab:tabstop=8 */
+#define MAX_SPLITS 8
 
 #define WIN32_LEAN_AND_MEAN
 #define _WIN32_WINNT 0x0501
@@ -60,10 +61,21 @@ void isearch_after_key(struct input_t *);
 bool fuzzy_search_before_key(struct input_t *, int, bool, bool, bool);
 void fuzzy_search_after_key(struct input_t *);
 
+
+typedef struct Panel Panel;
+struct Panel {
+	int	fixed;		// fixed in major direction
+	bool	horizontal;	// children are laid out vertically
+	int	x, y;		// position of this panel in parent
+	int	width, height;	// width and height of this area
+	int	splits;		// number of sub-panels
+	struct Panel *sub[MAX_SPLITS];// sub-panels
+	struct Panel *parent;	// parent panel
+};
+
 HWND		w;
 HWND		dlg;
 UINT		WM_FIND;
-int		width;
 int		height;
 float		dpi = 96.0f;
 BOOL		use_console = TRUE;
@@ -84,10 +96,6 @@ void		*double_buffer_data;
 PgFont		*ui_font;
 PgFont		*font[4];
 PgFont		*backing_fonts[8];
-int		status_bar_height = 24;
-int		tab_bar_height = 24;
-int		isearch_bar_height = 24;
-int		additional_bars;
 int		minimap_width = 128;
 int		tab_width;
 float		cursor_phase;
@@ -121,6 +129,13 @@ int		current_tab;
 struct symbol_t *symbols;
 int		symbol_count;
 
+Panel		window_panel = {.horizontal=false};
+Panel		code_panel;
+Panel		fuzzy_panel;
+Panel		status_panel = {.fixed=48};
+Panel		isearch_panel = {.fixed=48};
+Panel		tab_panel = {.fixed=48};
+
 FINDREPLACE	fr = {
 			sizeof fr, 0, 0,
 			FR_DOWN|FR_DIALOGTERM
@@ -134,16 +149,15 @@ WNDCLASSEX	wc = {
 
 static void recalculate_tab_width();
 static void recalculate_text_metrics();
-static void reserve_vertical_space(int amount);
 
 static
 px2line(int px) {
-	return max(0, (px - tab_bar_height) / TAB.line_height) + top;
+	return max(0, px / TAB.line_height) + top;
 }
 
 static
 line2px(int ln) {
-	return (ln-top)*TAB.line_height + tab_bar_height;
+	return (ln - top) * TAB.line_height;
 }
 
 static
@@ -180,6 +194,86 @@ px2ind(int ln, int x) {
 			? tab - (px + tab) % tab
 			: charwidth(txt[i]);
 	return i;
+}
+
+
+static void panel_resized(Panel *panel, int width, int height) {
+	panel->width = width;
+	panel->height = height;
+	int fixed = 0;
+	int even_panels = 0;
+	for (int i = 0; i < panel->splits; i++) {
+		fixed += panel->sub[i]->fixed;
+		even_panels += panel->sub[i]->fixed ? 0 : 1;
+	}
+	
+	if (panel->horizontal) {
+		int even_size = even_panels ? max(width - fixed, 0) / even_panels : 0;
+		int odd_scrap = even_size * even_panels != max(width - fixed, 0) ? 1 : 0;
+		int x = 0;
+		for (int i = 0; i < panel->splits; i++) {
+			Panel *p = panel->sub[i];
+			p->x = x;
+			p->y = 0;
+			p->height = height;
+			p->width = p->fixed ? p->fixed : even_size + odd_scrap;
+			if (p->fixed == 0) odd_scrap = 0;
+			x += p->width;
+		}
+	} else {
+		int even_size = even_panels ? max(height - fixed, 0) / even_panels : 0;
+		int odd_scrap = even_size * even_panels != max(height - fixed, 0) ? 1 : 0;
+		int y = 0;
+		for (int i = 0; i < panel->splits; i++) {
+			Panel *p = panel->sub[i];
+			p->x = 0;
+			p->y = y;
+			p->width = width;
+			p->height = p->fixed ? p->fixed : even_size + odd_scrap;
+			if (p->fixed == 0) odd_scrap = 0;
+			y += p->height;
+		}
+	}
+}
+static Panel *find_panel(Panel *panel, PgPt at, PgPt *out) {
+	if (panel->splits == 0) return *out = at, panel;
+	if (panel->horizontal)
+		for (int i = 1; i < panel->splits; i++)
+			if (at.x < panel->sub[i]->x) return *out = pgPt(at.x - panel->sub[i]->x, at.y), panel->sub[i];
+	else	for (int i = 1; i < panel->splits; i++)
+			if (at.y < panel->sub[i]->y) return *out = pgPt(at.x, at.y - panel->sub[i]->y), panel->sub[i];
+	return *out = at, panel->sub[0];
+}
+static void redraw_panel(Panel *panel) {
+}
+static void update_panel(Panel *panel) {
+	InvalidateRect(w, NULL, FALSE);
+}
+static void refresh_panel(Panel *panel) {
+	panel_resized(panel, panel->width, panel->height);
+	redraw_panel(panel);
+	update_panel(panel);
+}
+static void add_panel(Panel *parent, Panel *child) {
+	if (parent->splits < MAX_SPLITS) { parent->sub[parent->splits++] = child; child->parent = parent; }
+	refresh_panel(parent);
+}
+static bool remove_panel(Panel *parent, Panel *child) {
+	Panel *found = NULL;
+	for (int i = 0, j = 0; i < parent->splits; i++)
+		if (parent->sub[i] == child) {
+			parent->sub[i]->parent = NULL;
+			found = parent->sub[i];
+		} else parent->sub[j++] = parent->sub[i];
+	if (found) parent->splits--;
+	refresh_panel(parent);
+	return found != NULL;
+}
+static PgRect panel_area(Panel *panel) {
+	return pgRect(pgPt(panel->x, panel->y), pgPt(panel->x + panel->width, panel->y + panel->height));
+}
+static Pg *panel_canvas(Pg *parent_gs, Panel *panel) {
+	return pgSubsectionCanvas(parent_gs, panel_area(panel));
 }
 
 static void*
@@ -540,30 +634,30 @@ snap() {
 	return 0;
 }
 
+static void redraw_lines(int low, int high) {
+	if (mode != NORMAL_MODE) // line numbers don't mean anything in other modes
+		InvalidateRect(w, NULL, 0);
+	else	InvalidateRect(w,
+			&(RECT){
+				.left = code_panel.x,
+				.right = code_panel.x + code_panel.width,
+				.top = code_panel.y + line2px(low),
+				.top = code_panel.y + line2px(high + 1),
+			}, FALSE);
+}
+
 /*
  * Invalidate the given lines and update the display.
  * This comes packaged with snapping to the caret, so if
  * you don't want that, you should call InvalidateRect().
  */
-static
-invd(int lo, int hi) {
-	RECT	rt;
-	
+static void invd(int low, int high) {
 	snap();
-	if (mode != NORMAL_MODE) { // line numbers don't mean anything in other modes
-		InvalidateRect(w, NULL, 0);
-	} else {
-		rt.top=line2px(lo);
-		rt.bottom=line2px(hi+1);
-		rt.left=0;
-		rt.right=width;
-		InvalidateRect(w, &rt, 0);
-	}
+	redraw_lines(low, high);
 }
 
-static
-invdafter(int lo) {
-	invd(lo, BOT);
+static invdafter(int low) {
+	invd(low, BOT);
 }
 
 static
@@ -853,6 +947,7 @@ act(int action) {
 	}
 	
 	highlight_brace(TAB);
+	update_panel(&status_panel);
 	generalinvd(onlines, wassel, &lo, &hi);
 	return ok;
 }
@@ -890,6 +985,7 @@ actins(int c) {
 	else _actins(TAB.buf, c);
 
 	highlight_brace(TAB);
+	update_panel(&status_panel);
 	invd(LN, LN);
 	generalinvd(onlines, wassel, &lo, &hi);
 	return 1;
@@ -952,8 +1048,8 @@ void start_isearch() {
 	current_input->text = SLN ? copysel(TAB.buf) : wcsdup(L"");
 	current_input->length = wcslen(current_input->text);
 	current_input->cursor = current_input->length;
-	reserve_vertical_space(isearch_bar_height);
 	act(EndSelection);
+	add_panel(&window_panel, &isearch_panel);
 	invdafter(top);
 }
 void isearch_next_result() {
@@ -965,9 +1061,9 @@ bool isearch_before_key(struct input_t *input, int c, bool alt, bool ctl, bool s
 		isearch_next_result();
 		return false;
 	} else if (c == 27) {
-		reserve_vertical_space(-isearch_bar_height);
 		invdafter(top);
 		mode = NORMAL_MODE;
+		remove_panel(&window_panel, &isearch_panel);
 		return false;
 	}
 	return true;
@@ -1010,6 +1106,7 @@ void filter_fuzzy_search_list(wchar_t **out, wchar_t **in, wchar_t *request) {
 void start_fuzzy_search(wchar_t *initial_text) {
 	stop_cursor_blink();
 	mode = FUZZY_SEARCH_MODE;
+	add_panel(&window_panel, &fuzzy_panel);
 	current_input = &fuzzy_search_input;
 	if (current_input->text)
 		free(current_input->text);
@@ -1037,6 +1134,7 @@ void start_fuzzy_search(wchar_t *initial_text) {
 bool fuzzy_search_before_key(struct input_t *input, int c, bool alt, bool ctl, bool shift) {
 	if (c == '\r') {
 		mode = NORMAL_MODE;
+		remove_panel(&window_panel, &fuzzy_panel);
 		if (*input->text == ':') {
 			int line_number = separate_line_number(input->text);
 			if (line_number) {
@@ -1058,6 +1156,7 @@ bool fuzzy_search_before_key(struct input_t *input, int c, bool alt, bool ctl, b
 		start_cursor_blink();
 		invdafter(top);
 		mode = NORMAL_MODE;
+		remove_panel(&window_panel, &fuzzy_panel);
 		return false;
 	}
 	return true;
@@ -1523,7 +1622,7 @@ int wmkey(int c) {
 	return 0;
 }
 
-paintsel() {
+static void paintsel(Pg *gs) {
 	if (GetFocus() == w) {
 		float p0 = 0.10f, p1 = 1.0f, p2 = 1.0f, p3 = 1.0f, p4 = 1.0f, p5 = 0.10f;
 	
@@ -1543,7 +1642,7 @@ paintsel() {
 	}
 
 	if (!SLN)
-		return false;
+		return;
 	
 	Loc lo, hi;
 	ordersel(TAB.buf, &lo, &hi);
@@ -1555,8 +1654,8 @@ paintsel() {
 		int last_line_bottom = last_line_top + TAB.line_height;
 		int last_line_right = ind2px(hi.ln, hi.ind);
 		
-		PgRect r0 = pgRect(pgPt(first_line_left, first_line_top), pgPt(width, first_line_bottom + 0.5f));
-		PgRect r1 = pgRect(pgPt(TAB.total_margin, first_line_bottom), pgPt(width, last_line_top + 0.5f));
+		PgRect r0 = pgRect(pgPt(first_line_left, first_line_top), pgPt(code_panel.width, first_line_bottom + 0.5f));
+		PgRect r1 = pgRect(pgPt(TAB.total_margin, first_line_bottom), pgPt(code_panel.width, last_line_top + 0.5f));
 		PgRect r2 = pgRect(pgPt(TAB.total_margin, last_line_top), pgPt(last_line_right, last_line_bottom));
 		
 		pgClearSection(gs, r0.a, r0.b, conf.selbg);
@@ -1567,8 +1666,6 @@ paintsel() {
 			pgPt(ind2px(lo.ln, lo.ind), line2px(lo.ln)),
 			pgPt(ind2px(hi.ln, hi.ind), line2px(hi.ln) + TAB.line_height),
 			conf.selbg);
-
-	return true;
 }
 
 void blurtext(Pg *gs, int style, int x, int y, wchar_t *txt, int n, uint32_t fg) {
@@ -1622,15 +1719,11 @@ void blurtext(Pg *gs, int style, int x, int y, wchar_t *txt, int n, uint32_t fg)
 	}
 }
 
-paintstatus() {
+static void paintstatus(Pg *gs) {
 	wchar_t	buf[1024];
 	wchar_t *selmsg=L"%ls %d:%d of %d Sel %d:%d (%d %ls)";
 	wchar_t *noselmsg=L"%ls %d:%d of %d";
-	int	len;
-	
-	float top = height - status_bar_height;
-
-	len=swprintf(buf, 1024, SLN? selmsg: noselmsg,
+	swprintf(buf, 1024, SLN? selmsg: noselmsg,
 		TAB.filename,
 		LN, ind2col(TAB.buf, LN, IND),
 		NLINES,
@@ -1638,17 +1731,15 @@ paintstatus() {
 		ind2col(TAB.buf, SLN, SIND),
 		SLN==LN? abs(SIND-IND): abs(SLN-LN)+1,
 		SLN==LN? L"chars": L"lines");
-	
-	pgScaleFont(ui_font, global.ui_font_small_size * dpi / 72.0f, 0.0f);
-	float x = 4;
-	float y = top + status_bar_height / 2.0f - pgGetFontEm(ui_font) / 2.0f;
-	pgClearSection(gs, pgPt(0, top), pgPt(width, height), conf.chrome_bg);
-	pgFillString(gs, ui_font, x, y, buf, len, conf.chrome_fg);
+	float em = global.ui_font_small_size * dpi / 72.0f;
+	pgScaleFont(ui_font, em, 0.0f);
+	pgClearCanvas(gs, conf.chrome_bg);
+	pgFillString(gs, ui_font, 3, gs->height * 0.5f - em * 0.5f, buf, -1, conf.chrome_fg);
 }
 
 #include "re.h"
 
-paintline(Pg *gs, int x, int y, int line) {
+static void paintline(Pg *gs, int x, int y, int line) {
 	int	k,len,sect;
 	void	*txt = getb(TAB.buf,line,&len);
 	unsigned short *i = txt, *j = txt, *end = i + len;
@@ -1701,7 +1792,7 @@ paintline(Pg *gs, int x, int y, int line) {
 				&TAB.brace[i].c, 1, conf.brace_fg);
 }
 
-paintlines(Pg *gs, int first, int last) {
+static void paintlines(Pg *gs, int first, int last) {
 	int	line, _y=line2px(first);
 	
 	for (line=first; line<=last && line <= BOT; line++, _y += TAB.line_height)
@@ -1710,8 +1801,8 @@ paintlines(Pg *gs, int first, int last) {
 }
 
 void paint_minimap(Pg *full_canvas) {
-	PgPt a = pgPt(width - minimap_width, tab_bar_height + 3.0f);
-	PgPt b = pgPt(width - 3.0f, height - additional_bars);
+	PgPt a = pgPt(code_panel.width - minimap_width,  3.0f);
+	PgPt b = pgPt(code_panel.width - 3.0f, code_panel.height);
 	Pg *gs = pgSubsectionCanvas(full_canvas, pgRect(a, b));
 	float each_line = min(1.0f, (float)gs->height / NLINES);
 	float y = 0.0f;
@@ -1736,47 +1827,9 @@ void paint_minimap(Pg *full_canvas) {
 	pgFreeCanvas(gs);
 }
 
-void paint_normal_mode(PAINTSTRUCT *ps) {
-	int	i,n,y,x,len,first,last;
-	
-	first = px2line(ps->rcPaint.top);
-	last = px2line(ps->rcPaint.bottom);
-	
-	/* Clear the background */
-	pgClearSection(gs,
-		pgPt(ps->rcPaint.left-1, ps->rcPaint.top-1),
-		pgPt(ps->rcPaint.right+1, ps->rcPaint.bottom+1),
-		conf.bg);
-	
-	/* Draw odd line's background */
-	if (conf.bg2 != conf.bg) {
-		y=line2px(first);
-		for (i=first; i<=last; i++) {
-			if (i % 2)
-				pgClearSection(gs,
-					pgPt(0, y),
-					pgPt(width, y + TAB.line_height),
-					conf.bg2);
-			y += TAB.line_height;
-		}
-	}
-	
-	/* Clear the gutters */
-	pgClearSection(gs,
-		pgPt(0, 0),
-		pgPt(TAB.total_margin - 3, height),
-		conf.gutterbg);
-	pgClearSection(gs,
-		pgPt(width - TAB.total_margin + 3, 0),
-		pgPt(width, height),
-		conf.gutterbg);
-	pgClearSection(gs,
-		pgPt(0, line2px(LN)),
-		pgPt(width, line2px(LN) + TAB.line_height),
-		conf.current_line_bg);
-	
+void paint_tabs(Pg *gs) {
 	// Draw the tabs
-	pgClearSection(gs, pgPt(0, 0), pgPt(width, tab_bar_height), conf.gutterbg);
+	pgClearCanvas(gs, conf.gutterbg);
 	
 	pgScaleFont(ui_font, global.ui_font_small_size * dpi / 72.0f, 0.0f);
 	for (int i = 0; i < tab_count; i++) {
@@ -1787,7 +1840,7 @@ void paint_normal_mode(PAINTSTRUCT *ps) {
 		uint32_t colour = i == current_tab ? conf.chrome_active_bg : conf.chrome_inactive_bg;
 		
 		PgPath *path = pgNewPath();
-		pgMove(path, pgPt(left, tab_bar_height));
+		pgMove(path, pgPt(left, gs->height));
 		pgLine(path, pgPt(left, radius));
 		pgQuad(path,
 			pgPt(left, 0),
@@ -1796,7 +1849,7 @@ void paint_normal_mode(PAINTSTRUCT *ps) {
 		pgQuad(path,
 			pgPt(right, 0),
 			pgPt(right, radius));
-		pgLine(path, pgPt(right, tab_bar_height));
+		pgLine(path, pgPt(right, gs->height));
 		pgFillPath(gs, path, colour);
 		pgStrokePath(gs, path, 2.5f, 0xff000000);
 		pgFreePath(path);
@@ -1804,14 +1857,51 @@ void paint_normal_mode(PAINTSTRUCT *ps) {
 		wchar_t *name = wcsrchr(tabs[i].filename, '/') ? wcsrchr(tabs[i].filename, '/') + 1 : tabs[i].filename;
 		float measured = pgGetStringWidth(ui_font, name, -1);
 		float x_offset = 3.5f + left + (right - left) / 2.0f - measured / 2.0f;
-		float y_offset = tab_bar_height / 2.0f - pgGetFontEm(ui_font) / 2.0f;
+		float y_offset = gs->height / 2.0f - pgGetFontEm(ui_font) / 2.0f;
 		pgFillString(gs, ui_font,
 			x_offset, y_offset,
 			name, -1,
 			tabs[i].buf->changes ? conf.chrome_alert_fg : i == current_tab ? conf.chrome_active_fg : conf.chrome_inactive_fg);
 	}
+}
+
+void paint_normal_mode(PgRect dirty, Pg *gs) {
+	int	i,n,y,x,len,first,last;
 	
-	paintsel();
+	first = px2line(dirty.a.y);
+	last = px2line(dirty.b.y);
+	
+	/* Clear the background */
+	pgClearSection(gs, dirty.a, pgAddPt(dirty.b, pgPt(1.0f, 1.0f)), conf.bg);
+	
+	/* Draw odd line's background */
+	if (conf.bg2 != conf.bg) {
+		y=line2px(first);
+		for (i=first; i<=last; i++) {
+			if (i % 2)
+				pgClearSection(gs,
+					pgPt(0, y),
+					pgPt(code_panel.width, y + TAB.line_height),
+					conf.bg2);
+			y += TAB.line_height;
+		}
+	}
+	
+	/* Clear the gutters */
+	pgClearSection(gs,
+		pgPt(0, 0),
+		pgPt(TAB.total_margin - 3, code_panel.height),
+		conf.gutterbg);
+	pgClearSection(gs,
+		pgPt(code_panel.width - TAB.total_margin + 3, 0),
+		pgPt(code_panel.width, code_panel.height),
+		conf.gutterbg);
+	pgClearSection(gs,
+		pgPt(0, line2px(LN)),
+		pgPt(code_panel.width, line2px(LN) + TAB.line_height),
+		conf.current_line_bg);
+	
+	paintsel(gs);
 	
 	if (global.line_numbers)
 		for (int line = first; line < last; line++) {
@@ -1825,65 +1915,39 @@ void paint_normal_mode(PAINTSTRUCT *ps) {
 		}
 	
 	if (global.minimap) {
-		Pg *code_canvas = pgSubsectionCanvas(gs, pgRect(pgPt(0.0f, 0.0f), pgPt(width - minimap_width, height)));
+		Pg *code_canvas = pgSubsectionCanvas(gs, pgRect(pgPt(0.0f, 0.0f), pgPt(code_panel.width - minimap_width, code_panel.height)));
 		paintlines(code_canvas, first,last);
 		pgFreeCanvas(code_canvas);
 		paint_minimap(gs);
 	} else
 		paintlines(gs, first,last);
-	
-	paintstatus();
-	/* Get another DC to this window to draw
-	 * the status bar, which is probably outside
-	 * of the update region of the PAINTSTRUCT
-	 */
-	
-	HDC dc = GetDC(w);
-	BitBlt(dc,
-		0, height-TAB.line_height,
-		width, height,
-		double_buffer_dc,
-		0, height-TAB.line_height,
-		SRCCOPY);
-	BitBlt(dc,
-		0, 0,
-		width, tab_bar_height,
-		double_buffer_dc,
-		0, 0,
-		SRCCOPY);
-	ReleaseDC(w, dc);
 }
 
-void paint_isearch_mode(PAINTSTRUCT *ps) {
-	float top = height - status_bar_height - isearch_bar_height;
-	
-	paint_normal_mode(ps);
-	
-	pgClearSection(gs, pgPt(0, top), pgPt(width, top + isearch_bar_height), conf.fg);
-	
+void paint_isearch_mode(PgRect dirty, Pg *gs) {
+	pgClearCanvas(gs, conf.chrome_bg);
 	pgScaleFont(ui_font, global.ui_font_small_size* dpi / 72.0f, 0.0f);
 	float x_offset = 32.0f;
-	float y_offset = top + isearch_bar_height / 2.0f - pgGetFontEm(ui_font) / 2.0f;
+	float y_offset = gs->height / 2.0f - pgGetFontEm(ui_font) / 2.0f;
 	pgFillString(gs, ui_font,
 		x_offset, y_offset,
 		isearch_input.text,
 		isearch_input.length,
-		conf.bg);
+		conf.chrome_fg);
 }
 
-void paint_fuzzy_search_mode(PAINTSTRUCT *ps) {
-	pgClearSection(gs, pgPt(0, 0), pgPt(width, height), conf.chrome_bg);
+void paint_fuzzy_search_mode(PgRect dirty, Pg *gs) {
+	pgClearSection(gs, pgPt(0, 0), pgPt(code_panel.width, code_panel.height), conf.chrome_bg);
 	
 	pgScaleFont(ui_font, global.ui_font_large_size * dpi / 72.0f, 0.0f);
-	float x_offset = width * 1.0f / 4.0f;
-	float y = tab_bar_height;
+	float x_offset = code_panel.width * 1.0f / 4.0f;
+	float y = 0.0f;
 	float em = pgGetFontEm(ui_font);
 	
 	wchar_t *item_text = wcsstr(fuzzy_search_input.text, TAB.file_directory) ?
 		fuzzy_search_input.text + wcslen(TAB.file_directory) :
 		fuzzy_search_input.text;
 	
-	pgClearSection(gs, pgPt(x_offset, y), pgPt(width, y + em), conf.chrome_active_bg);
+	pgClearSection(gs, pgPt(x_offset, y), pgPt(code_panel.width, y + em), conf.chrome_active_bg);
 	pgFillString(gs, ui_font,
 		x_offset, y,
 		item_text, wcslen(item_text),
@@ -1895,19 +1959,41 @@ void paint_fuzzy_search_mode(PAINTSTRUCT *ps) {
 	float leading = em * 0.0125f;
 	pgFillString(gs, ui_font, x_offset - em, y, L">", -1, conf.chrome_active_fg);
 	for (int i = 0; i < fuzzy_count; i++) {
-		if (y >= height) break;
+		if (y >= code_panel.height) break;
 		wchar_t *txt = fuzzy_search_files[(i + fuzzy_index) % fuzzy_count];
 		pgFillString(gs, ui_font, x_offset, y + leading, txt, -1, i ? conf.chrome_fg : conf.chrome_active_fg);
 		y += em + leading * 2;
 	}
 }
 
-void paint(PAINTSTRUCT *ps) {
+void paint(PAINTSTRUCT *ps, Pg *gs) {
 	pgIdentity(gs);
 	
-	if (mode == NORMAL_MODE) paint_normal_mode(ps);
-	else if (mode == ISEARCH_MODE) paint_isearch_mode(ps);
-	else if (mode == FUZZY_SEARCH_MODE) paint_fuzzy_search_mode(ps);
+	Pg *tab_gs = panel_canvas(gs, &tab_panel);
+	paint_tabs(tab_gs);
+	pgFreeCanvas(tab_gs);
+	
+	Pg *status_gs = panel_canvas(gs, &status_panel);
+	paintstatus(status_gs);
+	pgFreeCanvas(status_gs);
+	
+	Pg *code_gs = panel_canvas(gs, &code_panel);
+	PgRect dirty = pgRect(
+		pgPt(ps->rcPaint.left - code_panel.x, ps->rcPaint.top - code_panel.y),
+		pgPt(ps->rcPaint.right - code_panel.x, ps->rcPaint.bottom - code_panel.y));
+	paint_normal_mode(dirty, code_gs);
+	pgFreeCanvas(code_gs);
+	
+	if (mode == ISEARCH_MODE) {
+		Pg *isearch_gs = panel_canvas(gs, &isearch_panel);
+		paint_isearch_mode(dirty, isearch_gs);
+		pgFreeCanvas(isearch_gs);
+	}
+	if (mode == FUZZY_SEARCH_MODE) {
+		Pg *fuzzy_gs = panel_canvas(gs, &fuzzy_panel);
+		paint_fuzzy_search_mode(dirty, fuzzy_gs);
+		pgFreeCanvas(fuzzy_gs);
+	}
 	
 	BitBlt(ps->hdc,
 		ps->rcPaint.left,
@@ -1930,7 +2016,7 @@ wmwheel(int clicks) {
 	if (vis<NLINES)
 		top = sat(1, top+dy, NLINES-vis+1);
 	
-	InvalidateRect(w, 0, 0);
+	refresh_panel(&code_panel);
 }
 
 wm_find() {
@@ -1951,34 +2037,34 @@ wm_find() {
 }
 
 void scroll_by_minimap(int x, int y) {
-	float total_height = height - tab_bar_height - additional_bars;
+	float total_height = code_panel.height;
 	float each_line = min(1.0f, total_height / NLINES);
 	int selected_line = y / each_line + 1;
 	int half_screen = (BOT - top) / 2;
 	top = sat(1, selected_line - half_screen, NLINES - vis + 1);
-	InvalidateRect(w, 0, 0);
+	refresh_panel(&code_panel);
 }
 
 void wm_click(int x, int y, bool left, bool middle, bool right) {
-	if (global.minimap && x >= width - minimap_width) {
-		scroll_by_minimap(x, y - tab_bar_height);
+	if (global.minimap && x >= code_panel.width - minimap_width) {
+		scroll_by_minimap(x, y);
 		SetCapture(w);
 		TAB.scrolling = true;
 		return;
 	}
 	TAB.scrolling = false;
-	if (y < tab_bar_height) {
-		int selected = x / tab_width;
-		if (middle) {
-			int old_tab = current_tab;
-			switch_tab(selected);
-			act(CloseTab);
-			if (old_tab != selected)
-				switch_tab(old_tab);
-		} else if (left)
-			switch_tab(selected);
-		return;
-	}
+//	if (y < tab_bar_height) {
+//		int selected = x / tab_width;
+//		if (middle) {
+//			int old_tab = current_tab;
+//			switch_tab(selected);
+//			act(CloseTab);
+//			if (old_tab != selected)
+//				switch_tab(old_tab);
+//		} else if (left)
+//			switch_tab(selected);
+//		return;
+//	}
 	TAB.click.ln=px2line(y);
 	TAB.click.ind=px2ind(TAB.click.ln, x);
 	gob(TAB.buf, TAB.click.ln, TAB.click.ind);
@@ -1992,7 +2078,7 @@ wm_drag(int x, int y) {
 	Loc	olo, ohi, lo, hi;
 	
 	if (TAB.scrolling) {
-		scroll_by_minimap(x, y - tab_bar_height);
+		scroll_by_minimap(x, y);
 		return 0;
 	}
 	
@@ -2023,7 +2109,7 @@ WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 			LARGE_INTEGER start, end, frequency;
 			QueryPerformanceCounter(&start);
 		#endif
-		paint(&ps);
+		paint(&ps, gs);
 		#ifdef TIME_PAINTING
 			QueryPerformanceCounter(&end);
 			QueryPerformanceFrequency(&frequency);
@@ -2058,8 +2144,7 @@ WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 
 	
 	case WM_SIZE:
-		width = (short) LOWORD(lparam);
-		height = (short) HIWORD(lparam);
+		panel_resized(&window_panel, (short) LOWORD(lparam), (short) HIWORD(lparam));
 		recalculate_text_metrics();
 		
 		/* Resize double-buffer */
@@ -2068,12 +2153,12 @@ WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 		{
 			BITMAPINFO info = {
 			{ sizeof info.bmiHeader,
-				width + 3 & ~3,
-				-height,
+				window_panel.width + 3 & ~3,
+				-window_panel.height,
 				1,
 				32,
 				0,
-				(width + 3 & ~3) * height * 4,
+				(window_panel.width + 3 & ~3) * window_panel.height * 4,
 				96,
 				96,
 				-1,
@@ -2088,7 +2173,7 @@ WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 				0);
 		}
 		gs->bmp = NULL;
-		pgResizeCanvas(gs, width + 3 & ~3, height);
+		pgResizeCanvas(gs, window_panel.width + 3 & ~3, window_panel.height);
 		gs->bmp = double_buffer_data;
 		recalculate_text_metrics();
 		SelectObject(double_buffer_dc, double_buffer_bmp);
@@ -2133,8 +2218,8 @@ WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 		return 0;
 	
 	case WM_TIMER:
-		InvalidateRect(w, &(RECT){.top=line2px(LN), .bottom=line2px(LN+1), .left=0, .right=width}, FALSE);
-		InvalidateRect(w, &(RECT){.top=line2px(last_cursor_line), .bottom=line2px(last_cursor_line+1), .left=0, .right=width}, FALSE);
+		redraw_lines(LN, LN);
+		redraw_lines(last_cursor_line, last_cursor_line);
 		last_cursor_line = LN;
 		cursor_phase += 0.1f;
 		if (cursor_phase > 1.0f) cursor_phase = 0.0f;
@@ -2252,14 +2337,9 @@ reinitlang() {
 	}
 }
 
-static void reserve_vertical_space(int amount) {
-	additional_bars += amount;
-	vis = (height - tab_bar_height - additional_bars) / TAB.line_height;
-}
-
 static void recalculate_tab_width() {
 	pgScaleFont(ui_font, global.ui_font_small_size * dpi / 72.0f, 0.0f);
-	tab_width = min(width / (tab_count ? tab_count : 1), 32 * pgGetCharWidth(ui_font, 'M'));
+	tab_width = min(code_panel.width / (tab_count ? tab_count : 1), 32 * pgGetCharWidth(ui_font, 'M'));
 }
 static void recalculate_text_metrics() {
 	float sy = conf.fontsz * TAB.magnification * dpi / 72.f;
@@ -2280,15 +2360,18 @@ static void recalculate_text_metrics() {
 	TAB.tab_px_width = TAB.em * file.tabc;
 	
 	TAB.total_margin = global.fixed_margin +
-			(global.center && global.line_width * TAB.em < width?
-				(width - global.line_width * TAB.em) / 2:
+			(global.center && global.line_width * TAB.em < code_panel.width?
+				(code_panel.width - global.line_width * TAB.em) / 2:
 				0);
+	vis = code_panel.height / TAB.line_height;
+	
+	// Adjust the size of panels
 	float small_line_height = global.ui_font_small_size* dpi / 72.0f * 1.5f;
-	isearch_bar_height = small_line_height;
-	status_bar_height = small_line_height;
-	tab_bar_height = small_line_height;
-	reserve_vertical_space(0);
+	isearch_panel.fixed = small_line_height;
+	tab_panel.fixed = small_line_height;
+	status_panel.fixed = small_line_height;
 	recalculate_tab_width();
+	panel_resized(&window_panel, window_panel.width, window_panel.height);
 }
 
 static
@@ -2410,16 +2493,17 @@ init() {
 
 int CALLBACK
 WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show) {
-
-
 	wchar_t	**argv;
 	MSG	msg;
 	int	argc;
+	
+	add_panel(&window_panel, &tab_panel);
+	add_panel(&window_panel, &code_panel);
+	add_panel(&window_panel, &status_panel);
 
 	defglobals();
 	config();
 	new_tab(newb());
-	reserve_vertical_space(status_bar_height);
 	defperfile();
 	init();
 
