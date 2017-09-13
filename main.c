@@ -1406,7 +1406,8 @@ normal:
 setsel(int yes) {
 	if (yes)
 		return act(StartSelection);
-	return act(EndSelection);
+	if (SLN) return act(EndSelection);
+	return 0;
 }
 
 int wmkey(int c) {
