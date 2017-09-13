@@ -2246,6 +2246,9 @@ reinitlang() {
 	s=lang.brace;
 	ZeroMemory(opentbl, sizeof opentbl);
 	ZeroMemory(closetbl, sizeof opentbl);
+	ZeroMemory(quote_table, sizeof quote_table);
+	for (wchar_t *s = lang.quotes; *s; s++)
+		quote_table[*s & 0xffff] = true;
 	for ( ; *s; s+=2) {
 		closetbl[s[0] & 0xffff] = s[1];
 		opentbl[s[1] & 0xffff] = s[0];

@@ -227,6 +227,8 @@ isbookmarked(Buf *b, int line) {
 }
 Scanner
 getscanner(Buf *b, int ln, int ind) {
+	if (b == NULL)
+		return (Scanner){.b=NULL, .ln=0, .ind=0, .c=0};
 	Scanner scan;
 	int len;
 	wchar_t *txt;
@@ -250,6 +252,7 @@ endscanner(Buf *b) {
 
 int
 forward(Scanner *scan) {
+	if (scan->b == NULL) return 0;
 	int len;
 	wchar_t *txt = getb(scan->b, scan->ln, &len);
 	
@@ -267,6 +270,7 @@ forward(Scanner *scan) {
 }
 int
 backward(Scanner *scan) {
+	if (scan->b == NULL) return 0;
 	int len;
 	wchar_t *txt = getb(scan->b, scan->ln, &len);
 	
@@ -283,19 +287,20 @@ backward(Scanner *scan) {
 Scanner
 matchbrace(Scanner scan, bool allow_back, bool allow_forward) {
 	wchar_t c;
+	bool in_quote = quote_table[scan.c];
 	Scanner s = scan;
 	if ((c = closetbl[s.c]) && allow_forward)
 		while (forward(&s))
-			if (s.c == c) 		return s;
-			else if (closetbl[s.c])	s = matchbrace(s, false, true);
-			else if (opentbl[s.c])	break;
+			if (s.c == c) 				return s;
+			else if (closetbl[s.c] && !in_quote)	s = matchbrace(s, false, true);
+			else if (opentbl[s.c] && !in_quote)	break;
 			else;
 	s = scan;
 	if ((c = opentbl[s.c]) && allow_back)
 		while (backward(&s))
-			if (s.c == c) 		return s;
-			else if (opentbl[s.c]) 	s = matchbrace(s, true, false);
-			else if (closetbl[s.c])	break;
+			if (s.c == c) 				return s;
+			else if (opentbl[s.c] && !in_quote)	s = matchbrace(s, true, false);
+			else if (closetbl[s.c] && !in_quote)	break;
 			else;
-	return endscanner(s.b);
+	return getscanner(NULL, 0, 0);
 }

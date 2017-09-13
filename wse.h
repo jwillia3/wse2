@@ -86,6 +86,7 @@ int		vis;
 char		brktbl[65536];
 wchar_t		opentbl[65536];
 wchar_t		closetbl[65536];
+bool		quote_table[65536];
 wchar_t		*latch;
 Codec		*codec;
 int		overwrite;

@@ -78,6 +78,7 @@ struct lang {
 	wchar_t		comment[128];
 	wchar_t		brk[128];
 	wchar_t		brace[128];
+	wchar_t		quotes[128];
 	wchar_t		kwd_re[KWD_MAX][256];
 	wchar_t		kwd_comp[KWD_MAX][256];
 	wchar_t		kwd_color[KWD_MAX];

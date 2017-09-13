@@ -78,6 +78,7 @@ static struct	field fields[] = {
 		{L"comment", String, &lang.comment},
 		{L"break", String, &lang.brk},
 		{L"brace", String, &lang.brace},
+		{L"quote", String, &lang.quotes},
 		{L"auto-close", Boolean, &lang.autoClose},
 		{L"type-over", Boolean, &lang.typeover},
 		{L"kwd", Keyword, 0},
@@ -212,6 +213,7 @@ deflang() {
 	wcscpy(lang.comment, L"");
 	wcscpy(lang.brk, L"~!@#$%^&*()-+={}[]\\|;:'\",.<>/?");
 	wcscpy(lang.brace, L"()[]{}");
+	wcscpy(lang.quotes, L"\"'");
 	memset(lang.kwd_re,0,sizeof lang.kwd_re);
 	memset(lang.kwd_comp,0,sizeof lang.kwd_comp);
 	memset(lang.kwd_color,0,sizeof lang.kwd_color);
