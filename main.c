@@ -18,6 +18,7 @@
 #include <shellapi.h>
 #include <commdlg.h>
 #include <math.h>
+#include <iso646.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -66,11 +67,16 @@ typedef struct Panel Panel;
 struct Panel {
 	int	fixed;		// fixed in major direction
 	bool	horizontal;	// children are laid out vertically
+	int	win_x,	win_y;	// position in window
 	int	x, y;		// position of this panel in parent
 	int	width, height;	// width and height of this area
 	int	splits;		// number of sub-panels
 	struct Panel *sub[MAX_SPLITS];// sub-panels
 	struct Panel *parent;	// parent panel
+	bool	(*clicked)(int x, int y);
+	bool	(*unclicked)(int x, int y);
+	bool	(*mouse_moved)(int x, int y);
+	bool	(*wheel_rolled)(int delta);
 };
 
 HWND		w;
@@ -129,12 +135,21 @@ int		current_tab;
 struct symbol_t *symbols;
 int		symbol_count;
 
+
+
+static bool code_wheel_rolled(int clicks);
+static bool code_clicked(int x, int y);
+static bool code_unclicked(int x, int y);
+static bool code_mouse_moved(int x, int y);
+
 Panel		window_panel = {.horizontal=false};
-Panel		code_panel;
+Panel		code_panel = {.wheel_rolled=code_wheel_rolled, .clicked=code_clicked, .unclicked=code_unclicked, .mouse_moved=code_mouse_moved};
 Panel		fuzzy_panel;
 Panel		status_panel = {.fixed=48};
 Panel		isearch_panel = {.fixed=48};
 Panel		tab_panel = {.fixed=48};
+Panel		*active_panel = &code_panel;
+
 
 FINDREPLACE	fr = {
 			sizeof fr, 0, 0,
@@ -218,6 +233,8 @@ static void panel_resized(Panel *panel, int width, int height) {
 			p->height = height;
 			p->width = p->fixed ? p->fixed : even_size + odd_scrap;
 			if (p->fixed == 0) odd_scrap = 0;
+			p->win_x = x + panel->win_x;
+			p->win_y = panel->win_y;
 			x += p->width;
 		}
 	} else {
@@ -231,18 +248,27 @@ static void panel_resized(Panel *panel, int width, int height) {
 			p->width = width;
 			p->height = p->fixed ? p->fixed : even_size + odd_scrap;
 			if (p->fixed == 0) odd_scrap = 0;
+			p->win_x = panel->win_x;
+			p->win_y = y + panel->win_y;
 			y += p->height;
 		}
 	}
+	for (int i = 0; i < panel->splits; i++)
+		panel_resized(panel->sub[i], panel->sub[i]->width, panel->sub[i]->height);
 }
-static Panel *find_panel(Panel *panel, PgPt at, PgPt *out) {
-	if (panel->splits == 0) return *out = at, panel;
+static Panel *px2panel(Panel *panel, int x, int y) {
+	if (panel->splits == 0) return panel;
+	Panel **xs = panel->sub;
 	if (panel->horizontal)
-		for (int i = 1; i < panel->splits; i++)
-			if (at.x < panel->sub[i]->x) return *out = pgPt(at.x - panel->sub[i]->x, at.y), panel->sub[i];
-	else	for (int i = 1; i < panel->splits; i++)
-			if (at.y < panel->sub[i]->y) return *out = pgPt(at.x, at.y - panel->sub[i]->y), panel->sub[i];
-	return *out = at, panel->sub[0];
+		for (int i = 0; i < panel->splits; i++)
+			if (x < xs[i]->win_x) return panel;
+			else if (x < xs[i]->win_x + xs[i]->width) return px2panel(xs[i], x, y);
+			else;
+	else	for (int i = 0; i < panel->splits; i++)
+			if (y < xs[i]->win_y) return panel;
+			else if (y < xs[i]->win_y + xs[i]->height) return px2panel(xs[i], x, y);
+			else;
+	return panel;
 }
 static void redraw_panel(Panel *panel) {
 }
@@ -2005,20 +2031,6 @@ void paint(PAINTSTRUCT *ps, Pg *gs) {
 		ps->rcPaint.top,
 		SRCCOPY);
 }
-
-wmwheel(int clicks) {
-	int	d, dy;
-
-	d=3;
-	SystemParametersInfo(SPI_GETWHEELSCROLLLINES, 0, &d, 0);
-	
-	dy=clicks * d / -WHEEL_DELTA;
-	if (vis<NLINES)
-		top = sat(1, top+dy, NLINES-vis+1);
-	
-	refresh_panel(&code_panel);
-}
-
 wm_find() {
 	if (fr.Flags&FR_DIALOGTERM) {
 		dlg=0;
@@ -2045,45 +2057,31 @@ void scroll_by_minimap(int x, int y) {
 	refresh_panel(&code_panel);
 }
 
-void wm_click(int x, int y, bool left, bool middle, bool right) {
-	if (global.minimap && x >= code_panel.width - minimap_width) {
-		scroll_by_minimap(x, y);
-		SetCapture(w);
-		TAB.scrolling = true;
-		return;
-	}
+// ~ CODE EVENT HANDLERS ~
+static bool code_clicked(int x, int y) {
 	TAB.scrolling = false;
-//	if (y < tab_bar_height) {
-//		int selected = x / tab_width;
-//		if (middle) {
-//			int old_tab = current_tab;
-//			switch_tab(selected);
-//			act(CloseTab);
-//			if (old_tab != selected)
-//				switch_tab(old_tab);
-//		} else if (left)
-//			switch_tab(selected);
-//		return;
-//	}
-	TAB.click.ln=px2line(y);
-	TAB.click.ind=px2ind(TAB.click.ln, x);
+	TAB.click.ln = px2line(y);
+	TAB.click.ind = px2ind(TAB.click.ln, x);
 	gob(TAB.buf, TAB.click.ln, TAB.click.ind);
 	act(EndSelection);
 	act(StartSelection);
 	SetCapture(w);
+	return true;
 }
-
-wm_drag(int x, int y) {
+static bool code_unclicked(int x, int y) {
+       TAB.scrolling = false;
+       TAB.click.ln = 0;
+       if (sameloc(&CAR, &SEL))
+               SLN = 0;
+       ReleaseCapture();
+       return true;
+}
+static bool code_mouse_moved(int x, int y) {
 	int	ln,ind;
 	Loc	olo, ohi, lo, hi;
 	
-	if (TAB.scrolling) {
-		scroll_by_minimap(x, y);
-		return 0;
-	}
-	
 	if (!TAB.click.ln)
-		return 0;
+		return true;
 	
 	ordersel(TAB.buf, &olo, &ohi);
 	
@@ -2093,7 +2091,17 @@ wm_drag(int x, int y) {
 	
 	ordersel(TAB.buf, &lo, &hi);
 	invd(min(lo.ln, olo.ln), max(hi.ln, ohi.ln));
-	return 1;
+	return true;
+}
+
+static bool code_wheel_rolled(int clicks) {
+	int lines = 3;
+	SystemParametersInfo(SPI_GETWHEELSCROLLLINES, 0, &lines, 0);
+	lines = clicks * lines / -WHEEL_DELTA;
+	if (vis < NLINES)
+		top = sat(1, top + lines, NLINES - vis + 1);
+	refresh_panel(&code_panel);
+	return true;
 }
 
 LRESULT CALLBACK
@@ -2181,32 +2189,35 @@ WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 		return 0;
 		
 	case WM_MOUSEWHEEL:
-		wmwheel((short) HIWORD(wparam));
+		{
+			int delta = (short)HIWORD(wparam);
+			POINT pt = {(short)LOWORD(lparam), (short)HIWORD(lparam)};
+			ScreenToClient(hwnd, &pt);
+			Panel *panel = px2panel(&window_panel, pt.x, pt.y);
+			if (panel)
+				for ( ; panel; panel = panel->parent)
+					if (panel->wheel_rolled and panel->wheel_rolled(delta))
+						return 0;
+		}
 		return 0;
 	
 	case WM_LBUTTONDOWN:
 	case WM_MBUTTONDOWN:
 	case WM_RBUTTONDOWN:
-		wm_click((short)LOWORD(lparam),
-			(short)HIWORD(lparam),
-			wparam & MK_LBUTTON,
-			wparam & MK_MBUTTON,
-			wparam & MK_RBUTTON);
+		for (Panel *p = active_panel; p; p = p->parent)
+			if (p->clicked and p->clicked((short)LOWORD(lparam) - p->win_x, (short)HIWORD(lparam) - p->win_y)) return 0;
 		return 0;
 	
 	case WM_MOUSEMOVE:
-		wm_drag((short)LOWORD(lparam),
-			(short)HIWORD(lparam));
+		for (Panel *p = active_panel; p; p = p->parent)
+			if (p->mouse_moved and p->mouse_moved((short)LOWORD(lparam) - p->win_x, (short)HIWORD(lparam) - p->win_y)) return 0;
 		return 0;
 		
 	case WM_LBUTTONUP:
 	case WM_MBUTTONUP:
 	case WM_RBUTTONUP:
-		TAB.scrolling = false;
-		TAB.click.ln=0;
-		if (sameloc(&CAR, &SEL))
-			SLN=0;
-		ReleaseCapture();
+		for (Panel *p = active_panel; p; p = p->parent)
+			if (p->unclicked and p->unclicked((short)LOWORD(lparam) - p->win_x, (short)HIWORD(lparam) - p->win_y)) return 0;
 		return 0;
 
 	case WM_LBUTTONDBLCLK:
