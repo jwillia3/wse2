@@ -2133,6 +2133,14 @@ WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 		act(LOWORD(wparam));
 		return 0;
 	
+	case WM_SETFOCUS:
+		start_cursor_blink();
+		return 0;
+		
+	case WM_KILLFOCUS:
+		stop_cursor_blink();
+		return 0;
+	
 	case WM_TIMER:
 		InvalidateRect(w, &(RECT){.top=line2px(LN), .bottom=line2px(LN+1), .left=0, .right=width}, FALSE);
 		InvalidateRect(w, &(RECT){.top=line2px(last_cursor_line), .bottom=line2px(last_cursor_line+1), .left=0, .right=width}, FALSE);
