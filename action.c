@@ -215,6 +215,15 @@ int delete_formatting_space(Buf *b, const wchar_t *txt, int start) {
 	}
 	return 0;
 }
+int insert_formatting_space(Buf *b, const wchar_t *txt, int start) {
+	int i;
+	for (i = start; txt[i] && !(txt[i] == ' ' && txt[i + 1] == ' '); i++);
+	if (txt[i]) {
+		insatb(b, i, ' ');
+		return 1;
+	}
+	return 0;
+}
 
 int _actins(Buf *b, int c) {
 	if (SLN)
@@ -647,8 +656,12 @@ int _act(Buf *b, int action) {
 		if ((n=skiptabspaces(b, txt,LN,IND,+1)) == file.tabc)
 			while (n-->0)
 				delb(b);
-		else
+		else {
+			wchar_t deleted = txt[IND];
 			delb(b);
+			if (deleted != ' ')
+				insert_formatting_space(b, txt, IND);
+		}
 		return 1;
 	
 	case BackspaceChar:
@@ -671,8 +684,12 @@ int _act(Buf *b, int action) {
 		if (IND+(n=skiptabspaces(b, txt,LN,IND,+1)) <= oldind && n)
 			while (n-->0)
 				delb(b);
-		else
+		else {
+			wchar_t deleted = txt[IND];
 			delb(b);
+			if (deleted != ' ')
+				insert_formatting_space(b, txt, IND);
+		}
 		return 1;
 	
 	case SpaceAbove:
@@ -790,7 +807,7 @@ int _act(Buf *b, int action) {
 			ordersel(b, &lo, &hi);
 			_act(b, EndSelection);
 			record(b, UndoSwap, lo.ln, hi.ln);
-			for (int i = lo.ln; i < hi.ln; i++) {
+			for (int i = lo.ln; i <= hi.ln; i++) {
 				gob(b, i, 0);
 				for (int i = 0; i < to_index; i++) delb(b);
 			}
@@ -806,7 +823,7 @@ int _act(Buf *b, int action) {
 			ordersel(b, &lo, &hi);
 			_act(b, EndSelection);
 			record(b, UndoSwap, lo.ln, hi.ln);
-			for (int i = lo.ln; i < hi.ln; i++) {
+			for (int i = lo.ln; i <= hi.ln; i++) {
 				gob(b, i, from_index);
 				while (delb(b));
 			}

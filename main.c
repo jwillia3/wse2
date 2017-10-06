@@ -1300,7 +1300,10 @@ wmchar(int c) {
 		return act(CopySelection);
 	
 	case 4: /* ^D */
-		return act(Duplicate);
+		if (shift)
+			return act(Duplicate);
+		else
+			return act(DeleteChar);
 		
 	case 5: /* ^E */
 		return act(MoveEnd);

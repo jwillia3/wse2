@@ -108,6 +108,16 @@ insb(Buf *b, int c) {
 	return 1;
 }
 
+insatb(Buf *b, int index, wchar_t c) {
+	int old = IND;
+	if (index > lenb(b, LN))
+		return 0;
+	IND = index;
+	insb(b, c);
+	IND = old;
+	return 1;
+}
+
 delatb(Buf *b, int index) {
 	Line	*l;
 	int	i;
