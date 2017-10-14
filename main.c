@@ -1212,8 +1212,7 @@ int wmsyskeydown(int c) {
 		act(ToggleMinimap);
 		return true;
 	case 'N':
-		new_file();
-		invdafter(top);
+		act(NewTab);
 		break;
 	case 'P':
 		start_fuzzy_search(L"");
@@ -1343,9 +1342,7 @@ wmchar(int c) {
 		return act(BreakLine);
 	
 	case 14: /* ^N */
-		new_file();
-		invdafter(top);
-		return true;
+		return act(NewTab);
 	
 	case 15: // ^O
 		return false;
