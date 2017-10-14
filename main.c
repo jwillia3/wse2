@@ -2298,10 +2298,9 @@ static void recalculate_text_metrics() {
 			(global.center && global.line_width * TAB.em < width?
 				(width - global.line_width * TAB.em) / 2:
 				0);
-	float small_line_height = global.ui_font_small_size* dpi / 72.0f * 1.5f;
-	isearch_bar_height = small_line_height;
-	status_bar_height = small_line_height;
-	tab_bar_height = small_line_height;
+	isearch_bar_height = TAB.line_height;
+	status_bar_height = TAB.line_height;
+	tab_bar_height = TAB.line_height;
 	reserve_vertical_space(0);
 	recalculate_tab_width();
 }
