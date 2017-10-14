@@ -103,6 +103,7 @@ struct tab_t {
 	int	em;
 	int	tab_px_width;
 	int	total_margin;
+	int	max_line_width;
 	BOOL	inhibit_auto_close;
 	bool	scrolling;
 	wchar_t	*filename;
@@ -249,6 +250,7 @@ int new_tab(Buf *b) {
 		.filename = wcsdup(L""),
 		.top = 1,
 		.file_settings = file,
+		.max_line_width = global.line_width,
 	};
 	current_tab = tab_count;
 	reinitconfig();
@@ -637,6 +639,20 @@ void highlight_brace() {
 	for (int i = 0; i < 4; i++)
 		invd(TAB.brace[i].ln, TAB.brace[i].ln);
 }
+void adjust_line_width(struct tab_t *tab) {
+	int new = 0;
+	for (int i = 1; i <= NLINES; i++)
+		new = max(new, lenb(tab->buf, i));
+	if (new > tab->max_line_width) {
+		tab->max_line_width = new + 10;
+		recalculate_text_metrics();
+		invdafter(top);
+	} else if (new < tab->max_line_width - 10) {
+		tab->max_line_width = max(new, global.line_width);
+		recalculate_text_metrics();
+		invdafter(top);
+	} 
+}
 
 act(int action) {
 	
@@ -853,6 +869,7 @@ act(int action) {
 	}
 	
 	highlight_brace(TAB);
+	adjust_line_width(&TAB);
 	generalinvd(onlines, wassel, &lo, &hi);
 	return ok;
 }
@@ -890,6 +907,7 @@ actins(int c) {
 	else _actins(TAB.buf, c);
 
 	highlight_brace(TAB);
+	adjust_line_width(&TAB);
 	invd(LN, LN);
 	generalinvd(onlines, wassel, &lo, &hi);
 	return 1;
@@ -2292,8 +2310,8 @@ static void recalculate_text_metrics() {
 	TAB.tab_px_width = TAB.em * file.tabc;
 	
 	TAB.total_margin = global.fixed_margin +
-			(global.center && global.line_width * TAB.em < width?
-				(width - global.line_width * TAB.em) / 2:
+			(global.center && TAB.max_line_width * TAB.em < width?
+				(width - TAB.max_line_width * TAB.em) / 2:
 				0);
 	isearch_bar_height = TAB.line_height;
 	status_bar_height = TAB.line_height;
