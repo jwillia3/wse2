@@ -53,6 +53,7 @@ static struct	field fields[] = {
 		{L"chrome-alert-fg", Color, &conf.chrome_alert_fg},
 		{L"select", Color, &conf.selbg},
 		{L"isearch", Color, &conf.isearchbg},
+		{L"bookmark-bg", Color, &conf.bookmarkbg},
 		{L"bookmark-fg", Color, &conf.bookmarkfg},
 		{L"current-line", Color, &conf.current_line_bg},
 		
@@ -403,7 +404,8 @@ void nice_colours_bg(void *colourp) {
 	conf.selbg = hsv_to_rgb(h, s, v >= .5? v - .1: v + .2);
 	conf.current_line_bg = hsv_to_rgb(h, s, v >= .5? v - .05: v + .1);
 	conf.isearchbg = hsv_to_rgb(h, s, v >= .5? v - .25: v + .25);
-	conf.bookmarkfg = hsv_to_rgb(fmod(h + 90, 360), s < 0.5f ? 0.5f : s * 0.25f, fg_v);
+	conf.bookmarkbg = hsv_to_rgb(fmod(h + 90, 360), s < 0.5f ? 0.5f : s * 0.25f, fg_v);
+	conf.bookmarkfg = hsv_to_rgb(fmod(h + 90, 360), s < 0.5f ? 0.5f : s * 0.25f, v);
 	conf.fg = hsv_to_rgb(h, s, fg_v);
 	nice_colours_fg(&conf.fg);
 	

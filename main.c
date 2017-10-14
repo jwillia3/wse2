@@ -1837,9 +1837,20 @@ void paint_normal_mode(PAINTSTRUCT *ps) {
 			bool		is_bookmarked = isbookmarked(TAB.buf, line);
 			unsigned	color = is_bookmarked ? conf.bookmarkfg : conf.fg;
 			wchar_t		buf[16];
-			wsprintf(buf, L"%c%6d  ", is_bookmarked ? '@' : ' ', line);
+			wsprintf(buf, L"%6d  ", line);
 			float		width = pgGetStringWidth(font[0], buf, -1);
 			float		x = TAB.total_margin - width;
+			if (is_bookmarked) {
+				char		svg[1024];
+				sprintf(svg, "M%g,%g h%g l%g,%g l%g,%g h%g Z",
+					x, (float)line2px(line), width * 3.0f / 4.0f, 
+					width * 1.0f / 4.0f, TAB.line_height / 2.0f,
+					-width * 1.0f / 4.0f, TAB.line_height / 2.0f,
+					-width * 3.0f / 4.0f);
+				PgPath		*arrow = pgInterpretSvgPath(NULL, svg);
+				pgFillPath(gs, arrow, conf.bookmarkbg);
+				pgFreePath(arrow);
+			}
 			pgFillString(gs, font[0], x, line2px(line) + (TAB.line_height - TAB.ascender_height) / 2.0f, buf, -1, color);
 		}
 	

@@ -18,6 +18,7 @@ struct conf {
 	int		brace_fg;
 	int		selbg;
 	int		isearchbg;
+	int		bookmarkbg;
 	int		bookmarkfg;
 	int		current_line_bg;
 	int		gutterbg;
