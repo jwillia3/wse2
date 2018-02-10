@@ -1839,6 +1839,9 @@ void paint_normal_mode(PAINTSTRUCT *ps) {
 			pgFillString(gs, font[0], x, line2px(line) + (TAB.line_height - TAB.ascender_height) / 2.0f, buf, -1, color);
 		}
 	
+	if (global.ruler)
+		pgStrokeVLine(gs, pgPt(TAB.total_margin + global.ruler * TAB.em, 0.0f), height, 0.5f, conf.fg);
+
 	if (global.minimap) {
 		Pg *code_canvas = pgSubsectionCanvas(gs, pgRect(pgPt(0.0f, 0.0f), pgPt(width - minimap_width, height)));
 		paintlines(code_canvas, first,last);

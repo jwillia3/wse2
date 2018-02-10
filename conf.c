@@ -89,6 +89,7 @@ static struct	field fields[] = {
 		{L"use-crlf", Boolean, &file.usecrlf},
 		
 		{L"line-width", Int, &global.line_width},
+		{L"ruler", Int, &global.ruler},
 		{L"alpha", Float, &global.alpha},
 		{L"gamma", Float, &global.gamma},
 		{L"gfx-flatness", Float, &global.gfx_flatness},
@@ -154,6 +155,7 @@ defglobals() {
 	global.alpha = .9;
 	global.gamma = 2.2;
 	global.line_width = 80;
+	global.ruler = 80;
 	global.gfx_flatness = 1.01f;
 	global.gfx_subsamples = 3.0f;
 	wcscpy(global.shell, L"cmd");

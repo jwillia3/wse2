@@ -53,6 +53,7 @@ struct file {
 } file;
 struct {
 	int		line_width;
+	int		ruler;
 	double		alpha;
 	double		gamma;
 	double		gfx_flatness;
