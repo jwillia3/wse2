@@ -156,6 +156,7 @@ defglobals() {
 	global.gamma = 2.2;
 	global.line_width = 80;
 	global.ruler = 80;
+	wcscpy(global.alignables, L"-> => = , :");
 	global.gfx_flatness = 1.01f;
 	global.gfx_subsamples = 3.0f;
 	wcscpy(global.shell, L"cmd");

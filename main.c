@@ -1193,7 +1193,10 @@ int wmsyskeydown(int c) {
 		switch_tab(c == '0' ? 9 : c - '1');
 		return true;
 	case 'A':
-		act(SelectAll);
+		if (shift)
+			act(AlignDelimiters);
+		else
+			act(SelectAll);
 		break;
 	case 'C':
 		return act(CopySelection);

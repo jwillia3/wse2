@@ -71,6 +71,7 @@ struct {
 	wchar_t		ui_font_name[128];
 	double		ui_font_small_size;
 	double		ui_font_large_size;
+	wchar_t		alignables[128];
 } global;
 
 struct lang {

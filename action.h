@@ -21,6 +21,7 @@ enum {
 	SpaceAbove,
 	SpaceBelow,
 	SpaceBoth,
+	AlignDelimiters,
 	
 	DeleteLine,
 	BreakLine,

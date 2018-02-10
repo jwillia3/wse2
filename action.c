@@ -512,6 +512,40 @@ static int skiptabspaces(Buf *b, wchar_t *txt, int ln, int ind, int dir) {
 	}
 }
 
+void align_delimiters(Buf *b, wchar_t *delims) {
+	if (*delims == 0) return;
+	wchar_t	tmp[128], *delim = tmp;
+	wcscpy(tmp, delims);
+	delim = wcstok(tmp, L" ");
+	Loc lo, hi;
+	ordersel(b, &lo, &hi);
+	int col = 0;
+	
+	do {
+		// Find one of the delimiters and find the greatest column it first occurs on
+		for (int ln = lo.ln; ln <= hi.ln; ln++) {
+			wchar_t *line = getb(b, ln, NULL);
+			wchar_t *found = wcsstr(line, delim);
+			if (found)
+				col = max(col, ind2col(b, ln, found - line));
+		}
+	} while (col == 0 && (delim = wcstok(NULL, L" ")));
+	
+	if (col) {
+		record(b, UndoSwap, lo.ln, hi.ln);
+		for (int ln = lo.ln; ln <= hi.ln; ln++) {
+			wchar_t *line = getb(b, ln, NULL);
+			wchar_t *found = wcsstr(line, delim);
+			if (found == NULL) continue;
+			gob(b, ln, found - line);
+			while (ind2col(b, ln, IND) < col) insb(b, L' ');
+		}
+		gob(b, lo.ln, lo.ind);
+		_act(b, StartSelection);
+		gob(b, hi.ln, hi.ind);
+	}
+}
+
 int _act(Buf *b, int action) {
 	Undo		*oldtop = b->undo;
 	int		indent, n, len, sel, oldln, oldind;
@@ -734,6 +768,10 @@ int _act(Buf *b, int action) {
 		autoindent(b, oldln+2, getindent(b, oldln+1));
 		
 		gob(b, oldln+1, oldind);
+		break;
+	
+	case AlignDelimiters:
+		align_delimiters(b, global.alignables);
 		break;
 	
 	case DeleteLine:
