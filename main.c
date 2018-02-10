@@ -1172,24 +1172,9 @@ int wmsyskeydown(int c) {
 		
 	int	ctl = GetAsyncKeyState(VK_CONTROL) & 0x8000;
 	int	shift = GetAsyncKeyState(VK_SHIFT) & 0x8000;
-	bool	altgr_char = false;
-	
-	if (GetAsyncKeyState(VK_RMENU) & 0x8000) {
-		unsigned key = MapVirtualKey(c, MAPVK_VK_TO_CHAR);
-		unsigned shifted = global.shift_altgr[key];
-		unsigned normal = global.altgr[key];
-		unsigned final = shift ? shifted : normal;
-		if (final) {
-			altgr_char = true;
-			c = final;
-		}
-	}
 		
 	if (mode == ISEARCH_MODE || mode == FUZZY_SEARCH_MODE)
 		return !wmkey_input(c, true, ctl, shift);
-	
-	if (altgr_char)
-		return wmchar(c);
 	
 	switch (c) {
 	case 13: // Alt + Return
