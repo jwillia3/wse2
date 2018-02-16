@@ -7,8 +7,7 @@
 #include "conf.h"
 #include "wse.h"
 #include "re.h"
-
-#define RGB(r,g,b) (((b&255)<<16)+((g&255)<<8)+(r&255))
+#include "colour.h"
 
 enum {
 	Boolean,
@@ -30,6 +29,7 @@ struct field {
 static wchar_t	font_spec[4096];
 static wchar_t	backing_font_spec[256*128];
 
+static unsigned init_colour(double l, double c, double h) { return export_rgb(lchuv_srgb((colour_t){l, c, h})); }
 void nice_colours_bg(void *colourp);
 void nice_colours_fg(void *colourp);
 void load_scheme(wchar_t *filename);
@@ -125,6 +125,8 @@ static struct	field fields[] = {
 		{L"dark-purple", Color, &scheme.color[5]},
 		{L"magenta", Color, &scheme.color[5]},
 		{L"dark-magenta", Color, &scheme.color[5]},
+		{L"aqua", Color, &scheme.color[6]},
+		{L"dark-aqua", Color, &scheme.color[6]},
 		{L"cyan", Color, &scheme.color[6]},
 		{L"dark-cyan", Color, &scheme.color[6]},
 		{L"teal", Color, &scheme.color[6]},
@@ -140,12 +142,19 @@ static struct	field fields[] = {
 		{L"yellow", Color, &scheme.color[11]},
 		{L"light-yellow", Color, &scheme.color[11]},
 		{L"bright-yellow", Color, &scheme.color[11]},
-		{L"light-blue", Color, &scheme.color[12]},
+		{L"light-gold", Color, &scheme.color[11]},
+		{L"bright-gold", Color, &scheme.color[11]},
+		{L"light-amber", Color, &scheme.color[11]},
+		{L"bright-amber", Color, &scheme.color[11]},
 		{L"bright-blue", Color, &scheme.color[12]},
 		{L"light-magenta", Color, &scheme.color[13]},
 		{L"bright-magenta", Color, &scheme.color[13]},
 		{L"light-purple", Color, &scheme.color[13]},
 		{L"bright-purple", Color, &scheme.color[13]},
+		{L"bright-aqua", Color, &scheme.color[14]},
+		{L"light-aqua", Color, &scheme.color[14]},
+		{L"bright-teal", Color, &scheme.color[14]},
+		{L"light-teal", Color, &scheme.color[14]},
 		{L"bright-cyan", Color, &scheme.color[14]},
 		{L"light-cyan", Color, &scheme.color[14]},
 		{L"white", Color, &scheme.color[15]},
@@ -181,28 +190,27 @@ defperfile() {
 	file.usecrlf = 0;
 	return 0;
 }
-static unsigned rgb(uint8_t r, uint8_t g, uint8_t b) {
-	return 0xff000000 + (r << 16) + (g << 8) + b;
-}
 static void defscheme() {
 	scheme = (struct scheme){
 		.filename = L"",
-		.color[0] = rgb(0, 0, 0),
-		.color[1] = rgb(194, 54, 33),
-		.color[2] = rgb(37, 188, 36),
-		.color[3] = rgb(173, 173, 39),
-		.color[4] = rgb(73, 46, 225),
-		.color[5] = rgb(211, 56, 211),
-		.color[6] = rgb(51, 187, 200),
-		.color[7] = rgb(203, 204, 205),
-		.color[8] = rgb(129, 131, 131),
-		.color[9] = rgb(252,57,31),
-		.color[10] = rgb(49, 231, 34),
-		.color[11] = rgb(234, 236, 35),
-		.color[12] = rgb(88, 51, 255),
-		.color[13] = rgb(249, 53, 248),
-		.color[14] = rgb(20, 240, 240),
-		.color[15] = rgb(233, 235, 235),
+		.color = {
+			init_colour(10.0, 0.0, 0.0),
+			init_colour(50.0, 75.0, 15.0),
+			init_colour(50.0, 75.0, 140.0),
+			init_colour(50.0, 75.0, 60.0),
+			init_colour(50.0, 75.0, 240.0),
+			init_colour(50.0, 75.0, 260.0),
+			init_colour(50.0, 75.0, 190.0),
+			init_colour(50.0, 0.0, 0.0),
+			init_colour(35.0, 0.0, 0.0),
+			init_colour(75.0, 75.0, 15.0),
+			init_colour(75.0, 75.0, 140.0),
+			init_colour(75.0, 75.0, 60.0),
+			init_colour(75.0, 75.0, 240.0),
+			init_colour(75.0, 75.0, 260.0),
+			init_colour(75.0, 75.0, 190.0),
+			init_colour(100.0, 0.0, 0.0),
+		},
 	};
 }
 
@@ -237,7 +245,7 @@ static void def_font() {
 static
 defconfig() {
 	memset(conf.style, 0, sizeof conf.style);
-	conf.bg = RGB(255,255,255);
+	conf.bg = export_rgb(lchuv_srgb((colour_t){100.0, 0.0, 0.0}));
 	nice_colours_bg(&conf.bg);
 	def_font();
 	*font_spec = 0;
@@ -338,82 +346,34 @@ directive(wchar_t *s) {
 	return 1;
 }
 
-static unsigned
-hsv_to_rgb(double h, double s, double v) {
-	double r,g,b, f, p,q,t;
-	while (h < 0)
-		h += 360;
-	h = fmod(h, 360);
-	h /= 60.0;
-	f = h - floor(h);
-	p = v * (1.0 - s);
-	q = v * (1.0 - s * f);
-	t = v * (1.0 - s * (1.0 - f));
-	if (h < 1.0) r=v, g=t, b=p;
-	else if (h < 2.0) r=q, g=v, b=p;
-	else if (h < 3.0) r=p, g=v, b=t;
-	else if (h < 4.0) r=p, g=q, b=v;
-	else if (h < 5.0) r=t, g=p, b=v;
-	else r=v, g=p, b=q;
-	return 0xff000000 +
-		((unsigned)(r*255)<<16)+
-		((unsigned)(g*255)<<8)+
-		((unsigned)(b*255));
-}
-
-static
-rgb_to_hsv(unsigned rgb, double *h, double *s, double *v) {
-	double b = (rgb & 255) / 255.0;
-	double g = (rgb >> 8 & 255) / 255.0;
-	double r = (rgb >> 16 & 255) / 255.0;
-	
-	double maxc = max(r, max(g, b));
-	double minc = min(r, min(g, b));
-	double c = maxc - minc;
-	
-	*h =60 * (c == 0? 0.0:
-		maxc == r? fmod((g - b) / c, 6.0):
-		maxc == g? (b - r) / c + 2.0:
-		(r-g)/c + 4.0);
-	*v = maxc;
-	*s = maxc? c / *v: 0.0;
-}
-
 void nice_colours_fg(unsigned *colour) {
-	int	i;
-	double 	h,s,v;
-	
-	rgb_to_hsv(*colour, &h, &s, &v);
-	
 	conf.fg = *colour;
-	conf.brace_fg = hsv_to_rgb(10, 1.0, 1.0);
-	for (i = 0; i < 8; i++)
+	colour_t c = srgb_lchuv(import_rgb(conf.fg));
+	conf.brace_fg = export_lchuv(adjust_lch(c, 0.0, 180.0, 0.0));
+	for (int i = 0; i < 8; i++)
 		conf.style[i].color = conf.fg;
 }
 void nice_colours_bg(void *colourp) {
-	unsigned	colour = *(unsigned*)colourp;
-	double		h,s,v, fg_v;
-	
-	rgb_to_hsv(colour, &h, &s, &v);
-	fg_v = v >= .5? v - .5: v + .5;
-	conf.bg = colour;
-	conf.bg2 = colour;
-	conf.gutterbg = hsv_to_rgb(h, s, v);
-	conf.selbg = hsv_to_rgb(h, s, v >= .5? v - .1: v + .2);
-	conf.current_line_bg = hsv_to_rgb(h, s, v >= .5? v - .05: v + .1);
-	conf.isearchbg = hsv_to_rgb(h, s, v >= .5? v - .25: v + .25);
-	conf.bookmarkbg = hsv_to_rgb(fmod(h + 90, 360), s < 0.5f ? 0.5f : s * 0.25f, fg_v);
-	conf.bookmarkfg = hsv_to_rgb(fmod(h + 90, 360), s < 0.5f ? 0.5f : s * 0.25f, v);
-	conf.fg = hsv_to_rgb(h, s, fg_v);
+	colour_t bg = srgb_lchuv(import_rgb(*(unsigned*)colourp));
+	colour_t fg = adjust_lch(bg, bg.l < 50 ? 30 : -30, 0.0, 0.0);
+	conf.bg = *(unsigned*)colourp;
+	conf.bg2 = conf.bg;
+	conf.fg = export_lchuv(fg);
 	nice_colours_fg(&conf.fg);
 	
-	conf.chrome_fg = hsv_to_rgb(0, 0, fg_v);
-	conf.chrome_bg = hsv_to_rgb(0, 0, v);
-	conf.chrome_inactive_bg = hsv_to_rgb(h, s, v);
-	conf.chrome_inactive_fg = hsv_to_rgb(h, s, v + (v < 0.5f ? 0.1f : -0.1f));
-	conf.chrome_active_bg = hsv_to_rgb(h, s, min(v + 0.2f, 1.0f));
-	conf.chrome_active_fg = hsv_to_rgb(h, s, v < 0.5f ? 1.0f : 0.0f);
-	conf.chrome_alert_fg = hsv_to_rgb(10, 1, 0.75f);
+	conf.gutterbg        = export_lchuv(adjust_lch(bg, -2.5, 0, 0));
+	conf.selbg           = export_lchuv(adjust_lch(bg, bg.l < 90 ? 10 : -10, -40, 180));
+	conf.current_line_bg = export_lchuv(adjust_lch(bg, bg.l < 95 ? 5 : -5, 0, 0));
+	conf.isearchbg       = export_lchuv((colour_t){100, 30, 90});
+	conf.bookmarkbg      = export_lchuv((colour_t){75, 100, 15});
+	conf.bookmarkfg      = export_lchuv((colour_t){50, 100, 15});
+	conf.chrome_bg       = export_lchuv((colour_t){90, 0, 0});
+	conf.chrome_fg       = export_lchuv((colour_t){50, 0, 0});
+	conf.chrome_inactive_bg = export_lchuv((colour_t){90, 0, 0});
+	conf.chrome_inactive_fg = export_lchuv((colour_t){75, 0, 0});
+	conf.chrome_active_bg = export_lchuv((colour_t){100, 0, 0});
+	conf.chrome_active_fg = export_lchuv((colour_t){50, 0, 0});
+	conf.chrome_alert_fg = export_lchuv((colour_t){50, 100, 15});
 }
 void load_scheme(wchar_t *filename) {
 	FILE *file = _wfopen(filename, L"r");
@@ -445,31 +405,38 @@ void load_scheme(wchar_t *filename) {
 static unsigned
 getcolor(wchar_t *arg, unsigned colour) {
 	wchar_t		name[128];
-	double		h, s, v; /* hue,chroma,luma */
-	double		y; /* luma (Y'601) */
-	int		r,g,b;
+	int		end;
+	colour_t	in = import_rgb(colour), a;
+	colour_t	(*colourspace)(colour_t) = lchuv_srgb;
 	
-	if (4 == swscanf(arg, L"%ls + %lf %lf %lf", name, &h,&s,&v)
-	 || 4 == swscanf(arg, L"%ls + hsl %lf %lf %lf", name, &h,&s,&v)) {
-		double oh, os, ov;
+	while (1 == swscanf(arg, L"%[a-zA-Z-]%n", &name, &end)) {
+		bool found = false;
+		arg += end;
 		struct field *f;
-		rgb_to_hsv(colour, &oh, &os, &ov);
 		for (f = fields; f->name; f++)
 			if (f->type == Color && !wcscmp(f->name, name)) {
-				rgb_to_hsv(*(unsigned*)f->ptr, &oh, &os, &ov);
+				in = import_rgb(*(unsigned*)f->ptr);
+				found = true;
 				break;
 			}
-		return hsv_to_rgb(fmod(oh+h,360), max(0,min(os+s,1)), max(0,min(v+ov,1)));
-	} else if (3 == swscanf(arg, L"%lf %lf %lf", &h,&s,&v)
-	 || 3 == swscanf(arg, L"hsl %lf %lf %lf", &h,&s,&v))
-		return hsv_to_rgb(h,s,v);
-	else if (3 == swscanf(arg, L"rgb %d %d %d", &r,&g,&b)
-	  || 3 == swscanf(arg, L"%02x%02x%02x", &r, &g, &b)) {
-		return 0xff000000+(r<<16)+(g<<8)+b;
-	} else for (struct field *f = fields; f->name; f++)
-		if (f->type == Color && !wcscmp(f->name, arg))
-			return *(unsigned*)f->ptr;
-	return colour;
+		if (!found)
+			colourspace =
+				!wcsicmp(name, L"lchuv") ? lchuv_srgb :
+				!wcsicmp(name, L"lchab") ? lchab_srgb :
+				!wcsicmp(name, L"luv") ? luv_srgb :
+				!wcsicmp(name, L"lab") ? lab_srgb :
+				!wcscmp(name, L"XYZ") ? xyz_srgb :
+				!wcsicmp(name, L"srgb") ? srgb_srgb :
+				!wcsicmp(name, L"rgb") ? rgb8_srgb :
+				NULL;
+	}
+	if (colourspace && 3 == swscanf(arg, L" + %lf %lf %lf", &a.x, &a.y, &a.z))
+		return export_rgb(colourspace((colour_t){in.x + a.x, in.y + a.y, in.z + a.z}));
+	if (colourspace && 3 == swscanf(arg, L" - %lf %lf %lf", &a.x, &a.y, &a.z))
+		return export_rgb(colourspace((colour_t){in.x - a.x, in.y - a.y, in.z - a.z}));
+	else if (colourspace && 3 == swscanf(arg, L"%lf %lf %lf", &in.x, &in.y, &in.z))
+		return export_rgb(colourspace(in));
+	return export_rgb(in);
 }
 
 static
