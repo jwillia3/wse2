@@ -127,7 +127,6 @@ static colour_t luv_lchuv(colour_t luv) {
 }
 static colour_t srgb_lchuv(colour_t rgb) { return luv_lchuv(xyz_luv(srgb_xyz(rgb))); }
 
-
 static colour_t xyz_lab(colour_t xyz) {
     double xr = xyz.x / D65.x;
     double yr = xyz.y / D65.y;
@@ -145,6 +144,7 @@ static colour_t lab_lchab(colour_t lab) {
     double h = atan2(lab.b, lab.a) * 180 / M_PI;
     return (colour_t){lab.l, c, h};
 }
+static colour_t srgb_lchab(colour_t rgb) { return lab_lchab(xyz_lab(srgb_xyz(rgb))); }
 static colour_t adjust_lch(colour_t lch, double l, double c, double h) {
     return (colour_t){
         clamp(0.0, lch.l + l, 100.0),

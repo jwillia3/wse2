@@ -348,32 +348,32 @@ directive(wchar_t *s) {
 
 void nice_colours_fg(unsigned *colour) {
 	conf.fg = *colour;
-	colour_t c = srgb_lchuv(import_rgb(conf.fg));
-	conf.brace_fg = export_lchuv(adjust_lch(c, 0.0, 180.0, 0.0));
+	colour_t c = srgb_lchab(import_rgb(conf.fg));
+	conf.brace_fg = export_lchab(adjust_lch(c, 0.0, 180.0, 0.0));
 	for (int i = 0; i < 8; i++)
 		conf.style[i].color = conf.fg;
 }
 void nice_colours_bg(void *colourp) {
-	colour_t bg = srgb_lchuv(import_rgb(*(unsigned*)colourp));
+	colour_t bg = srgb_lchab(import_rgb(*(unsigned*)colourp));
 	colour_t fg = adjust_lch(bg, bg.l < 50 ? 30 : -30, 0.0, 0.0);
 	conf.bg = *(unsigned*)colourp;
 	conf.bg2 = conf.bg;
-	conf.fg = export_lchuv(fg);
+	conf.fg = export_lchab(fg);
 	nice_colours_fg(&conf.fg);
 	
-	conf.gutterbg        = export_lchuv(adjust_lch(bg, -2.5, 0, 0));
-	conf.selbg           = export_lchuv(adjust_lch(bg, bg.l < 90 ? 10 : -10, -40, 180));
-	conf.current_line_bg = export_lchuv(adjust_lch(bg, bg.l < 95 ? 5 : -5, 0, 0));
-	conf.isearchbg       = export_lchuv((colour_t){100, 30, 90});
-	conf.bookmarkbg      = export_lchuv((colour_t){75, 100, 15});
-	conf.bookmarkfg      = export_lchuv((colour_t){50, 100, 15});
-	conf.chrome_bg       = export_lchuv((colour_t){90, 0, 0});
-	conf.chrome_fg       = export_lchuv((colour_t){50, 0, 0});
-	conf.chrome_inactive_bg = export_lchuv((colour_t){90, 0, 0});
-	conf.chrome_inactive_fg = export_lchuv((colour_t){75, 0, 0});
-	conf.chrome_active_bg = export_lchuv((colour_t){100, 0, 0});
-	conf.chrome_active_fg = export_lchuv((colour_t){50, 0, 0});
-	conf.chrome_alert_fg = export_lchuv((colour_t){50, 100, 15});
+	conf.gutterbg        = export_lchab(adjust_lch(bg, -2.5, 0, 0));
+	conf.selbg           = export_lchab(adjust_lch(bg, bg.l < 90 ? 10 : -10, -40, 180));
+	conf.current_line_bg = export_lchab(adjust_lch(bg, bg.l < 95 ? 5 : -5, 0, 0));
+	conf.isearchbg       = export_lchab((colour_t){100, 30, 90});
+	conf.bookmarkbg      = export_lchab((colour_t){75, 100, 15});
+	conf.bookmarkfg      = export_lchab((colour_t){50, 100, 15});
+	conf.chrome_bg       = export_lchab((colour_t){90, 0, 0});
+	conf.chrome_fg       = export_lchab((colour_t){50, 0, 0});
+	conf.chrome_inactive_bg = export_lchab((colour_t){90, 0, 0});
+	conf.chrome_inactive_fg = export_lchab((colour_t){75, 0, 0});
+	conf.chrome_active_bg = export_lchab((colour_t){100, 0, 0});
+	conf.chrome_active_fg = export_lchab((colour_t){50, 0, 0});
+	conf.chrome_alert_fg = export_lchab((colour_t){50, 100, 15});
 }
 void load_scheme(wchar_t *filename) {
 	FILE *file = _wfopen(filename, L"r");
@@ -407,7 +407,7 @@ getcolor(wchar_t *arg, unsigned colour) {
 	wchar_t		name[128];
 	int		end;
 	colour_t	in = import_rgb(colour), a;
-	colour_t	(*colourspace)(colour_t) = lchuv_srgb;
+	colour_t	(*colourspace)(colour_t) = lchab_srgb;
 	
 	while (1 == swscanf(arg, L"%[a-zA-Z-]%n", &name, &end)) {
 		bool found = false;
@@ -425,7 +425,7 @@ getcolor(wchar_t *arg, unsigned colour) {
 				!wcsicmp(name, L"lchab") ? lchab_srgb :
 				!wcsicmp(name, L"luv") ? luv_srgb :
 				!wcsicmp(name, L"lab") ? lab_srgb :
-				!wcscmp(name, L"XYZ") ? xyz_srgb :
+				!wcsicmp(name, L"xyz") ? xyz_srgb :
 				!wcsicmp(name, L"srgb") ? srgb_srgb :
 				!wcsicmp(name, L"rgb") ? rgb8_srgb :
 				NULL;
