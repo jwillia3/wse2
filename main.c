@@ -1717,7 +1717,12 @@ void paint_minimap(Pg *full_canvas) {
 }
 
 void paint_normal_mode(PAINTSTRUCT *ps) {
+	PgRect	clip = gs->clip;
 	int	i,n,y,x,len,first,last;
+	
+	gs->clip = pgRect(
+		pgPt(ps->rcPaint.left, ps->rcPaint.top),
+		pgPt(ps->rcPaint.right, ps->rcPaint.bottom));
 	
 	first = px2line(ps->rcPaint.top);
 	last = px2line(ps->rcPaint.bottom);
@@ -1826,6 +1831,7 @@ void paint_normal_mode(PAINTSTRUCT *ps) {
 	} else
 		paintlines(gs, first,last);
 	
+	gs->clip = pgRect(pgPt(0.0f, height - status_bar_height), pgPt(width, height));
 	paintstatus();
 	/* Get another DC to this window to draw
 	 * the status bar, which is probably outside
@@ -1846,6 +1852,8 @@ void paint_normal_mode(PAINTSTRUCT *ps) {
 		0, 0,
 		SRCCOPY);
 	ReleaseDC(w, dc);
+	
+	gs->clip = clip;
 }
 
 void paint_isearch_mode(PAINTSTRUCT *ps) {
