@@ -139,7 +139,9 @@ int		samerange(Loc *lo1, Loc *hi1, Loc *lo2, Loc *hi2),
 		cmploc(Loc *x, Loc *y),
 		ordersel(Buf *b, Loc *lo, Loc *hi),
 		col2ind(Buf *b, int ln, int col),
-		ind2col(Buf *b, int ln, int ind);
+		ind2col(Buf *b, int ln, int ind),
+		get_closing_brace(int c),
+		get_opening_brace(int c);
 
 Buf 		*newb();
 void		freeb(Buf *b);

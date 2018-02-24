@@ -16,6 +16,7 @@
 #include <Windows.h>
 #include <shellapi.h>
 #include <commdlg.h>
+#include <iso646.h>
 #include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -104,7 +105,6 @@ struct tab_t {
 	int	tab_px_width;
 	int	total_margin;
 	int	max_line_width;
-	BOOL	inhibit_auto_close;
 	bool	scrolling;
 	wchar_t	*filename;
 	wchar_t	file_directory[512];
@@ -874,42 +874,15 @@ act(int action) {
 	return ok;
 }
 
-actins(int c) {
-	int	ok, wassel, onlines;
-	Loc	lo,hi;
-	wchar_t	*txt, *brace;
-	
-	onlines=NLINES;
-	wassel=ordersel(TAB.buf, &lo, &hi);
-	
-	txt = getb(TAB.buf, LN, 0);
-	brace = wcschr(lang.brace, c);
-	if (brace && lang.autoClose && !TAB.inhibit_auto_close) {
-		BOOL closing = brace - lang.brace & 1;
-		
-		if (!closing && ordersel(TAB.buf, &lo, &hi)) {
-			act(EndSelection);
-			gob(TAB.buf, lo.ln, lo.ind);
-			_actins(TAB.buf, c);
-			gob(TAB.buf, hi.ln, hi.ind+1);
-			_actins(TAB.buf, brace[1]);
-		} else if (lang.typeover && txt[IND] == c)
-			act(MoveRight);
-		else if (closing)
-			_actins(TAB.buf, c);
-		else {
-			_actins(TAB.buf, c);
-			_actins(TAB.buf, brace[1]);
-			act(MoveLeft);
-		}
-	} else if (lang.typeover && brktbl[c & 0xffff] && txt[IND] == c && !iswspace(c))
-		act(MoveRight);
-	else _actins(TAB.buf, c);
-
+int actins(int c) {
+	Loc	lo, hi;
+	bool 	was_selecting = ordersel(TAB.buf, &lo, &hi);
+	int 	old_nlines = NLINES;
+	_actins(TAB.buf, c);
 	highlight_brace(TAB);
 	adjust_line_width(&TAB);
 	invd(LN, LN);
-	generalinvd(onlines, wassel, &lo, &hi);
+	generalinvd(old_nlines, was_selecting, &lo, &hi);
 	return 1;
 }
 
@@ -2062,15 +2035,9 @@ WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 		#endif
 		EndPaint(hwnd, &ps);
 		return 0;
-	
-	case WM_SYSKEYUP:
-		if (wparam == VK_MENU)
-			TAB.inhibit_auto_close ^= TRUE;
-		return 0;
 		
 	case WM_CHAR:
 		wmchar(wparam);
-		TAB.inhibit_auto_close = FALSE;
 		return 0;
 	
 	case WM_KEYDOWN:

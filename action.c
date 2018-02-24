@@ -10,6 +10,7 @@
  * multiple low-level operations. They call the low-level
  * routines to actually manipulate the buffer.
  */
+#include <iso646.h>
 #include <setjmp.h>
 #include <stdlib.h>
 #include <wchar.h>
@@ -226,15 +227,40 @@ int insert_formatting_space(Buf *b, const wchar_t *txt, int start) {
 }
 
 int _actins(Buf *b, int c) {
-	if (SLN)
-		_act(b, DeleteSelection);
-	if (c=='\n')
-		return _act(b, BreakLine);
+	Loc	lo, hi;
+	bool 	was_selecting = ordersel(b, &lo, &hi);
+	wchar_t	*txt = getb(b, LN, 0);
 	
-	record(b, UndoSwap, LN, LN);
-	if (!overwrite)
-		delete_formatting_space(b, getb(b, LN, 0), IND);
-	return instabb(b, c);
+	if (get_closing_brace(c) and was_selecting) {
+		record(b, UndoSwap, LN, SLN);
+		int same_line = lo.ln == hi.ln;
+		gob(b, lo.ln, lo.ind);
+		instabb(b, c);
+		gob(b, hi.ln, hi.ind + same_line);
+		instabb(b, get_closing_brace(c));
+		gob(b, lo.ln, lo.ind);
+		SEL = CAR;
+		gob(b, hi.ln, hi.ind + 1 + same_line);
+		return true;
+	} else if (lang.autoClose and get_closing_brace(c) and not get_closing_brace(txt[IND])) {
+		record(b, UndoSwap, LN, LN);
+		instabb(b, c);
+		instabb(b, get_closing_brace(c));
+		gob(b, LN, IND - 1);
+		return true;
+	} else if (lang.typeover and not was_selecting and get_opening_brace(c) and txt[IND] == c)
+		return _act(b, MoveRight);
+	else {
+		if (was_selecting)
+			_act(b, DeleteSelection);
+		if (c=='\n')
+			return _act(b, BreakLine);
+		
+		record(b, UndoSwap, LN, LN);
+		if (!overwrite)
+			delete_formatting_space(b, getb(b, LN, 0), IND);
+		return instabb(b, c);
+	}
 }
 
 static int isbrk(int c) {

@@ -1,4 +1,5 @@
 /* vim: set noexpandtab:tabstop=8 */
+#include <iso646.h>
 #include <stdlib.h>
 #include <wchar.h>
 #include "wse.h"
@@ -53,6 +54,15 @@ ind2col(Buf *b, int ln, int ind) {
 	for (i=0; i<ind; i++)
 		vc += nextcol(vc, txt[i]);
 	return vc;
+}
+
+int get_closing_brace(int c) {
+	wchar_t *x = wcschr(lang.brace, c);
+	return x and (x - lang.brace & 1) == 0 ? x[1] : 0;
+}
+int get_opening_brace(int c) {
+	wchar_t *x = wcschr(lang.brace, c);
+	return x and (x - lang.brace & 1) == 1 ? x[-1] : 0;
 }
 
 encodeutf8to(unsigned char *out, wchar_t *in, wchar_t *end) {
