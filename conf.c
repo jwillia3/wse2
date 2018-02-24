@@ -362,11 +362,11 @@ void nice_colours_bg(void *colourp) {
 	nice_colours_fg(&conf.fg);
 	
 	conf.gutterbg        = export_lchab(adjust_lch(bg, -2.5, 0, 0));
-	conf.selbg           = export_lchab(adjust_lch(bg, bg.l < 90 ? 10 : -10, -40, 180));
+	conf.selbg           = export_lchab((colour_t){75, 25, 120});
 	conf.current_line_bg = export_lchab(adjust_lch(bg, bg.l < 95 ? 5 : -5, 0, 0));
 	conf.isearchbg       = export_lchab((colour_t){100, 30, 90});
 	conf.bookmarkbg      = export_lchab((colour_t){75, 100, 15});
-	conf.bookmarkfg      = export_lchab((colour_t){50, 100, 15});
+	conf.bookmarkfg      = export_lchab((colour_t){25, 100, 15});
 	conf.chrome_bg       = export_lchab((colour_t){90, 0, 0});
 	conf.chrome_fg       = export_lchab((colour_t){50, 0, 0});
 	conf.chrome_inactive_bg = export_lchab((colour_t){90, 0, 0});
