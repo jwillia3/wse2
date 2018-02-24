@@ -57,11 +57,11 @@ ind2col(Buf *b, int ln, int ind) {
 }
 
 int get_closing_brace(int c) {
-	wchar_t *x = wcschr(lang.brace, c);
+	wchar_t *x = c ? wcschr(lang.brace, c) : 0;
 	return x and (x - lang.brace & 1) == 0 ? x[1] : 0;
 }
 int get_opening_brace(int c) {
-	wchar_t *x = wcschr(lang.brace, c);
+	wchar_t *x = c ? wcschr(lang.brace, c) : 0;
 	return x and (x - lang.brace & 1) == 1 ? x[-1] : 0;
 }
 
