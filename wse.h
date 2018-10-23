@@ -160,6 +160,7 @@ int		inslb(Buf *b, int ln, wchar_t *txt, int len),
 Scanner 	getscanner(Buf *b, int line, int ind),
 		endscanner(Buf *b),
 		startscanner(Buf *b),
-		matchbrace(Scanner scan, bool allow_back, bool allow_forward);
+		matchbrace(Scanner scan, bool allow_back, bool allow_forward),
+		backtoenclosingbrace(Scanner scan);
 		
 wchar_t*	getb(Buf *b, int ln, int *len);

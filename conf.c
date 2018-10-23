@@ -170,7 +170,7 @@ defglobals() {
 	global.gfx_subsamples = 3.0f;
 	wcscpy(global.shell, L"cmd");
 	global.fixed_margin = 0;
-	global.center = 1;
+	global.center = 0;
 	global.minimap = 0;
 	global.line_numbers = 1;
 	global.match_braces = 1;
@@ -289,8 +289,11 @@ static void expand_font(wchar_t *spec) {
 			conf.fontweight = value;
 		else if (!wcscmp(end, L"em"))
 			conf.leading = value;
-		else if (*part == ':')
-			conf.fontasp = wcstod(part+1, NULL);
+		else if (part[0] == '1' && part[1] == ':')
+			conf.fontasp = wcstod(part+2, NULL);
+		else if (!wcscmp(end, L":1"))
+			conf.fontasp = wcstod(part, NULL),
+			conf.fontasp = 1.0f / fabs(conf.fontasp ? conf.fontasp : 1.0f);
 		else if (!wcsicmp(part, L"italic")) /* italic style */
 			conf.fontitalic = 1;
 		else if (!wcsicmp(part, L"bold")) /* bold weight */
@@ -361,7 +364,7 @@ void nice_colours_bg(void *colourp) {
 	conf.fg = export_lchab(fg);
 	nice_colours_fg(&conf.fg);
 	
-	conf.gutterbg        = export_lchab(adjust_lch(bg, -2.5, 0, 0));
+	conf.gutterbg        = conf.bg;
 	conf.selbg           = export_lchab((colour_t){75, 25, 120});
 	conf.current_line_bg = export_lchab(adjust_lch(bg, bg.l < 95 ? 5 : -5, 0, 0));
 	conf.isearchbg       = export_lchab((colour_t){100, 30, 90});

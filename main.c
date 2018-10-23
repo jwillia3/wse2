@@ -631,6 +631,7 @@ void highlight_brace() {
 	TAB.brace[1] = (Scanner){0};
 	if (!global.match_braces) return;
 	Scanner start = getscanner(TAB.buf, LN, IND);
+	start = backtoenclosingbrace(start);
 	Scanner other = matchbrace(start, true, true);
 	if (other.c) {
 		TAB.brace[0] = start;
@@ -2285,8 +2286,7 @@ static void recalculate_text_metrics() {
 	TAB.line_height = TAB.ascender_height * conf.leading;
 	TAB.em = pgGetCharWidth(font[0], 'M');
 	TAB.tab_px_width = TAB.em * file.tabc;
-	
-	TAB.total_margin = global.fixed_margin +
+	TAB.total_margin = (global.fixed_margin + (global.line_numbers ? 8 : 0)) * TAB.em +
 			(global.center && TAB.max_line_width * TAB.em < width?
 				(width - TAB.max_line_width * TAB.em) / 2:
 				0);

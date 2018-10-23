@@ -294,6 +294,17 @@ backward(Scanner *scan) {
 		return scan->ln--, scan->ind = lenb(scan->b, scan->ln), backward(scan);
 	return scan->c = txt[--scan->ind];
 }
+
+Scanner
+backtoenclosingbrace(Scanner scan) {
+	Scanner s = scan;
+	while (backward(&s))
+		if (opentbl[s.c])	s = matchbrace(s, true, false);
+		else if (closetbl[s.c])	return s;
+		else;
+	return getscanner(NULL, 0, 0);
+}
+
 Scanner
 matchbrace(Scanner scan, bool allow_back, bool allow_forward) {
 	wchar_t c;
