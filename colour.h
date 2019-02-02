@@ -146,10 +146,26 @@ static colour_t lab_lchab(colour_t lab) {
 }
 static colour_t srgb_lchab(colour_t rgb) { return lab_lchab(xyz_lab(srgb_xyz(rgb))); }
 static colour_t adjust_lch(colour_t lch, double l, double c, double h) {
+    double newh = fmod(lch.h + h, 360.0);
     return (colour_t){
         clamp(0.0, lch.l + l, 100.0),
         clamp(0.0, lch.c + c, 100.0),
-        fmod(lch.h + h, 360.0)};
+        newh < 0? newh + 360.0: newh};
+}
+static colour_t enhance_l(colour_t lch, double factor) {
+    lch.l += (lch.l < 50? -1: 1) * fabs(factor) * (factor < 0? -1: 1) * 100;
+    return lch;
+}
+static colour_t clamp_l(colour_t lch, double low, double high) {
+    lch.l = clamp(low, lch.l, high);
+    return lch;
+}
+static colour_t clamp_c(colour_t lch, double low, double high) {
+    lch.c = clamp(low, lch.c, high);
+    return lch;
+}
+static colour_t clamp_lc(colour_t lch, double ll, double hl, double lc, double hc) {
+    return clamp_l(clamp_c(lch, lc, hc), ll, hl);
 }
 
 

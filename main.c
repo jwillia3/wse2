@@ -112,6 +112,7 @@ struct tab_t {
 	wchar_t	filename_extension[512];
 	struct file file_settings;
 	Scanner	brace[4];
+	Scanner	badbrace[2];
 } *tabs;
 struct symbol_t {
 	wchar_t *name;
@@ -631,6 +632,8 @@ void highlight_brace() {
 	TAB.brace[3] = TAB.brace[1];
 	TAB.brace[0] = (Scanner){0};
 	TAB.brace[1] = (Scanner){0};
+	TAB.badbrace[1] = TAB.badbrace[0];
+	TAB.badbrace[0] = (Scanner){0};
 	if (!global.match_braces) return;
 	Scanner start = getscanner(TAB.buf, LN, IND);
 	start = backtoenclosingbrace(start);
@@ -639,8 +642,12 @@ void highlight_brace() {
 		TAB.brace[0] = start;
 		TAB.brace[1] = other;
 	}
+	if (not other.c and closetbl[start.c & 0xffff])
+		TAB.badbrace[0] = start;
 	for (int i = 0; i < 4; i++)
 		invd(TAB.brace[i].ln, TAB.brace[i].ln);
+	for (int i = 0; i < 2; i++)
+		invd(TAB.badbrace[i].ln, TAB.badbrace[i].ln);
 }
 void adjust_line_width(struct tab_t *tab) {
 	int new = 0;
@@ -1646,6 +1653,23 @@ paintline(Pg *gs, int x, int y, int line) {
 				conf.isearchbg);
 	}
 	
+	for (Scanner *i = TAB.brace; i < TAB.brace + 2; i++)
+		if (line == i->ln && i->c) {
+			float x = ind2px(i->ln, i->ind);
+			float y = line2px(i->ln) + (TAB.line_height - TAB.ascender_height) / 2.0f;
+			float w = charwidth(i->c);
+			float h = TAB.line_height - (TAB.line_height - TAB.ascender_height);
+			pgClearSection(gs, pgPt(x, y), pgPt(x + w, y + h), conf.brace_bg);
+		}
+	for (Scanner *i = TAB.badbrace; i < TAB.badbrace + 1; i++)
+		if (line == i->ln && i->c) {
+			float x = ind2px(i->ln, i->ind);
+			float y = line2px(i->ln) + (TAB.line_height - TAB.ascender_height) / 2.0f;
+			float w = charwidth(i->c);
+			float h = TAB.line_height - (TAB.line_height - TAB.ascender_height);
+			pgClearSection(gs, pgPt(x, y), pgPt(x + w, y + h), conf.bad_brace_bg);
+		}
+	
 	while (j<end) {
 		/* Match a keyword  */
 		for (k=0,sect=0; k<lang.nkwd; k++) {
@@ -1677,11 +1701,7 @@ paintline(Pg *gs, int x, int y, int line) {
 	if (j>i)
 		blurtext(gs, conf.default_style, x,y, i, j-i, conf.fg);
 
-	for (int i = 0; i < 2; i++)
-		if (line == TAB.brace[i].ln && TAB.brace[i].c)
-			blurtext(gs, BOLD_STYLE, ind2px(TAB.brace[i].ln, TAB.brace[i].ind),
-				line2px(TAB.brace[i].ln) + (TAB.line_height-TAB.ascender_height)/2,
-				&TAB.brace[i].c, 1, conf.brace_fg);
+
 }
 
 paintlines(Pg *gs, int first, int last) {
@@ -2254,8 +2274,11 @@ reinitlang() {
 	ZeroMemory(opentbl, sizeof opentbl);
 	ZeroMemory(closetbl, sizeof opentbl);
 	ZeroMemory(quote_table, sizeof quote_table);
-	for (wchar_t *s = lang.quotes; *s; s++)
+	for (wchar_t *s = lang.quotes; *s; s++) {
 		quote_table[*s & 0xffff] = true;
+		closetbl[*s & 0xffff] = *s;
+		opentbl[*s & 0xffff] = *s;
+	}
 	for ( ; *s; s+=2) {
 		closetbl[s[0] & 0xffff] = s[1];
 		opentbl[s[1] & 0xffff] = s[0];

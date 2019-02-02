@@ -40,7 +40,8 @@ static struct	field fields[] = {
 		{L"bg", Color, &conf.bg, nice_colours_bg},
 		{L"bg2", Color, &conf.bg2},
 		{L"fg", Color, &conf.fg, nice_colours_fg},
-		{L"brace-fg", Color, &conf.brace_fg},
+		{L"brace-bg", Color, &conf.brace_bg},
+		{L"bad-brace-bg", Color, &conf.bad_brace_bg},
 		{L"gutter-bg", Color, &conf.gutterbg},
 		{L"gutter-fg", Color, &conf.gutterbg},
 		{L"chrome-bg", Color, &conf.chrome_bg},
@@ -354,13 +355,12 @@ directive(wchar_t *s) {
 void nice_colours_fg(unsigned *colour) {
 	conf.fg = *colour;
 	colour_t c = srgb_lchab(import_rgb(conf.fg));
-	conf.brace_fg = export_lchab(adjust_lch(c, 0.0, 180.0, 0.0));
 	for (int i = 0; i < 8; i++)
 		conf.style[i].color = conf.fg;
 }
 void nice_colours_bg(void *colourp) {
 	colour_t bg = srgb_lchab(import_rgb(*(unsigned*)colourp));
-	colour_t fg = adjust_lch(bg, bg.l < 50 ? 30 : -30, 0.0, 0.0);
+	colour_t fg = enhance_l(bg, -0.60);
 	conf.bg = *(unsigned*)colourp;
 	conf.bg2 = conf.bg;
 	conf.fg = export_lchab(fg);
@@ -369,6 +369,8 @@ void nice_colours_bg(void *colourp) {
 	conf.gutterbg        = conf.bg;
 	conf.selbg           = export_lchab((colour_t){75, 25, 120});
 	conf.current_line_bg = export_lchab(adjust_lch(bg, bg.l < 95 ? 5 : -5, 0, 0));
+	conf.brace_bg        = export_lchab(clamp_lc(adjust_lch(enhance_l(bg, -.25), 0, 0, -60.0), 20, 90, 20, 100));
+	conf.bad_brace_bg    = export_lchab(clamp_lc(adjust_lch(enhance_l(bg, -.25), 0, 0, 30.0), 20, 90, 20, 100));
 	conf.isearchbg       = export_lchab((colour_t){100, 30, 90});
 	conf.bookmarkbg      = export_lchab((colour_t){75, 100, 15});
 	conf.bookmarkfg      = export_lchab((colour_t){25, 100, 15});

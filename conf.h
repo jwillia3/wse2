@@ -15,7 +15,8 @@ struct conf {
 	int		bg;
 	int		fg;
 	int		bg2;
-	int		brace_fg;
+	int		brace_bg;
+	int		bad_brace_bg;
 	int		selbg;
 	int		isearchbg;
 	int		bookmarkbg;
