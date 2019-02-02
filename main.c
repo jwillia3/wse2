@@ -404,6 +404,8 @@ void save_file() {
 	TAB.buf->changes=0;
 	settitle(0);
 	reload_symbols(TAB.file_directory);
+	if (!wcscmp(TAB.filename, configfile))
+		act(ReloadConfig);
 }
 
 

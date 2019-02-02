@@ -30,10 +30,11 @@ static wchar_t	font_spec[4096];
 static wchar_t	backing_font_spec[256*128];
 
 static unsigned init_colour(double l, double c, double h) { return export_rgb(lchuv_srgb((colour_t){l, c, h})); }
-void nice_colours_bg(void *colourp);
-void nice_colours_fg(void *colourp);
-void load_scheme(wchar_t *filename);
-void expand_font(wchar_t *spec);
+static void nice_colours_bg(void *colourp);
+static void nice_colours_fg(void *colourp);
+static void load_scheme(wchar_t *filename);
+static void reset_scheme(wchar_t *ignored);
+static void expand_font(wchar_t *spec);
 static void expand_backing_fonts(wchar_t *spec);
 static struct	field fields[] = {
 		{L"bg", Color, &conf.bg, nice_colours_bg},
@@ -109,6 +110,7 @@ static struct	field fields[] = {
 		{L"cursor-overwrite-width", Float, &global.cursor_overwrite_width},
 		
 		{L"load-scheme", String, &scheme.filename, .exec=load_scheme},
+		{L"reset-scheme", String, &scheme.filename, .exec=reset_scheme},
 		{L"black", Color, &scheme.color[0]},
 		{L"red", Color, &scheme.color[1]},
 		{L"dark-red", Color, &scheme.color[1]},
@@ -378,7 +380,10 @@ void nice_colours_bg(void *colourp) {
 	conf.chrome_active_fg = export_lchab((colour_t){50, 0, 0});
 	conf.chrome_alert_fg = export_lchab((colour_t){50, 100, 15});
 }
-void load_scheme(wchar_t *filename) {
+static void reset_scheme(wchar_t *ignored) {
+	defscheme();
+}
+static void load_scheme(wchar_t *filename) {
 	FILE *file = _wfopen(filename, L"r");
 	if (!file) return;
 	char buf[1024];
