@@ -578,6 +578,7 @@ int _act(Buf *b, int action) {
 	int		undos;
 	Loc		lo, hi;
 	wchar_t		*txt;
+	Scanner		s;
 	
 	sel=SLN;
 
@@ -692,13 +693,25 @@ int _act(Buf *b, int action) {
 	case MoveEof:
 		return gob(b, NLINES, lenb(b, NLINES));
 		
-	case MoveBrace: {
-		Scanner s = matchbrace(getscanner(b, LN, IND), true, true);
+	case MoveBrace:
+		s = matchbrace(getscanner(b, LN, IND), true, true);
 		if (s.c == 0) return 0;
 		LN = s.ln;
 		IND = s.ind;
 		return 1;
-		}
+	case MoveOpen:
+		s = backtoenclosingbrace(getscanner(b, LN, IND));
+		if (s.c == 0) return 0;
+		LN = s.ln;
+		IND = s.ind;
+		return 1;
+	case MoveClose:
+		Scanner s = backtoenclosingbrace(getscanner(b, LN, IND));
+		s = matchbrace(s, false, true);
+		if (s.c == 0) return 0;
+		LN = s.ln;
+		IND = s.ind;
+		return 1;
 	
 	case ToggleOverwrite:
 		return overwrite = !overwrite;

@@ -13,6 +13,8 @@ enum {
 	MoveSof,
 	MoveEof,
 	MoveBrace,
+	MoveOpen,
+	MoveClose,
 	ToggleOverwrite,
 
 	DeleteChar,

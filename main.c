@@ -637,7 +637,7 @@ void highlight_brace() {
 	if (!global.match_braces) return;
 	Scanner start = getscanner(TAB.buf, LN, IND);
 	start = backtoenclosingbrace(start);
-	Scanner other = matchbrace(start, true, true);
+	Scanner other = matchbrace(start, false, true);
 	if (other.c) {
 		TAB.brace[0] = start;
 		TAB.brace[1] = other;
@@ -1373,6 +1373,12 @@ wmchar(int c) {
 		return act(UndoChange);
 	
 	case 27: /* ^[ Esc */
+		if (ctl)
+			return act(MoveOpen);
+		return 0;
+	case 29: /* ^] */
+		if (ctl)
+			return act(MoveClose);
 		return 0;
 	
 	case 127: /* ^Bksp */
