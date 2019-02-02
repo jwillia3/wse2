@@ -283,7 +283,7 @@ static void expand_font(wchar_t *spec) {
 		wchar_t *end;
 		float value = wcstod(part, &end);
 		
-		if (!wcscmp(end, L"pt"))
+		if (!wcscmp(end, L"pt") && value != 0.0f)
 			conf.fontsz = value;
 		else if (!wcscmp(end, L"w"))
 			conf.fontweight = value;
