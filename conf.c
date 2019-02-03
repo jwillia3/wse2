@@ -56,6 +56,9 @@ static struct	field fields[] = {
 		{L"bookmark-bg", Color, &conf.bookmarkbg},
 		{L"bookmark-fg", Color, &conf.bookmarkfg},
 		{L"current-line", Color, &conf.current_line_bg},
+		{L"grid-color", Color, &conf.grid_colour},
+		{L"grid-colour", Color, &conf.grid_colour},
+		{L"grid", Boolean, &global.grid_enabled},
 		
 		{L"style1", Style, &conf.style[0]},
 		{L"style2", Style, &conf.style[1]},
@@ -171,9 +174,10 @@ defglobals() {
 	wcscpy(global.alignables, L"-> => = , :");
 	global.gfx_flatness = 1.01f;
 	global.gfx_subsamples = 3.0f;
+	global.grid_enabled = true;
 	wcscpy(global.shell, L"cmd");
 	global.fixed_margin = 0;
-	global.center = 0;
+	global.center = 1;
 	global.minimap = 0;
 	global.line_numbers = 1;
 	global.match_braces = 1;
@@ -369,8 +373,9 @@ void nice_colours_bg(void *colourp) {
 	conf.gutterbg        = conf.bg;
 	conf.selbg           = export_lchab((colour_t){75, 25, 120});
 	conf.current_line_bg = export_lchab(adjust_lch(bg, bg.l < 95 ? 5 : -5, 0, 0));
-	conf.brace_bg        = export_lchab(clamp_lc(adjust_lch(enhance_l(bg, -.25), 0, 0, -60.0), 20, 90, 20, 100));
-	conf.bad_brace_bg    = export_lchab(clamp_lc(adjust_lch(enhance_l(bg, -.25), 0, 0, 30.0), 20, 90, 20, 100));
+	conf.brace_bg        = export_lchab(clamp_lc(adjust_lch(enhance_l(bg, -0.25), 0, 0, -60.0), 20, 90, 20, 100));
+	conf.bad_brace_bg    = export_lchab(clamp_lc(adjust_lch(enhance_l(bg, -0.25), 0, 0, 30.0), 20, 90, 20, 100));
+	conf.grid_colour     = export_lchab(enhance_l(bg, -0.05));
 	conf.isearchbg       = export_lchab((colour_t){100, 30, 90});
 	conf.bookmarkbg      = export_lchab((colour_t){75, 100, 15});
 	conf.bookmarkfg      = export_lchab((colour_t){25, 100, 15});

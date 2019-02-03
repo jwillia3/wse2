@@ -32,6 +32,7 @@ struct conf {
 	int		chrome_inactive_bg;
 	int		chrome_inactive_fg;
 	int		chrome_alert_fg;
+	int		grid_colour;
 	struct textstyle style[8];
 		
 	/* Font specifications */
@@ -59,6 +60,7 @@ struct {
 	double		gamma;
 	double		gfx_flatness;
 	double		gfx_subsamples;
+	int		grid_enabled;
 	wchar_t		shell[128];
 	int		fixed_margin;
 	int		line_numbers;

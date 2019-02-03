@@ -1749,6 +1749,17 @@ void paint_minimap(Pg *full_canvas) {
 	pgFreeCanvas(gs);
 }
 
+void vline(Pg *g, int x, int y, int height, uint32_t colour) {
+	uint32_t *buf = g->bmp + y * g->stride + x;
+	for (int i = 0; i < height; i++, buf += g->stride)
+		*buf = colour;
+}
+void hline(Pg *g, int x, int y, int width, uint32_t colour) {
+	uint32_t *buf = g->bmp + y * g->stride + x;
+	for (int i = 0; i < width; i++)
+		*buf++ = colour;
+}
+
 void paint_normal_mode(PAINTSTRUCT *ps) {
 	PgRect	clip = gs->clip;
 	int	i,n,y,x,len,first,last;
@@ -1792,6 +1803,19 @@ void paint_normal_mode(PAINTSTRUCT *ps) {
 		pgPt(0, line2px(LN)),
 		pgPt(width, line2px(LN) + TAB.line_height),
 		conf.current_line_bg);
+	
+	if (global.grid_enabled) {
+		int x1 = ps->rcPaint.left;
+		int x2 = ps->rcPaint.right;
+		int y1 = line2px(first);
+		int y2 = line2px(last);
+		int width = x2 - x1;
+		int height = y2 - y1;
+		for (int y = y1; y < y2; y += TAB.line_height)
+			hline(gs, x1, y, width, conf.grid_colour);
+		for (int x = x1; x < x2; x += TAB.line_height)
+			vline(gs, x, y1, height, conf.grid_colour);
+	}
 	
 	// Draw the tabs
 	pgClearSection(gs, pgPt(0, 0), pgPt(width, tab_bar_height), conf.gutterbg);
