@@ -1,5 +1,7 @@
 /* vim: set noexpandtab:tabstop=8 */
 
+//#define TIME_PAINTING 1
+
 #define WIN32_LEAN_AND_MEAN
 #define _WIN32_WINNT 0x0501
 #define STRICT
@@ -94,6 +96,8 @@ int		tab_width;
 float		cursor_phase;
 INT_PTR		cursor_timer;
 int		last_cursor_line;
+float		paint_times[65536];
+int		paint_cycles;
 struct tab_t {
 	Buf	*buf;
 	Loc	click;
@@ -2061,14 +2065,22 @@ WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 			char startPosition[64];
 			char endPosition[64];
 			char positionDifference[64];
+			double sample = (double)(end.QuadPart - start.QuadPart) / frequency.QuadPart;
+			double average = 0;
+			
+			paint_times[paint_cycles++ % 65536] = sample;
+			for (int i = 0; i < min(65536, paint_cycles); i++)
+				average += paint_times[i];
+			average /= min(max(1, paint_cycles), 65536);
+			
 			sprintf(startPosition, "(%d, %d)", ps.rcPaint.left, ps.rcPaint.top);
 			sprintf(endPosition, "(%d, %d)", ps.rcPaint.right, ps.rcPaint.bottom);
 			sprintf(positionDifference, "(%d, %d)",
 				ps.rcPaint.right - ps.rcPaint.left,
 				ps.rcPaint.bottom - ps.rcPaint.top);
-			printf("%-12s - %-12s %-12s %6.4fs\n",
+			printf("%-12s - %-12s %-12s cur: %6.4fs  avg: %6.4fs\n",
 				startPosition, endPosition, positionDifference,
-				(double)(end.QuadPart - start.QuadPart) / frequency.QuadPart);
+				sample, average);
 		#endif
 		EndPaint(hwnd, &ps);
 		return 0;
@@ -2166,6 +2178,9 @@ WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 		return 0;
 	
 	case WM_TIMER:
+		#ifdef TIME_PAINTING
+			InvalidateRect(w, NULL, FALSE);
+		#endif
 		InvalidateRect(w, &(RECT){.top=line2px(LN), .bottom=line2px(LN+1), .left=0, .right=width}, FALSE);
 		InvalidateRect(w, &(RECT){.top=line2px(last_cursor_line), .bottom=line2px(last_cursor_line+1), .left=0, .right=width}, FALSE);
 		last_cursor_line = LN;
