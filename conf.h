@@ -31,7 +31,6 @@ struct conf {
 	int		chrome_active_fg;
 	int		chrome_inactive_bg;
 	int		chrome_inactive_fg;
-	int		chrome_alert_fg;
 	int		grid_colour;
 	struct textstyle style[8];
 		

@@ -20,9 +20,16 @@ uint64_t platform_time_ms() {
 }
 
 wchar_t *platform_normalize_path(wchar_t *filename) {
-	for (wchar_t *p = filename; *p; p++)
-		if (*p == '\\')
-			*p = '/';
+	wchar_t *out = filename;
+	for (wchar_t *in = filename; *in; in++)
+		if (in[0] == '\\' && in[1] == '\\') {
+			*out++ = '/';
+			*in++;
+		} else if (in[0] == '\\')
+			*out++ = '/';
+		else
+			*out++ = *in;
+	*out = 0;
 	return filename;
 }
 

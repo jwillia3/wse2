@@ -50,7 +50,6 @@ static struct	field fields[] = {
 		{L"chrome-active-fg", Color, &conf.chrome_active_fg},
 		{L"chrome-inactive-bg", Color, &conf.chrome_inactive_bg},
 		{L"chrome-inactive-fg", Color, &conf.chrome_inactive_fg},
-		{L"chrome-alert-fg", Color, &conf.chrome_alert_fg},
 		{L"select", Color, &conf.selbg},
 		{L"isearch", Color, &conf.isearchbg},
 		{L"bookmark-bg", Color, &conf.bookmarkbg},
@@ -371,7 +370,7 @@ void nice_colours_bg(void *colourp) {
 	nice_colours_fg(&conf.fg);
 	
 	conf.gutterbg        = conf.bg;
-	conf.selbg           = export_lchab((colour_t){75, 25, 120});
+	conf.selbg           = export_lchab(clamp_c(adjust_lch(enhance_l(bg, -0.125), 0, 0, 270), 20, 100));
 	conf.current_line_bg = export_lchab(adjust_lch(bg, bg.l < 95 ? 5 : -5, 0, 0));
 	conf.brace_bg        = export_lchab(clamp_lc(adjust_lch(enhance_l(bg, -0.25), 0, 0, -60.0), 20, 90, 20, 100));
 	conf.bad_brace_bg    = export_lchab(clamp_lc(adjust_lch(enhance_l(bg, -0.25), 0, 0, 30.0), 20, 90, 20, 100));
@@ -379,13 +378,12 @@ void nice_colours_bg(void *colourp) {
 	conf.isearchbg       = export_lchab((colour_t){100, 30, 90});
 	conf.bookmarkbg      = export_lchab((colour_t){75, 100, 15});
 	conf.bookmarkfg      = export_lchab((colour_t){25, 100, 15});
-	conf.chrome_bg       = export_lchab((colour_t){90, 0, 0});
-	conf.chrome_fg       = export_lchab((colour_t){50, 0, 0});
-	conf.chrome_inactive_bg = export_lchab((colour_t){90, 0, 0});
-	conf.chrome_inactive_fg = export_lchab((colour_t){75, 0, 0});
-	conf.chrome_active_bg = export_lchab((colour_t){100, 0, 0});
-	conf.chrome_active_fg = export_lchab((colour_t){50, 0, 0});
-	conf.chrome_alert_fg = export_lchab((colour_t){50, 100, 15});
+	conf.chrome_bg       = export_lchab(bg);
+	conf.chrome_fg       = export_lchab(fg);
+	conf.chrome_inactive_bg = conf.chrome_bg;
+	conf.chrome_inactive_fg = conf.chrome_fg;
+	conf.chrome_active_bg = export_lchab(enhance_l(bg, -0.25));
+	conf.chrome_active_fg = export_lchab(enhance_l(fg, 0.25));
 }
 static void reset_scheme(wchar_t *ignored) {
 	defscheme();

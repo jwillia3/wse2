@@ -58,6 +58,13 @@ struct input_t {
 	void	(*after_key)(struct input_t *);
 };
 
+typedef struct {
+	wchar_t name[256];
+	wchar_t type[256];
+	wchar_t file_spec[256];
+	wchar_t one_liner[256];
+} Symbol;
+
 bool isearch_before_key(struct input_t *, int, bool, bool, bool);
 void isearch_after_key(struct input_t *);
 bool fuzzy_search_before_key(struct input_t *, int, bool, bool, bool);
@@ -117,15 +124,11 @@ struct tab_t {
 	struct file file_settings;
 	Scanner	brace[4];
 	Scanner	badbrace[2];
+	Symbol *symbols;
+	int symbol_count;
 } *tabs;
-struct symbol_t {
-	wchar_t *name;
-	wchar_t *file_spec;
-};
 int		tab_count;
 int		current_tab;
-struct symbol_t *symbols;
-int		symbol_count;
 
 FINDREPLACE	fr = {
 			sizeof fr, 0, 0,
@@ -235,6 +238,7 @@ void switch_tab(int to_tab) {
 	if (to_tab >= tab_count) to_tab = tab_count - 1;
 	current_tab = to_tab;
 	settitle(TAB.buf->changes);
+	SetCurrentDirectory(TAB.file_directory);
 	top = TAB.top;
 	file = TAB.file_settings;
 	reinitlang();
@@ -285,16 +289,16 @@ void close_tab() {
 void load_file_in_new_tab(wchar_t *filename_with_line_number);
 
 static int compare_symbol_name(const void *a, const void *b) {
-	return wcscmp(a, ((struct symbol_t*)b)[0].name);
+	return wcscmp(a, ((Symbol*)b)[0].name);
 }
 static int go_to_symbol(wchar_t *name) {
-	struct symbol_t *symbol = bsearch(name, symbols, symbol_count, sizeof *symbols, compare_symbol_name);
+	Symbol *symbol = bsearch(name, TAB.symbols, TAB.symbol_count, sizeof *TAB.symbols, compare_symbol_name);
 	if (symbol)
 		load_file_in_new_tab(symbol->file_spec);
 	return symbol != NULL;
 }
 static int compare_symbol(const void *a, const void *b) {
-	return wcscmp(((struct symbol_t*)a)[0].name, ((struct symbol_t*)b)[0].name);
+	return wcscmp(((Symbol*)a)[0].name, ((Symbol*)b)[0].name);
 }
 
 static void run_program(wchar_t *commandline) {
@@ -313,46 +317,62 @@ static void reload_symbols(wchar_t *directory) {
 	if (!directory)
 		return;
 	
+	if (
+		wcsicmp(TAB.filename_extension, L"c") &&
+		wcsicmp(TAB.filename_extension, L"h") &&
+		wcsicmp(TAB.filename_extension, L"cpp") &&
+		wcsicmp(TAB.filename_extension, L"cc") &&
+		wcsicmp(TAB.filename_extension, L"hh")
+	) return;
+	
 	// Call ctags to generate symbols
-//	wchar_t commandline[0x8000];
-//	swprintf(commandline, 0x8000, L"cmd /c ctags -xR %ls >%ls/tags", directory, directory);
-//	run_program(commandline);
-//	
-//	// Clear symbols
-//	for (int i = 0; i < symbol_count; i++) {
-//		free(symbols[i].name);
-//		free(symbols[i].file_spec);
-//	}
-//	symbol_count = 0;
-//	
-//	// Load the tags file
-//	wchar_t tags_filename[MAX_PATH];
-//	wsprintf(tags_filename, L"%ls/tags", directory);
-//	FILE *file = _wfopen(tags_filename, L"r");
-//	if (file) {
-//		char line[256];
-//		wchar_t name[256];
-//		char type[256];
-//		int line_number;
-//		wchar_t filename[256];
-//		wchar_t file_spec[MAX_PATH * 2];
-//		while (fgets(line, sizeof line, file)) {
-//			if (4 != sscanf(line, "%ls\t%s\t%d\t%ls\t", name, type, &line_number, filename))
-//				continue;
-//			GetFullPathName(filename, MAX_PATH * 2, file_spec, NULL);
-//			swprintf(file_spec, MAX_PATH * 2, L"%ls:%d", file_spec, line_number);
-//			symbols = realloc(symbols, (symbol_count + 2) * sizeof *symbols);
-//			symbols[symbol_count++] = (struct symbol_t){
-//				.name = wcsdup(name),
-//				.file_spec = platform_normalize_path(wcsdup(file_spec)),
-//			};
-//		}
-//		symbols[symbol_count] = (struct symbol_t){0,};
-//		if (symbol_count)
-//			qsort(symbols, symbol_count, sizeof *symbols, compare_symbol);
-//		fclose(file);
-//		unlink("tags");
-//	}
+	wchar_t commandline[0x8000];
+	swprintf(commandline, 0x8000, L"cmd /c ctags -xR %ls >%ls/tags", directory, directory);
+	run_program(commandline);
+	
+	// Load the tags file
+	wchar_t tags_filename[MAX_PATH];
+	wsprintf(tags_filename, L"%ls/tags", directory);
+	FILE *file = _wfopen(tags_filename, L"r");
+	if (file) {
+		Symbol *symbols = TAB.symbols;
+		int symbol_count = 0;
+		
+		symbol_count = 0;
+		free(symbols);
+		symbols = calloc(1, sizeof *symbols);
+		
+		char    line[1024];
+		wchar_t name[256];
+		wchar_t type[256];
+		wchar_t one_liner[256];
+		wchar_t filename[256];
+		wchar_t file_spec[256];
+		int     line_number;
+		while (fgets(line, sizeof line, file)) {
+			if (4 != sscanf(line, "%ls %ls %d %ls", name, type, &line_number, filename, one_liner))
+				continue;
+			
+			GetFullPathName(filename, 256, file_spec, NULL);
+			swprintf(file_spec, 256, L"%ls:%d", filename, line_number);
+			platform_normalize_path(file_spec);
+			
+			symbols = realloc(symbols, (symbol_count + 2) * sizeof *symbols);
+			Symbol *s = &symbols[symbol_count++];
+			
+			wcscpy(s->name, name);
+			wcscpy(s->type, type);
+			wcscpy(s->file_spec, file_spec);
+			wcscpy(s->one_liner, one_liner);
+		}
+		if (symbol_count)
+			qsort(symbols, symbol_count, sizeof *symbols, compare_symbol);
+		fclose(file);
+		
+		TAB.symbols = symbols;
+		TAB.symbol_count = symbol_count;
+		unlink("tags");
+	}
 }
 
 
@@ -991,7 +1011,6 @@ int separate_line_number(wchar_t *filename) {
 	*line_part = 0;
 	return line_number;
 }
-
 void filter_fuzzy_search_list(wchar_t **out, wchar_t **in, wchar_t *request) {
 	if (!in || !out) return;
 	
@@ -1048,6 +1067,8 @@ bool fuzzy_search_before_key(struct input_t *input, int c, bool alt, bool ctl, b
 				gob(TAB.buf, line_number, 0);
 				act(MoveHome);
 			}
+		} else if (*input->text == '@') {
+			go_to_symbol(input->text + 1);
 		} else if (fuzzy_search_files[0]) {
 			wchar_t spec[MAX_PATH + 1];
 			swprintf(spec, MAX_PATH + 1, L"%ls:%d",
@@ -1847,10 +1868,11 @@ void paint_normal_mode(PAINTSTRUCT *ps) {
 		float measured = pgGetStringWidth(ui_font, name, -1);
 		float x_offset = 3.5f + left + (right - left) / 2.0f - measured / 2.0f;
 		float y_offset = tab_bar_height / 2.0f - pgGetFontEm(ui_font) / 2.0f;
-		pgFillString(gs, ui_font,
-			x_offset, y_offset,
-			name, -1,
-			tabs[i].buf->changes ? conf.chrome_alert_fg : i == current_tab ? conf.chrome_active_fg : conf.chrome_inactive_fg);
+		float xx = tabs[i].buf->changes? charwidth('*'): 0;
+		colour = i == current_tab ? conf.chrome_active_fg : conf.chrome_inactive_fg;
+		if (tabs[i].buf->changes)
+			pgFillChar(gs, ui_font, x_offset, y_offset, '*', colour);
+		pgFillString(gs, ui_font, x_offset + xx, y_offset, name, -1, colour);
 	}
 	
 	paintsel();
