@@ -80,6 +80,7 @@ wchar_t		**fuzzy_search_files;
 wchar_t		**all_fuzzy_search_files;
 unsigned	fuzzy_index;
 unsigned	fuzzy_count;
+wchar_t 	*highlight_text = 0;
 Pg		*gs;
 HDC		double_buffer_dc;
 HBITMAP		double_buffer_bmp;
@@ -563,6 +564,19 @@ spawn_cmd() {
 		CloseHandle(pi.hThread);
 	}
 }
+void highlight_selection() {
+	free(highlight_text);
+	highlight_text = 0;
+	
+	if (SLN == LN and abs(SIND - IND) > 1) {
+		wchar_t *text = copysel(TAB.buf);
+		for (int ln = top; ln <= BOT; ln++)
+			if (wcsistr(getb(TAB.buf, ln, 0), text)) {
+				highlight_text = text;
+				invd(ln, ln);
+			}
+	}
+}
 void highlight_brace() {
 	TAB.brace[2] = TAB.brace[0];
 	TAB.brace[3] = TAB.brace[1];
@@ -814,6 +828,7 @@ act(int action) {
 		invdafter(top);
 	}
 	
+	highlight_selection(TAB);
 	highlight_brace(TAB);
 	adjust_line_width(&TAB);
 	generalinvd(onlines, wassel, &lo, &hi);
@@ -825,6 +840,7 @@ int actins(int c) {
 	bool 	was_selecting = ordersel(TAB.buf, &lo, &hi);
 	int 	old_nlines = NLINES;
 	_actins(TAB.buf, c);
+	highlight_selection(TAB);
 	highlight_brace(TAB);
 	adjust_line_width(&TAB);
 	invd(LN, LN);
@@ -1575,13 +1591,17 @@ paintline(Pg *gs, int x, int y, int line) {
 	void	*txt = getb(TAB.buf,line,&len);
 	unsigned short *i = txt, *j = txt, *end = i + len;
 	SIZE	size;
+	wchar_t	*highlight = mode == ISEARCH_MODE?
+		isearch_input.text:
+		highlight_text;
 	
-	if (mode == ISEARCH_MODE) {
+	if (highlight) {
 		wchar_t *i = txt;
-		for (i = txt; *i && (i = wcsistr(i, isearch_input.text)); i += current_input->length)
+		int len = wcslen(highlight);
+		for (i = txt; *i && (i = wcsistr(i, highlight)); i += len)
 			pgClearSection(gs,
 				pgPt(ind2px(line, i - txt), y - (TAB.line_height - TAB.ascender_height)/2),
-				pgPt(ind2px(line, i - txt + current_input->length), y - (TAB.line_height - TAB.ascender_height) / 2.0f + TAB.line_height),
+				pgPt(ind2px(line, i - txt + len), y - (TAB.line_height - TAB.ascender_height) / 2.0f + TAB.line_height),
 				conf.isearchbg);
 	}
 	
