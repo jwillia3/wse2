@@ -1769,7 +1769,7 @@ void paint_normal_mode(PAINTSTRUCT *ps) {
 		float measured = pgGetStringWidth(ui_font, name, -1);
 		float x_offset = 3.5f + left + (right - left) / 2.0f - measured / 2.0f;
 		float y_offset = tab_bar_height / 2.0f - pgGetFontEm(ui_font) / 2.0f;
-		float xx = tabs[i].buf->changes? charwidth('*'): 0;
+		float xx = tabs[i].buf->changes? pgGetCharWidth(ui_font, '*'): 0;
 		colour = i == current_tab ? conf.chrome_active_fg : conf.chrome_inactive_fg;
 		if (tabs[i].buf->changes)
 			pgFillChar(gs, ui_font, x_offset, y_offset, '*', colour);
