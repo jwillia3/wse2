@@ -58,13 +58,6 @@ struct input_t {
 	void	(*after_key)(struct input_t *);
 };
 
-typedef struct {
-	wchar_t name[256];
-	wchar_t type[256];
-	wchar_t file_spec[256];
-	wchar_t one_liner[256];
-} Symbol;
-
 bool isearch_before_key(struct input_t *, int, bool, bool, bool);
 void isearch_after_key(struct input_t *);
 bool fuzzy_search_before_key(struct input_t *, int, bool, bool, bool);
@@ -124,8 +117,6 @@ struct tab_t {
 	struct file file_settings;
 	Scanner	brace[4];
 	Scanner	badbrace[2];
-	Symbol *symbols;
-	int symbol_count;
 } *tabs;
 int		tab_count;
 int		current_tab;
@@ -288,19 +279,6 @@ void close_tab() {
 
 void load_file_in_new_tab(wchar_t *filename_with_line_number);
 
-static int compare_symbol_name(const void *a, const void *b) {
-	return wcscmp(a, ((Symbol*)b)[0].name);
-}
-static int go_to_symbol(wchar_t *name) {
-	Symbol *symbol = bsearch(name, TAB.symbols, TAB.symbol_count, sizeof *TAB.symbols, compare_symbol_name);
-	if (symbol)
-		load_file_in_new_tab(symbol->file_spec);
-	return symbol != NULL;
-}
-static int compare_symbol(const void *a, const void *b) {
-	return wcscmp(((Symbol*)a)[0].name, ((Symbol*)b)[0].name);
-}
-
 static void run_program(wchar_t *commandline) {
 	STARTUPINFO startup_info = { sizeof startup_info, };
 	PROCESS_INFORMATION process_info;
@@ -312,70 +290,6 @@ static void run_program(wchar_t *commandline) {
 		CloseHandle(process_info.hThread);
 	}
 }
-
-static void reload_symbols(wchar_t *directory) {
-	if (!directory)
-		return;
-	
-	if (
-		wcsicmp(TAB.filename_extension, L"c") &&
-		wcsicmp(TAB.filename_extension, L"h") &&
-		wcsicmp(TAB.filename_extension, L"cpp") &&
-		wcsicmp(TAB.filename_extension, L"cc") &&
-		wcsicmp(TAB.filename_extension, L"hh")
-	) return;
-	
-	// Call ctags to generate symbols
-	wchar_t commandline[0x8000];
-	swprintf(commandline, 0x8000, L"cmd /c ctags -xR %ls >%ls/tags", directory, directory);
-	run_program(commandline);
-	
-	// Load the tags file
-	wchar_t tags_filename[MAX_PATH];
-	wsprintf(tags_filename, L"%ls/tags", directory);
-	FILE *file = _wfopen(tags_filename, L"r");
-	if (file) {
-		Symbol *symbols = TAB.symbols;
-		int symbol_count = 0;
-		
-		symbol_count = 0;
-		free(symbols);
-		symbols = calloc(1, sizeof *symbols);
-		
-		char    line[1024];
-		wchar_t name[256];
-		wchar_t type[256];
-		wchar_t one_liner[256];
-		wchar_t filename[256];
-		wchar_t file_spec[256];
-		int     line_number;
-		while (fgets(line, sizeof line, file)) {
-			if (4 != sscanf(line, "%ls %ls %d %ls", name, type, &line_number, filename, one_liner))
-				continue;
-			
-			GetFullPathName(filename, 256, file_spec, NULL);
-			swprintf(file_spec, 256, L"%ls:%d", filename, line_number);
-			platform_normalize_path(file_spec);
-			
-			symbols = realloc(symbols, (symbol_count + 2) * sizeof *symbols);
-			Symbol *s = &symbols[symbol_count++];
-			
-			wcscpy(s->name, name);
-			wcscpy(s->type, type);
-			wcscpy(s->file_spec, file_spec);
-			wcscpy(s->one_liner, one_liner);
-		}
-		if (symbol_count)
-			qsort(symbols, symbol_count, sizeof *symbols, compare_symbol);
-		fclose(file);
-		
-		TAB.symbols = symbols;
-		TAB.symbol_count = symbol_count;
-		unlink("tags");
-	}
-}
-
-
 void new_file() {
 	TAB.buf->changes=0;
 	clearb(TAB.buf);
@@ -397,7 +311,6 @@ void load_file(wchar_t *filename_with_line_number) {
 	free(filename);
 	settitle(0);
 	TAB.file_settings = file;
-	reload_symbols(TAB.file_directory);
 	reinitconfig();
 	
 	
@@ -428,7 +341,6 @@ void save_file() {
 		MessageBox(w, L"Could not save", L"Error", MB_OK);
 	TAB.buf->changes=0;
 	settitle(0);
-	reload_symbols(TAB.file_directory);
 	if (!wcscmp(TAB.filename, configfile))
 		act(ReloadConfig);
 }
@@ -1067,8 +979,6 @@ bool fuzzy_search_before_key(struct input_t *input, int c, bool alt, bool ctl, b
 				gob(TAB.buf, line_number, 0);
 				act(MoveHome);
 			}
-		} else if (*input->text == '@') {
-			go_to_symbol(input->text + 1);
 		} else if (fuzzy_search_files[0]) {
 			wchar_t spec[MAX_PATH + 1];
 			swprintf(spec, MAX_PATH + 1, L"%ls:%d",
@@ -1230,15 +1140,6 @@ int wmsyskeydown(int c) {
 		break;
 	case 'P':
 		start_fuzzy_search(L"");
-		break;
-	case 'R':
-		if (!SLN)
-			_act(TAB.buf, SelectWord);
-		if (SLN) {
-			wchar_t *name = copysel(TAB.buf);
-			go_to_symbol(name);
-			free(name);
-		}
 		break;
 	case 'S':
 		save_file();
