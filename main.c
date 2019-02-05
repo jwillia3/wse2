@@ -568,6 +568,9 @@ void highlight_selection() {
 	free(highlight_text);
 	highlight_text = 0;
 	
+	if (not global.highlight_sel)
+		return;
+	
 	if (SLN == LN and abs(SIND - IND) > 1) {
 		wchar_t *text = copysel(TAB.buf);
 		for (int ln = top; ln <= BOT; ln++)
@@ -1676,18 +1679,24 @@ void paint_minimap(Pg *full_canvas) {
 	pgClearSection(gs,
 		pgPt(0.0f, each_line * top),
 		pgPt(gs->width, each_line * BOT),
-		conf.selbg);
+		conf.current_line_bg);
 	pgStrokeRect(gs,
 		pgPt(0.0f, each_line * top),
 		pgPt(gs->width, each_line * BOT),
 		3.0f,
-		conf.fg);
-	for (int i = 1; i <= NLINES; i++, y += each_line)
+		conf.chrome_fg);
+	float scale = gs->width / max(1.0f, longest_line);
+	for (int i = 1; i <= NLINES; i++, y += each_line) {
+		wchar_t *line = getb(TAB.buf, i, 0);
+		float x1 = wcsspn(line, L" \t") * scale;
+		float x2 = lenb(TAB.buf, i) * scale;
+		bool matches = highlight_text and wcsistr(line, highlight_text);
 		pgStrokeLine(gs,
-			pgPt(0, y),
-			pgPt(lenb(TAB.buf, i) / longest_line * gs->width, y),
-			each_line * 0.5f,
+			pgPt(x1, y),
+			pgPt(x2, y),
+			each_line * (matches? 3.0f: 0.5f),
 			conf.fg);
+	}
 	pgFreeCanvas(gs);
 }
 

@@ -104,6 +104,7 @@ static struct	field fields[] = {
 		{L"minimap", Boolean, &global.minimap},
 		{L"line-numbers", Boolean, &global.line_numbers},
 		{L"match-braces", Boolean, &global.match_braces},
+		{L"highlight-selection", Boolean, &global.highlight_sel},
 		{L"ui-font", String, &global.ui_font_name},
 		{L"ui-font-small-size", Float, &global.ui_font_small_size},
 		{L"ui-font-large-size", Float, &global.ui_font_large_size},
@@ -177,9 +178,10 @@ defglobals() {
 	wcscpy(global.shell, L"cmd");
 	global.fixed_margin = 0;
 	global.center = 1;
-	global.minimap = 0;
+	global.minimap = 1;
 	global.line_numbers = 1;
 	global.match_braces = 1;
+	global.highlight_sel = 1;
 	global.undo_time = 600;
 	global.cursor_fps = 30;
 	global.cursor_overwrite_width = 1.00f;

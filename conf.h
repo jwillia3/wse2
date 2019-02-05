@@ -66,6 +66,7 @@ struct {
 	int		center;
 	int		minimap;
 	int		match_braces;
+	int		highlight_sel;
 	int		undo_time;
 	int		cursor_fps;
 	double		cursor_overwrite_width;
