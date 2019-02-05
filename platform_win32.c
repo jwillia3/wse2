@@ -6,6 +6,7 @@
 #include <Windows.h>
 #pragma warning(pop)
 #include <io.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <wchar.h>
@@ -130,5 +131,40 @@ wcsistr(wchar_t *big, wchar_t *substring) {
 				return 0;
 			else if (towlower(*i) != towlower(*j))
 				break;
+	return 0;
+}
+
+wchar_t **platform_data_path() {
+	static wchar_t **cached;
+	if (cached)
+		return cached;
+	
+	wchar_t env[MAX_PATH];
+	int n = 0;
+	if (GetEnvironmentVariable(L"XDG_DATA_HOME", env, MAX_PATH)) {
+		wcscat(env, L"/wse");
+		platform_normalize_path(env);
+		cached = realloc(cached, (n + 2) * sizeof *cached);
+		cached[n++] = wcsdup(env);
+	}
+	if (GetModuleFileName(0, env, MAX_PATH)) {
+		platform_normalize_path(env);
+		*wcsrchr(env, '/') = 0;
+		cached = realloc(cached, (n + 2) * sizeof *cached);
+		cached[n++] = wcsdup(env);
+	}
+	cached[n] = 0;
+	return cached;
+}
+
+FILE *platform_open_any(wchar_t **paths, wchar_t *filename, wchar_t *mode) {
+	wchar_t full[MAX_PATH];
+	for (wchar_t **path = paths; *path; path++) {
+		wcscpy(full, *path);
+		wcscat(full, filename);
+		FILE *file = _wfopen(full, mode);
+		if (file)
+			return file;
+	}
 	return 0;
 }

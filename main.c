@@ -1777,8 +1777,6 @@ void paint_normal_mode(PAINTSTRUCT *ps) {
 		float right = tab_width * (i + 1);
 		float radius = 16;
 		
-		uint32_t colour = i == current_tab ? conf.chrome_active_bg : conf.chrome_inactive_bg;
-		
 		PgPath *path = pgNewPath();
 		pgMove(path, pgPt(left, tab_bar_height));
 		pgLine(path, pgPt(left, radius));
@@ -1790,7 +1788,7 @@ void paint_normal_mode(PAINTSTRUCT *ps) {
 			pgPt(right, 0),
 			pgPt(right, radius));
 		pgLine(path, pgPt(right, tab_bar_height));
-		pgFillPath(gs, path, colour);
+		pgFillPath(gs, path, conf.chrome_bg);
 		pgStrokePath(gs, path, 2.5f, 0xff000000);
 		pgFreePath(path);
 		
@@ -1799,10 +1797,9 @@ void paint_normal_mode(PAINTSTRUCT *ps) {
 		float x_offset = 3.5f + left + (right - left) / 2.0f - measured / 2.0f;
 		float y_offset = tab_bar_height / 2.0f - pgGetFontEm(ui_font) / 2.0f;
 		float xx = tabs[i].buf->changes? pgGetCharWidth(ui_font, '*'): 0;
-		colour = i == current_tab ? conf.chrome_active_fg : conf.chrome_inactive_fg;
 		if (tabs[i].buf->changes)
-			pgFillChar(gs, ui_font, x_offset, y_offset, '*', colour);
-		pgFillString(gs, ui_font, x_offset + xx, y_offset, name, -1, colour);
+			pgFillChar(gs, ui_font, x_offset, y_offset, '*', conf.chrome_fg);
+		pgFillString(gs, ui_font, x_offset + xx, y_offset, name, -1, conf.chrome_fg);
 	}
 	
 	paintsel();
@@ -1894,21 +1891,21 @@ void paint_fuzzy_search_mode(PAINTSTRUCT *ps) {
 		fuzzy_search_input.text + wcslen(TAB.file_directory) :
 		fuzzy_search_input.text;
 	
-	pgClearSection(gs, pgPt(x_offset, y), pgPt(width, y + em), conf.chrome_active_bg);
+	pgClearSection(gs, pgPt(x_offset, y), pgPt(width, y + em), conf.chrome_bg);
 	pgFillString(gs, ui_font,
 		x_offset, y,
 		item_text, wcslen(item_text),
-		conf.chrome_active_fg);
+		conf.chrome_fg);
 	y += pgGetFontEm(ui_font);
 
 	pgScaleFont(ui_font, global.ui_font_small_size* dpi / 72.0f, 0.0f);
 	em = pgGetFontEm(ui_font);
 	float leading = em * 0.0125f;
-	pgFillString(gs, ui_font, x_offset - em, y, L">", -1, conf.chrome_active_fg);
+	pgFillString(gs, ui_font, x_offset - em, y, L">", -1, conf.chrome_fg);
 	for (int i = 0; i < fuzzy_count; i++) {
 		if (y >= height) break;
 		wchar_t *txt = fuzzy_search_files[(i + fuzzy_index) % fuzzy_count];
-		pgFillString(gs, ui_font, x_offset, y + leading, txt, -1, i ? conf.chrome_fg : conf.chrome_active_fg);
+		pgFillString(gs, ui_font, x_offset, y + leading, txt, -1, conf.chrome_fg);
 		y += em + leading * 2;
 	}
 }

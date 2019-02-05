@@ -30,26 +30,23 @@ static wchar_t	font_spec[4096];
 static wchar_t	backing_font_spec[256*128];
 
 static unsigned init_colour(double l, double c, double h) { return export_rgb(lchuv_srgb((colour_t){l, c, h})); }
-static void nice_colours_bg(void *colourp);
-static void nice_colours_fg(void *colourp);
+static void pretty_colours_from_bg(void *_);
+static void pretty_fg(void *_);
+static void pretty_bg(void *_);
 static void load_scheme(wchar_t *filename);
 static void reset_scheme(wchar_t *ignored);
 static void expand_font(wchar_t *spec);
 static void expand_backing_fonts(wchar_t *spec);
 static struct	field fields[] = {
-		{L"bg", Color, &conf.bg, nice_colours_bg},
+		{L"bg", Color, &conf.bg, pretty_colours_from_bg},
 		{L"bg2", Color, &conf.bg2},
-		{L"fg", Color, &conf.fg, nice_colours_fg},
+		{L"fg", Color, &conf.fg, pretty_fg},
 		{L"brace-bg", Color, &conf.brace_bg},
 		{L"bad-brace-bg", Color, &conf.bad_brace_bg},
 		{L"gutter-bg", Color, &conf.gutterbg},
 		{L"gutter-fg", Color, &conf.gutterbg},
 		{L"chrome-bg", Color, &conf.chrome_bg},
 		{L"chrome-fg", Color, &conf.chrome_fg},
-		{L"chrome-active-bg", Color, &conf.chrome_active_bg},
-		{L"chrome-active-fg", Color, &conf.chrome_active_fg},
-		{L"chrome-inactive-bg", Color, &conf.chrome_inactive_bg},
-		{L"chrome-inactive-fg", Color, &conf.chrome_inactive_fg},
 		{L"select", Color, &conf.selbg},
 		{L"isearch", Color, &conf.isearchbg},
 		{L"bookmark-bg", Color, &conf.bookmarkbg},
@@ -254,7 +251,7 @@ static
 defconfig() {
 	memset(conf.style, 0, sizeof conf.style);
 	conf.bg = export_rgb(lchuv_srgb((colour_t){100.0, 0.0, 0.0}));
-	nice_colours_bg(&conf.bg);
+	pretty_colours_from_bg(&conf.bg);
 	def_font();
 	*font_spec = 0;
 	wcscpy(conf.backing_font[0], L"Consolas");
@@ -357,42 +354,55 @@ directive(wchar_t *s) {
 	return 1;
 }
 
-void nice_colours_fg(unsigned *colour) {
-	conf.fg = *colour;
-	colour_t c = srgb_lchab(import_rgb(conf.fg));
+static colour_t accent(colour_t c, double h) {
+	c = adjust_h(c, h);
+	c.c = clamp(10.0, c.c, 90.0);
+	c.l = clamp(20.0, c.l, 90.0);
+	return c;
+}
+
+static void pretty_fg(void *_) {
+	colour_t fg = srgb_lchab(import_rgb(conf.fg));
+	colour_t a1 = accent(fg, 120.0);
+	colour_t a2 = accent(fg, 240.0);
 	for (int i = 0; i < 8; i++)
 		conf.style[i].color = conf.fg;
+	conf.bookmarkfg      	= export_lchab(a1);
+	conf.chrome_fg       	= export_lchab(fg);
 }
-void nice_colours_bg(void *colourp) {
-	colour_t bg = srgb_lchab(import_rgb(*(unsigned*)colourp));
-	colour_t fg = enhance_l(bg, -0.60);
-	conf.bg = *(unsigned*)colourp;
+static void pretty_bg(void *_) {
+	colour_t bg = srgb_lchab(import_rgb(conf.bg));
+	colour_t a1 = accent(bg, 120.0);
+	colour_t a2 = accent(bg, 240.0);
 	conf.bg2 = conf.bg;
-	conf.fg = export_lchab(fg);
-	nice_colours_fg(&conf.fg);
 	
 	conf.gutterbg        = conf.bg;
-	conf.selbg           = export_lchab(clamp_c(adjust_lch(enhance_l(bg, -0.125), 0, 0, 270), 20, 100));
-	conf.current_line_bg = export_lchab(adjust_lch(bg, bg.l < 95 ? 5 : -5, 0, 0));
-	conf.brace_bg        = export_lchab(clamp_lc(adjust_lch(enhance_l(bg, -0.25), 0, 0, -60.0), 20, 90, 20, 100));
-	conf.bad_brace_bg    = export_lchab(clamp_lc(adjust_lch(enhance_l(bg, -0.25), 0, 0, 30.0), 20, 90, 20, 100));
+	conf.selbg           = export_lchab(a1);
+	conf.isearchbg       = export_lchab(a1);
 	conf.grid_colour     = export_lchab(enhance_l(bg, -0.05));
-	conf.isearchbg       = export_lchab((colour_t){100, 30, 90});
-	conf.bookmarkbg      = export_lchab((colour_t){75, 100, 15});
-	conf.bookmarkfg      = export_lchab((colour_t){25, 100, 15});
+	conf.current_line_bg = export_lchab(enhance_l(bg, -0.05));
+	conf.brace_bg        = export_lchab(enhance_l(a1, -0.125));
+	conf.bad_brace_bg    = export_lchab(enhance_l(a1, -0.25));
+	conf.bookmarkbg      = export_lchab(enhance_l(a2, -0.00));
 	conf.chrome_bg       = export_lchab(bg);
-	conf.chrome_fg       = export_lchab(fg);
-	conf.chrome_inactive_bg = conf.chrome_bg;
-	conf.chrome_inactive_fg = conf.chrome_fg;
-	conf.chrome_active_bg = export_lchab(enhance_l(bg, -0.25));
-	conf.chrome_active_fg = export_lchab(enhance_l(fg, 0.25));
+}
+void pretty_colours_from_bg(void *_) {
+	colour_t bg = srgb_lchab(import_rgb(conf.bg));
+	conf.fg = export_lchab(enhance_l(bg, -0.60));
+	pretty_fg(_);
+	pretty_bg(_);
 }
 static void reset_scheme(wchar_t *ignored) {
 	defscheme();
 }
 static void load_scheme(wchar_t *filename) {
-	FILE *file = _wfopen(filename, L"r");
+	wchar_t tmp[256];
+	wcscpy(tmp, L"/schemes/");
+	wcscat(tmp, filename);
+	wcscat(tmp, L".colorscheme");
+	FILE *file = platform_open_any(platform_data_path(), tmp, L"r");
 	if (!file) return;
+	
 	char buf[1024];
 	int current_colour = -10;
 	int r, g, b;
@@ -402,7 +412,7 @@ static void load_scheme(wchar_t *filename) {
 		else if (1 == sscanf(buf, "[Color%d]", &current_colour));
 		else if (!memcmp(buf, "[Background]", 12)) current_colour = -2;
 		else if (!memcmp(buf, "[Foreground]", 12)) current_colour = -1;
-		else if (3 == sscanf(buf, "Color=%d,%d,%d", &r, &g, &b)) {
+		else if (3 == sscanf(buf, " Color = %d , %d , %d ", &r, &g, &b)) {
 			unsigned colour_value = rgb(r, g, b);
 			if (current_colour >= 0 && current_colour < 16)
 				scheme.color[current_colour] = colour_value;
@@ -413,8 +423,10 @@ static void load_scheme(wchar_t *filename) {
 		} else current_colour = -10;
 	}
 	fclose(file);
-	nice_colours_bg(&scheme.bg);
-	nice_colours_fg(&scheme.fg);
+	conf.bg = scheme.bg;
+	conf.fg = scheme.fg;
+	pretty_fg(0);
+	pretty_bg(0);
 }
 
 static unsigned

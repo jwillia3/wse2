@@ -114,6 +114,8 @@ unsigned char*	encodeutf8(wchar_t *in, wchar_t *end);
 int		encodeutf8to(unsigned char *out, wchar_t *in, wchar_t *end);
 wchar_t*	decodeutf8(unsigned char *in, unsigned char *end);
 wchar_t*	wcsistr(wchar_t *big, wchar_t *substring);
+wchar_t 	**platform_data_path();
+FILE 		*platform_open_any(wchar_t **paths, wchar_t *filename, wchar_t *mode);
 
 int		_act(Buf *b, int action),
 		_actins(Buf *b, int c),

@@ -152,20 +152,18 @@ static colour_t adjust_lch(colour_t lch, double l, double c, double h) {
         clamp(0.0, lch.c + c, 100.0),
         newh < 0? newh + 360.0: newh};
 }
+static colour_t adjust_h(colour_t lch, double h) {
+    return adjust_lch(lch, 0, 0, h);
+}
 static colour_t enhance_l(colour_t lch, double factor) {
     lch.l += (lch.l < 50? -1: 1) * fabs(factor) * (factor < 0? -1: 1) * 100;
     return lch;
 }
-static colour_t clamp_l(colour_t lch, double low, double high) {
-    lch.l = clamp(low, lch.l, high);
-    return lch;
-}
-static colour_t clamp_c(colour_t lch, double low, double high) {
-    lch.c = clamp(low, lch.c, high);
-    return lch;
-}
-static colour_t clamp_lc(colour_t lch, double ll, double hl, double lc, double hc) {
-    return clamp_l(clamp_c(lch, lc, hc), ll, hl);
-}
 
+static colour_t scale_lc(colour_t lch, double l, double c) {
+    return (colour_t) {
+        clamp(0.0, (lch.l? lch.l * l: (l - 1.0) * 100.0), 100.0),
+        clamp(0.0, (lch.c? lch.c * c: (c - 1.0) * 100.0), 100.0),
+        lch.h };
+}
 
