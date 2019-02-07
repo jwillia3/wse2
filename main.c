@@ -1867,7 +1867,7 @@ void paint_isearch_mode(PAINTSTRUCT *ps) {
 	
 	paint_normal_mode(ps);
 	
-	pgClearSection(gs, pgPt(0, top), pgPt(width, top + isearch_bar_height), conf.fg);
+	pgClearSection(gs, pgPt(0, top), pgPt(width, top + isearch_bar_height), conf.isearchbg);
 	
 	pgScaleFont(ui_font, global.ui_font_small_size* dpi / 72.0f, 0.0f);
 	float x_offset = 32.0f;
@@ -1876,7 +1876,7 @@ void paint_isearch_mode(PAINTSTRUCT *ps) {
 		x_offset, y_offset,
 		isearch_input.text,
 		isearch_input.length,
-		conf.bg);
+		conf.fg);
 }
 
 void paint_fuzzy_search_mode(PAINTSTRUCT *ps) {
