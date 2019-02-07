@@ -863,7 +863,7 @@ int _act(Buf *b, int action) {
 		} else {
 			ordersel(b, &lo, &hi);
 			int count = hi.ln - lo.ln + 1;
-			record(b, UndoInsert, lo.ln + count, lo.ln + count * 2);
+			record(b, UndoInsert, lo.ln + count, lo.ln + count * 2 - 1);
 			for (int i = 0; i < count; i++) {
 				int len;
 				wchar_t *txt = getb(b, lo.ln + i, &len);
