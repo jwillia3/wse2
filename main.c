@@ -1724,8 +1724,8 @@ void paint_normal_mode(PAINTSTRUCT *ps) {
 	
 	/* Clear the background */
 	pgClearSection(gs,
-		pgPt(ps->rcPaint.left-1, ps->rcPaint.top-1),
-		pgPt(ps->rcPaint.right+1, ps->rcPaint.bottom+1),
+		pgPt(TAB.total_margin - 3, tab_bar_height),
+		pgPt(width - TAB.total_margin + 3, height),
 		conf.bg);
 	
 	/* Draw odd line's background */
@@ -1751,8 +1751,8 @@ void paint_normal_mode(PAINTSTRUCT *ps) {
 		pgPt(width, height),
 		conf.gutterbg);
 	pgClearSection(gs,
-		pgPt(0, line2px(LN)),
-		pgPt(width, line2px(LN) + TAB.line_height),
+		pgPt(TAB.total_margin - 3, line2px(LN)),
+		pgPt(width - TAB.total_margin + 3, line2px(LN) + TAB.line_height),
 		conf.current_line_bg);
 	
 	if (global.grid_enabled) {
@@ -1809,7 +1809,7 @@ void paint_normal_mode(PAINTSTRUCT *ps) {
 			bool		is_bookmarked = isbookmarked(TAB.buf, line);
 			unsigned	color = is_bookmarked ? conf.bookmarkfg : conf.fg;
 			wchar_t		buf[16];
-			wsprintf(buf, L"%6d  ", line);
+			wsprintf(buf, L"%ls%6d ", line == LN? L">": L"", line);
 			float		width = pgGetStringWidth(font[0], buf, -1);
 			float		x = TAB.total_margin - width;
 			if (is_bookmarked) {
