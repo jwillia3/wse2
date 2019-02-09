@@ -41,6 +41,8 @@ static struct	field fields[] = {
 		{L"bg", Color, &conf.bg, pretty_colours_from_bg},
 		{L"bg2", Color, &conf.bg2},
 		{L"fg", Color, &conf.fg, pretty_fg},
+		{L"cursor-colour", Color, &conf.cursor_colour},
+		{L"cursor-color", Color, &conf.cursor_colour},
 		{L"brace-bg", Color, &conf.brace_bg},
 		{L"bad-brace-bg", Color, &conf.bad_brace_bg},
 		{L"gutter-bg", Color, &conf.gutterbg},
@@ -369,6 +371,7 @@ static void pretty_fg(void *_) {
 		conf.style[i].color = conf.fg;
 	conf.bookmarkfg      	= export_lchab(a1);
 	conf.chrome_fg       	= export_lchab(fg);
+	conf.cursor_colour	= export_lchab(fg);
 }
 static void pretty_bg(void *_) {
 	colour_t bg = srgb_lchab(import_rgb(conf.bg));
@@ -395,14 +398,26 @@ void pretty_colours_from_bg(void *_) {
 static void reset_scheme(wchar_t *ignored) {
 	defscheme();
 }
-static void load_scheme(wchar_t *filename) {
-	wchar_t tmp[256];
-	wcscpy(tmp, L"/schemes/");
-	wcscat(tmp, filename);
-	wcscat(tmp, L".colorscheme");
-	FILE *file = platform_open_any(platform_data_path(), tmp, L"r");
-	if (!file) return;
-	
+static void load_termite_scheme(FILE *file) {
+	char buf[1024];
+	int colour;
+	unsigned value;
+	while (fgets(buf, sizeof buf, file)) {
+		if (2 == sscanf(buf, "color%d = \"#%x\"", &colour, &value) ||
+		    2 == sscanf(buf, "color%d = #%x", &colour, &value))
+			scheme.color[colour % 16] = value;
+		else if (1 == sscanf(buf, "background = \"#%x\"", &value) ||
+		         1 == sscanf(buf, "background = #%x", &value))
+			scheme.bg = value;
+		else if (1 == sscanf(buf, "foreground = \"#%x\"", &value) ||
+		         1 == sscanf(buf, "foreground = #%x", &value))
+			scheme.fg = value;
+		else if (1 == sscanf(buf, "cursor = \"#%x\"", &value) ||
+		         1 == sscanf(buf, "cursor = \"#%x\"", &value))
+			scheme.cursor_colour = value;
+	}
+}
+static void load_konsole_scheme(FILE *file) {
 	char buf[1024];
 	int current_colour = -10;
 	int r, g, b;
@@ -422,11 +437,29 @@ static void load_scheme(wchar_t *filename) {
 				scheme.bg = colour_value;
 		} else current_colour = -10;
 	}
+	scheme.cursor_colour = scheme.fg;
+}
+static void load_scheme(wchar_t *filename) {
+	wchar_t tmp[256];
+	wcscpy(tmp, L"/schemes/");
+	wcscat(tmp, filename);
+	wchar_t *p = tmp + wcslen(tmp);
+	wchar_t **dir = platform_data_path();
+	FILE *file;
+	
+	wcscat(p, L".colorscheme");
+	if ((file = platform_open_any(dir, tmp, L"r")))
+		load_konsole_scheme(file);
+	else if (*p=0, (file = platform_open_any(dir, tmp, L"r")))
+		load_termite_scheme(file);
+	else return;
+	
 	fclose(file);
 	conf.bg = scheme.bg;
 	conf.fg = scheme.fg;
 	pretty_fg(0);
 	pretty_bg(0);
+	conf.cursor_colour = scheme.cursor_colour;
 }
 
 static unsigned

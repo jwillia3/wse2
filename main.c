@@ -1480,7 +1480,7 @@ paintsel() {
 		pgClearSection(gs,
 			pgAddPt(pt, pgPt(0.0f, -q)),
 			pgAddPt(pt, pgPt(TAB.em * (overwrite ? global.cursor_overwrite_width : global.cursor_insert_width), q)),
-			conf.fg);
+			conf.cursor_colour);
 	}
 
 	if (!SLN)

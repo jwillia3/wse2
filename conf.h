@@ -15,6 +15,7 @@ struct conf {
 	int		bg;
 	int		fg;
 	int		bg2;
+	int		cursor_colour;
 	int		brace_bg;
 	int		bad_brace_bg;
 	int		selbg;
@@ -94,6 +95,7 @@ struct scheme {
 	unsigned	color[16];
 	unsigned	bg;
 	unsigned	fg;
+	unsigned	cursor_colour;
 } scheme;
 
 wchar_t		*configfile;
