@@ -826,7 +826,7 @@ act(int action) {
 		break;
 	case CloseTab:
 		close_tab();
-		break;
+		return ok;
 	default:
 		invdafter(top);
 	}
