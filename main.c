@@ -71,6 +71,7 @@ int		height;
 float		dpi = 96.0f;
 BOOL		use_console = TRUE;
 BOOL		transparent = FALSE;
+bool		fullscreen;
 #define		ID_CONSOLE 104
 enum mode_t	mode;
 struct input_t	isearch_input = { .before_key = isearch_before_key, .after_key = isearch_after_key };
@@ -796,6 +797,11 @@ act(int action) {
 		transparent = !transparent;
 		SetLayeredWindowAttributes(w, 0, 255*(transparent?global.alpha:1), LWA_ALPHA);
 		break;
+	case ToggleFullscreen:
+		fullscreen = !fullscreen;
+		SetWindowLongPtr(w, GWL_STYLE,
+			(fullscreen? WS_POPUP: WS_OVERLAPPEDWINDOW)|WS_VISIBLE);
+		break;
 	case ToggleMinimap:
 		global.minimap = !global.minimap;
 		invdafter(top);
@@ -1455,7 +1461,9 @@ int wmkey(int c) {
 			return act(NextBookmark);
 	
 	case VK_F11:
-		return act(ToggleTransparency);
+		return shift?
+			act(ToggleTransparency):
+			act(ToggleFullscreen);
 	case VK_F12:
 		if (ctl)
 			return act(ReloadConfig);
